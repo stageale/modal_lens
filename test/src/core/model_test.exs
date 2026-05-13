@@ -2,7 +2,6 @@ defmodule Src.Core.ModelTest do
   use ExUnit.Case
 
   alias Src.Core.Model
-  alias Src.Core.ParseWarning
 
   test "computes world names" do
     model = %Model{cardinality: 3, relation_name: "R"}
