@@ -1,0 +1,11 @@
+Nitpicking formula... 
+Nitpick found a counterexample for card i = 2:
+  Skolem constants:
+    R = (λx. _)
+        (i⇩1 := (λx. _)(i⇩1 := True, i⇩2 := True),
+           i⇩2 := (λx. _)(i⇩1 := True, i⇩2 := False))
+    ??.eucl.S = i⇩1
+    ??.eucl.T = i⇩2
+    ??.eucl.U = i⇩2
+    ??.ser.S = i⇩1
+    λS. ??.ser.T = (λx. _)(i⇩1 := i⇩1, i⇩2 := i⇩1)

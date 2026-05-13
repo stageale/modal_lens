@@ -1,0 +1,14 @@
+Nitpicking formula... 
+Nitpick found a counterexample for card i = 2:
+  Skolem constants:
+    w = i⇩1
+    λx. ??.x = (λx. _)(i⇩1 := i⇩2, i⇩2 := i⇩1)
+    λx. ??.x = (λx. _)(i⇩1 := i⇩2, i⇩2 := i⇩1)
+    x = i⇩1
+  Constants:
+    go = (λx. _)(i⇩1 := False, i⇩2 := False)
+    tell = (λx. _)(i⇩1 := False, i⇩2 := False)
+    (R) =
+      (λx. _)
+      ((i⇩1, i⇩1) := True, (i⇩1, i⇩2) := True, (i⇩2, i⇩1) := True,
+         (i⇩2, i⇩2) := True)

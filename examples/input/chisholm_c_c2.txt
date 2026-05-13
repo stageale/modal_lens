@@ -1,0 +1,7 @@
+Nitpicking formula... 
+Nitpick found a counterexample for card i = 1:
+  Constants:
+    go = (λx. _)(i⇩1 := False)
+    tell = (λx. _)(i⇩1 := False)
+    (R) = (λx. _)((i⇩1, i⇩1) := False)
+    aw = i⇩1

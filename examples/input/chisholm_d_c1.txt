@@ -1,0 +1,27 @@
+Nitpicking formula... 
+Nitpick found a model for card i = 3:
+  Skolem constants:
+    λw x. ??.x =
+      (λx. _)
+      ((i⇩1, i⇩1) := i⇩3, (i⇩1, i⇩2) := i⇩3, (i⇩1, i⇩3) := i⇩3,
+         (i⇩2, i⇩1) := i⇩3, (i⇩2, i⇩2) := i⇩1, (i⇩2, i⇩3) := i⇩1,
+         (i⇩3, i⇩1) := i⇩3, (i⇩3, i⇩2) := i⇩3, (i⇩3, i⇩3) := i⇩3)
+    λw x. ??.x =
+      (λx. _)
+      ((i⇩1, i⇩1) := i⇩2, (i⇩1, i⇩2) := i⇩3, (i⇩1, i⇩3) := i⇩2,
+         (i⇩2, i⇩1) := i⇩1, (i⇩2, i⇩2) := i⇩1, (i⇩2, i⇩3) := i⇩1,
+         (i⇩3, i⇩1) := i⇩2, (i⇩3, i⇩2) := i⇩1, (i⇩3, i⇩3) := i⇩1)
+    λw x. ??.x =
+      (λx. _)
+      ((i⇩1, i⇩1) := i⇩1, (i⇩1, i⇩2) := i⇩1, (i⇩1, i⇩3) := i⇩1,
+         (i⇩2, i⇩1) := i⇩2, (i⇩2, i⇩2) := i⇩3, (i⇩2, i⇩3) := i⇩1,
+         (i⇩3, i⇩1) := i⇩3, (i⇩3, i⇩2) := i⇩1, (i⇩3, i⇩3) := i⇩3)
+  Constants:
+    go = (λx. _)(i⇩1 := False, i⇩2 := False, i⇩3 := False)
+    tell = (λx. _)(i⇩1 := False, i⇩2 := False, i⇩3 := True)
+    (R) =
+      (λx. _)
+      ((i⇩1, i⇩1) := False, (i⇩1, i⇩2) := False, (i⇩1, i⇩3) := False,
+         (i⇩2, i⇩1) := False, (i⇩2, i⇩2) := True, (i⇩2, i⇩3) := False,
+         (i⇩3, i⇩1) := False, (i⇩3, i⇩2) := False, (i⇩3, i⇩3) := False)
+    aw = i⇩3
