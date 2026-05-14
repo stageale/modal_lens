@@ -154,7 +154,7 @@ defmodule Src.Core.Render do
       model.edges
       |> Enum.filter(fn {a, b} -> a == b end)
       |> Enum.sort()
-      |> Enum.map(fn {a, b} -> "  w#{a} -> w#{b} [label=\"loop\"];" end)
+      |> Enum.map(fn {a, b} -> "  w#{a} -> w#{b};" end)
 
     proper ++ loops
   end
