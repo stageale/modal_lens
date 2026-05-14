@@ -6,6 +6,7 @@ defmodule Src.Core.FrameAnalysis do
     :symmetric?,
     :euclidean?,
     :functional?,
+    :total_functional?,
     dead_ends: [],                      #* violations of seriality
     missing_loops: [],                  #* violations of reflexivity
     missing_hulls: [],                  #* violations of transitivity
@@ -22,7 +23,6 @@ defmodule Src.Core.FrameAnalysis do
   def frame_axiom(r, :symmetric), do: "∀w v. #{r} w v → #{r} v w"
   def frame_axiom(r, :euclidean), do: "∀w v u. (#{r} w v ∧ #{r} w u) → #{r} v u"
   def frame_axiom(r, :functional), do: "∀w. ∃v. (#{r} w v ∧ ¬∃u. #{r} w u ∧ v ≠ u)"
-  def frame_axiom(r, :connected), do: "connected" #* Solve this by algorithmic path finding
 
   def isabelle_axiom(name, formula) do
     """
@@ -33,61 +33,53 @@ defmodule Src.Core.FrameAnalysis do
 
   def check?(frame, axiom) do
     elems = frame
-        |> List.flatten()
+        |> Enum.flat_map(fn {u, v} -> [u, v] end)
         |> MapSet.new()
 
     edge_set = MapSet.new(frame)
 
+    binds = fn u, v -> MapSet.member?(edge_set, {u, v}) end
+
     case axiom do
       :serial ->
-        #TODO: Implement seriality check
-        Enum.all?(elems, fn u ->
-          Enum.any?(elems, fn v ->
-            MapSet.member?(edge_set, {u, v})
-          end)
-        end)
+        for u <- elems,
+          not Enum.any?(elems, fn v -> binds.(u, v) end),
+          do: u
 
       :reflexive ->
-        #TODO: Implement reflexivity check
-        Enum.all?(elems, fn u -> MapSet.member?(edge_set, {u, u}) end)
+        for u <- elems,
+          not binds.(u, u),
+          do: u
 
       :transitive ->
-        #TODO: Implement transitivity check
-        Enum.all?(elems, fn u ->
-          Enum.all?(elems, fn v ->
-            Enum.all?(elems, fn w ->
-              not (MapSet.member?(edge_set, {u, v}) and MapSet.member?(edge_set, {v, w}))
-              or MapSet.member?(edge_set, {u, w})
-            end)
-          end)
-        end)
+        for u <- elems, v <- elems, w <- elems,
+          binds.(u, v) and binds.(v, w) and not binds.(u, w),
+          do: {u, v, w}
 
       :symmetric ->
-        #TODO: Implement symmetry check
-        Enum.all?(elems, fn u ->
-          Enum.all?(elems, fn v ->
-            not MapSet.member?(edge_set, {u, v}) or MapSet.member?(edge_set, {v, u})
-          end)
-        end)
+        #? Revision of this measure
+        for u <- elems, v <- elems,
+          binds.(u, v) and not binds.(v, u),
+          do: {u, v}
 
       :euclidean ->
-        #TODO: Implement euclidean check
-        Enum.all?(elems, fn u ->
-          Enum.all?(elems, fn v ->
-            Enum.all?(elems, fn w ->
-              not (MapSet.member?(edge_set, {u, v}) and MapSet.member?(edge_set, {u, w})) or MapSet.member?(edge_set, {v, w})
-            end)
-          end)
-        end)
+        for u <- elems, v <- elems, w <- elems,
+          binds.(u, v) and binds.(u, w) and not binds.(v, w),
+          do: {u, v, w}
 
       :functional ->
-        #TODO: Implement functionality check
-        Enum.all?(elems, fn u ->
-          Enum.any?(elems, fn v ->
-            #MapSet.member?()
-            nil
-          end)
-        end)
+        #* check partial functionality
+        for u <- elems, v <- elems, w <- elems,
+          binds.(u, v) and binds.(u, w) and v != w,
+          do: {u, v, w}
+
+      :total_functional ->
+        #* check total functionality
+        for u <- elems, v <- elems,
+          binds.(u, v),
+          w <- elems,
+          binds.(u, w) and v != w,
+          do: {u, v, w}
     end
   end
 end
