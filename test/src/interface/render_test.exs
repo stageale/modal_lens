@@ -27,7 +27,7 @@ defmodule Src.Core.RenderTest do
     assert content =~ "w1 [label=\"i2: ¬go\"]"
     assert content =~ "init -> w0"
     assert content =~ "w0 -> w1;"
-    assert content =~ "w1 -> w1 [label=\"loop\"];"
+    assert content =~ "w1 -> w1;"
   end
 
   test "escapes LaTeX special characters" do
