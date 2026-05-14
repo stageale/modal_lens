@@ -77,11 +77,10 @@ defmodule Src.Core.FrameAnalysis do
 
       :total_functional ->
         #* check total functionality
-        for u <- elems, v <- elems,
-          binds.(u, v),
-          w <- elems,
-          binds.(u, w) and v != w,
-          do: {u, v, w}
+        for u <- elems,
+          successors = Enum.filter(elems, fn v -> binds.(u, v) end),
+          length(successors) != 1,
+          do: {u, successors}
     end
   end
 end
