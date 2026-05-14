@@ -31,7 +31,9 @@ defmodule Src.Core.FrameAnalysis do
     """
   end
 
-  def check?(frame, axiom) do
+  def check?(frame, axiom), do: violations(frame, axiom) == []
+
+  def violations(frame, axiom) do
     elems = frame
         |> Enum.flat_map(fn {u, v} -> [u, v] end)
         |> MapSet.new()
