@@ -3,9 +3,9 @@ defmodule Src.Core.Axiom do
 
   def sanitize_name(name) when is_binary(name) do
     stem =
-      name
-      |> Regex.replace(~r/[^A-Za-z0-9_]+/, "_")
-      |> Regex.replace(~r/_+/, "_")
+      ~r/[^A-Za-z0-9_]+/
+      |> Regex.replace(name, "_")
+      |> then(fn s -> Regex.replace(~r/_+/, s, "_") end)
       |> String.trim("_")
 
     cond do
@@ -90,10 +90,10 @@ defmodule Src.Core.Axiom do
 
     body = exact_structure_formula(model, include_atoms: include_atoms)
 
-    ~s/(axiomatization where ax_#{ax_name}: "¬(\n #{body}\n)")/
+    ~s/axiomatization where ax_#{ax_name}: "¬(\n  #{body}\n)"/
   end
 
   defp and_clauses(clauses) do
-    Enum.join(clauses, " ∧\n ")
+    Enum.join(clauses, " ∧\n  ")
   end
 end

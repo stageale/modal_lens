@@ -57,6 +57,7 @@ defmodule Src.Core.Parser do
             source: source,
             kind: kind,
             cardinality: cardinality,
+            relation_name: relation,
             initial_world: initial_world,
             edges: edge_set,
             valuations: valuations,
@@ -149,7 +150,7 @@ defmodule Src.Core.Parser do
     defp detect_unary_predicates(text, cardinality, nil) do
         detect_unary_predicates(text, cardinality, MapSet.new())
     end
-
+    #*
     defp detect_unary_predicates(text, cardinality, exclude) do
         pattern = Regex.compile!("(?:^|\\n)\\s*(#{@identifier})\\s*=\\s*\\(λx\\.\\s*_\\)")
         for [_, name] <- Regex.scan(pattern, text),
