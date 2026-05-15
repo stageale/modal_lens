@@ -1,4 +1,4 @@
-defmodule Src.HardCodedRefinement.AxiomScoring do
+defmodule Src.HardcodedRefinement.AxiomScoring do
   alias Src.HardcodedRefinement.FrameAnalysis
   alias Src.HardcodedRefinement.FrameStats
 
