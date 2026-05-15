@@ -54,10 +54,7 @@ defmodule Src.VisualExplanations.AxiomExplanation do
 
   def explain_all(%FrameAnalysis{} = analysis) do
     @supported_axioms
-    |> Enum.all?(&(&explain/2))
-    #* or
-    #* @supported_axioms
-    #* |> Enum.all?(fn ax -> explain(analysis, axiom) end)
+    |> Enum.all?(fn ax -> explain(analysis, ax) end)
   end
 
   defp serial_explanation(%FrameAnalysis{} = analysis) do
@@ -66,8 +63,12 @@ defmodule Src.VisualExplanations.AxiomExplanation do
   end
 
   defp reflexive_explanation(%FrameAnalysis{} = analysis) do
-    # TODO: explain reflexivity violations using asymmetric edges
+    # TODO: explain reflexivity violations using missing loops
 
+  end
+
+  defp symmetric_explanation(%FrameAnalysis{} = analysis) do
+    # TODO: explain symmetric violations using asymmetric edges
   end
 
   defp transitive_explanation(%FrameAnalysis{} = analysis) do
