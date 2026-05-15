@@ -1,4 +1,4 @@
-defmodule Src.Core.FrameAnalysis do
+defmodule Src.Refinement.FrameAnalysis do
   defstruct [
     :serial?,
     :reflexive?,
@@ -62,7 +62,7 @@ defmodule Src.Core.FrameAnalysis do
         #? Revision of this measure
         for u <- elems, v <- elems,
           binds.(u, v) and not binds.(v, u),
-          do: {u, v}
+          do: {v, u}
 
       :euclidean ->
         for u <- elems, v <- elems, w <- elems,

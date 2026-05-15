@@ -35,7 +35,7 @@ defmodule Src.Refinement.FrameAnalysisTest do
     test "symmetric detects missing reverse edges" do
       frame = [{:a, :b}]
 
-      assert FrameAnalysis.violations(frame, :symmetric) == [{:a, :b}]
+      assert FrameAnalysis.violations(frame, :symmetric) == [{:b, :a}]
       refute FrameAnalysis.check?(frame, :symmetric)
     end
 
