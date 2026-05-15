@@ -1,7 +1,7 @@
-defmodule Src.Refinement.FrameAnalysisTest do
+defmodule Src.HardcodedRefinement.FrameAnalysisTest do
   use ExUnit.Case, async: true
 
-  alias Src.Refinement.FrameAnalysis
+  alias Src.HardcodedRefinement.FrameAnalysis
 
   describe "violations/2" do
     test "serial detects dead ends" do
@@ -49,28 +49,18 @@ defmodule Src.Refinement.FrameAnalysisTest do
       refute FrameAnalysis.check?(frame, :euclidean)
     end
 
-    test "functional detects multiple successors" do
-      frame = [{:a, :b}, {:a, :c}]
-
-      violations = FrameAnalysis.violations(frame, :functional)
-
-      assert {:a, :b, :c} in violations
-      assert {:a, :c, :b} in violations
-      refute FrameAnalysis.check?(frame, :functional)
-    end
-
-    test "total functional detects worlds with no successor" do
+    test "functional detects worlds with no successor" do
       frame = [{:a, :b}]
 
-      assert FrameAnalysis.violations(frame, :total_functional) == [{:b, []}]
-      refute FrameAnalysis.check?(frame, :total_functional)
+      assert FrameAnalysis.violations(frame, :functional) == [{:b, []}]
+      refute FrameAnalysis.check?(frame, :functional)
     end
 
     test "total functional accepts exactly one successor per world" do
       frame = [{:a, :b}, {:b, :b}]
 
-      assert FrameAnalysis.violations(frame, :total_functional) == []
-      assert FrameAnalysis.check?(frame, :total_functional)
+      assert FrameAnalysis.violations(frame, :functional) == []
+      assert FrameAnalysis.check?(frame, :functional)
     end
   end
 

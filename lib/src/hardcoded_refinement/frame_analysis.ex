@@ -1,4 +1,4 @@
-defmodule Src.Refinement.FrameAnalysis do
+defmodule Src.HardcodedRefinement.FrameAnalysis do
   defstruct [
     :serial?,
     :reflexive?,
@@ -6,7 +6,6 @@ defmodule Src.Refinement.FrameAnalysis do
     :symmetric?,
     :euclidean?,
     :functional?,
-    :total_functional?,
     dead_ends: [],                      #* violations of seriality
     missing_loops: [],                  #* violations of reflexivity
     missing_hulls: [],                  #* violations of transitivity
@@ -70,12 +69,6 @@ defmodule Src.Refinement.FrameAnalysis do
           do: {u, v, w}
 
       :functional ->
-        #* check partial functionality
-        for u <- elems, v <- elems, w <- elems,
-          binds.(u, v) and binds.(u, w) and v != w,
-          do: {u, v, w}
-
-      :total_functional ->
         #* check total functionality
         for u <- elems,
           successors = Enum.filter(elems, fn v -> binds.(u, v) end),
@@ -83,4 +76,5 @@ defmodule Src.Refinement.FrameAnalysis do
           do: {u, successors}
     end
   end
+
 end
