@@ -1,6 +1,6 @@
 defmodule Src.HardCodedRefinement.AxiomScoring do
-  alias Src.HardCodedRefinement.FrameAnalysis
-  alias Src.HardCodedRefinement.FrameStats
+  alias Src.HardcodedRefinement.FrameAnalysis
+  alias Src.HardcodedRefinement.FrameStats
 
   @default_weights %{
     serial: 1.0,
