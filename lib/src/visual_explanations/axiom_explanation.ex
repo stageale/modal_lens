@@ -55,7 +55,7 @@ defmodule Src.VisualExplanations.AxiomExplanation do
         serial_explanation(analysis)
       :reflexive ->
         reflexive_explanation(analysis)
-      :symmetry ->
+      :symmetric ->
         symmetric_explanation(analysis)
       :transitive ->
         transitive_explanation(analysis)
@@ -78,10 +78,7 @@ defmodule Src.VisualExplanations.AxiomExplanation do
       violations: analysis.dead_ends,
       summary: "Seriality is violated by dead-end worlds that have no outgoing edges",
       tags: [:frame_condition, :modal_axiom, :serial],
-      keywords: ["seriality", "dead-end", "no outgoing edges"],
-      responsible_edges: responsible_edges(:serial, analysis.dead_ends),
-      missing_edges: missing_edges(:serial, analysis.dead_ends),
-      responsible_worlds: responsible_worlds(:serial, analysis.dead_ends)
+      keywords: ["seriality", "dead-end", "no outgoing edges"]
     )
   end
 
@@ -92,24 +89,18 @@ defmodule Src.VisualExplanations.AxiomExplanation do
       violations: analysis.missing_loops,
       summary: "Reflexivity is violated by loops",
       tags: [:frame_condition, :modal_axiom, :reflexive],
-      keywords: ["reflexivity", "missing loops"],
-      responsible_edges: responsible_edges(:reflexive, analysis.missing_loops),
-      missing_edges: missing_edges(:reflexive, analysis.missing_loops),
-      responsible_worlds: responsible_worlds(:reflexive, analysis.missing_loops)
+      keywords: ["reflexivity", "missing loops"]
     )
   end
 
   defp symmetric_explanation(%FrameAnalysis{} = analysis) do
-    build(:reflexive,
-      title: "Reflexivity",
+    build(:symmetric,
+      title: "Symmetry",
       formula: "∀u v. (R u v → R v u)",
       violations: analysis.antisymmetries,
-      summary: "Reflexivity is violated by loops",
-      tags: [:frame_condition, :modal_axiom, :reflexive],
-      keywords: ["reflexivity", "missing loops"],
-      responsible_edges: responsible_edges(:reflexive, analysis.missing_loops),
-      missing_edges: missing_edges(:reflexive, analysis.missing_loops),
-      responsible_worlds: responsible_worlds(:reflexive, analysis.missing_loops)
+      summary: "Symmetry is violated by worlds without self-loops",
+      tags: [:frame_condition, :modal_axiom, :symmetric],
+      keywords: ["symmetry", "missing loops"]
     )
   end
 
@@ -125,7 +116,14 @@ defmodule Src.VisualExplanations.AxiomExplanation do
   end
 
   defp euclidean_explanation(%FrameAnalysis{} = analysis) do
-    # TODO: explain euclidean violations using missing spans
+    build(:euclidean,
+      title: "Euclideanness",
+      formula: "∀u v w.((R u v ∧ R u w) → R v w)",
+      violations: analysis.missing_spans,
+      summary: "Euclidity is violated by two edges without spanning edge",
+      tags: [:frame_condition, :modal_axiom, :euclidean],
+      keywords: ["euclidean", "missing span"]
+    )
   end
 
   #!defp functional_explanation(%FrameAnalysis{} = analysis) do
@@ -171,7 +169,7 @@ defmodule Src.VisualExplanations.AxiomExplanation do
       :reflexive ->
         []
       :symmetric ->
-        Enum.flat_map(violations, fn {u, v} -> {v, u} end)
+        Enum.map(violations, fn {u, v} -> {v, u} end)
       :transitive ->
         Enum.flat_map(violations, fn {u, v, w} -> [{u, v}, {v, w}] end)
       :euclidean ->
@@ -185,13 +183,13 @@ defmodule Src.VisualExplanations.AxiomExplanation do
       :serial ->
         []
       :reflexive ->
-        Enum.flat_map(violations, fn u -> {u, u} end)
+        Enum.map(violations, fn u -> {u, u} end)
       :symmetric ->
         violations
       :transitive ->
-        Enum.flat_map(violations, fn {u, v, w} -> {u, w} end)
+        Enum.map(violations, fn {u, _, w} -> {u, w} end)
       :euclidean ->
-        Enum.flat_map(violations, fn {u, v, w} -> {v, w} end)
+        Enum.map(violations, fn {_, v, w} -> {v, w} end)
       #!:functional ->
     end
   end
@@ -211,14 +209,4 @@ defmodule Src.VisualExplanations.AxiomExplanation do
       #!:functional ->
     end
   end
-
-  defp worlds_from_edges(edges), do: Enum.flat_map(edges, fn {u, v} -> [u, v] end)
-
-#  defp normalise_pair(violation) do
-#    # TODO: normalise a two-world violation into {w, v}
-#  end
-
-#  defp normalise_triple(violation) do
-#    # TODO: normalise a three-world violation into {w, v, u}
-#  end
 end
