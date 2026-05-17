@@ -144,7 +144,7 @@ defmodule Src.Core.Render do
         if responsible_world?(highlight, i) do
           ~s/[label="#{label}", color="red", penwidth=2]/
         else
-          ~s/[label"#{label}"]/
+          ~s/[label="#{label}"]/
         end
 
       "  w#{i} #{attrs};"
