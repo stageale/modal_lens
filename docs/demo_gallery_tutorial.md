@@ -139,7 +139,7 @@ Dann entweder GraphViz installieren:
 sudo pacman -S graphviz
 ```
 
-oder das Rendering deaktivieren:
+oder das Rendering deaktivieren:[text](../demo_output/axiom_gallery/index.html)
 
 ```elixir
 Src.VisualExplanations.DemoGallery.run(:chisholm,
