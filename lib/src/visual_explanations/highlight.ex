@@ -1,47 +1,47 @@
 defmodule Src.VisualExplanations.Highlight do
   alias Src.VisualExplanations.AxiomExplanation
 
+  defstruct [
+    responsible_edges: MapSet.new(),
+    missing_edges: MapSet.new(),
+    responsible_worlds: MapSet.new(),
+    tags: [],
+    metadata: %{}
+  ]
+
   def new(attrs \\ []) do
-    # TODO: construct a highlight object/map from given attributes
+    %__MODULE__{
+      responsible_edges:
+        attrs
+        |> Keyword.get(:responsible_edges, [])
+        |> MapSet.new(),
+
+      missing_edges:
+        attrs
+        |> Keyword.get(:missing_edges, [])
+        |> MapSet.new(),
+
+      responsible_worlds:
+        attrs
+        |> Keyword.get(:responsible_worlds, [])
+        |> MapSet.new(),
+
+      tags: Keyword.get(attrs, :tags, []),
+      metadata: Keyword.get(attrs, :metadata, %{})
+    }
   end
 
   def from_explanation(%AxiomExplanation{} = explanation) do
-    # TODO: convert an axiom explanation into rendereable highlight information
-  end
-
-  def empty do
-    # TODO: return an empty highlight
-  end
-
-  def merge(highlight_a, highlight_b) do
-    # TODO: merge two highlights into one
-  end
-
-  def responsible_edge?(highlight, edge) do
-    # TODO: check whether a world should be highlighted
-  end
-
-  def edge_role(highlight, edge) do
-    # TODO: return the role of an edge, e.g. :responsible, :missing, or :normal
-  end
-
-  def world_role(highlight, world) do
-    # TODO: return the role of a world, e.g. :responsible or :normal
-  end
-
-  def edge_attrs(highlight, edge) do
-    # TODO: return abstract render attributes for an edge
-  end
-
-  def world_attrs(highlight, world) do
-    # TODO: return abstract render attributes for a world
-  end
-
-  def legend(highlight) do
-    # TODO: return legend entries for the current highlight
-  end
-
-  def has_highlights?(highlight) do
-    # TODO: check whether the highlight contains any marked worlds or edges
+    new(
+      responsible_edges: explanation.responsible_edges,
+      missing_edges: explanation.missing_edges,
+      responsible_worlds: explanation.responsible_worlds,
+      tags: explanation.tags,
+      metadata: %{
+        source: :axiom_explanation,
+        axiom: explanation.axiom,
+        status: explanation.status
+      }
+    )
   end
 end

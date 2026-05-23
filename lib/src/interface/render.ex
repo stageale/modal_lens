@@ -3,6 +3,7 @@ defmodule Src.Core.Render do
 
   def write_dot(%Model{} = model, path, opts \\ []) do
     atoms = Keyword.get(opts, :atoms)
+    highlight = Keyword.get(opts, :highlight)
     path = to_string(path)
 
     mkdir_parent!(path)
@@ -14,14 +15,14 @@ defmodule Src.Core.Render do
         "  node [shape=circle, fontsize=10, fixedsize=true, width=1.35];",
         ""
       ] ++
-        dot_world_lines(model, atoms) ++
+        dot_world_lines(model, atoms, highlight) ++
         [
           "",
           "  init [shape=plaintext, label=\"start\"];",
           "  init -> w#{model.initial_world} [penwidth=2];",
           ""
         ] ++
-        dot_edge_lines(model) ++
+        dot_edge_lines(model, highlight) ++
         ["}"]
 
     File.write!(path, Enum.join(lines, "\n") <> "\n")
@@ -132,31 +133,79 @@ defmodule Src.Core.Render do
     Path.rootname(tex_path) <> ".pdf"
   end
 
-  defp dot_world_lines(model, atoms) do
+  defp dot_world_lines(model, atoms, highlight) do
     for i <- world_indices(model) do
       label =
         model
         |> Model.label_for_world(i, atoms)
         |> dot_escape()
 
-      "  w#{i} [label=\"#{label}\"];"
+      attrs =
+        if responsible_world?(highlight, i) do
+          ~s/[label="#{label}", color="red", penwidth=2]/
+        else
+          ~s/[label="#{label}"]/
+        end
+
+      "  w#{i} #{attrs};"
     end
   end
 
-  defp dot_edge_lines(model) do
+  defp dot_edge_lines(model, highlight) do
     proper =
       model.edges
       |> Enum.filter(fn {a, b} -> a != b end)
       |> Enum.sort()
-      |> Enum.map(fn {a, b} -> "  w#{a} -> w#{b};" end)
+      |> Enum.map(fn edge -> dot_edge_line(edge, highlight) end)
 
     loops =
       model.edges
       |> Enum.filter(fn {a, b} -> a == b end)
       |> Enum.sort()
-      |> Enum.map(fn {a, b} -> "  w#{a} -> w#{b};" end)
+      |> Enum.map(fn edge -> dot_edge_line(edge, highlight) end)
 
-    proper ++ loops
+    missing =
+      highlight
+      |> missing_edges()
+      |> Enum.reject(fn edge -> edge in model.edges end)
+      |> Enum.sort()
+      |> Enum.map(&dot_missing_edge_line/1)
+
+    proper ++ loops ++ missing
+  end
+
+  defp dot_edge_line({a, b} = edge, highlight) do
+    attrs =
+      cond do
+        responsible_edge?(highlight, edge) ->
+          ~s/ [color="red", fontcolor="red", penwidth=2]/
+        true ->
+          ""
+      end
+
+    " w#{a} -> w#{b}#{attrs};"
+  end
+
+  defp dot_missing_edge_line({a, b}) do
+    ~s/ w#{a} -> w#{b} [color="red", fontcolor="red", style="dashed", penwidth=2];/
+  end
+
+  defp responsible_edge?(nil, _edge), do: false
+
+  defp responsible_edge?(highlight, edge) do
+    MapSet.member?(highlight.responsible_edges, edge)
+  end
+
+  defp responsible_world?(nil, _world), do: false
+
+  defp responsible_world?(highlight, world) do
+    MapSet.member?(highlight.responsible_worlds, world)
+  end
+
+  defp missing_edges(nil), do: []
+
+  defp missing_edges(highlight) do
+    MapSet.to_list(highlight.missing_edges)
   end
 
   defp tikz_world_lines(model, atoms, radius) do
