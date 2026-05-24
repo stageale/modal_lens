@@ -12,7 +12,33 @@ defmodule Src.Interface.Isabelle.Client do
   alias Src.Interface.Isabelle.HPCConnect
 
   def reason(:nitpick, %HOLEmbedding{} = spec, opts \\ []) do
-    #TODO
+    backend = Keyword.get(opts, :backend, :local)
+    workdir = Keyword.get(opts, :workdir, default_workdir())
+    output_file = Keyword.get(opts, :output_file, Path.join(workdir, "nitpick-output.txt"))
+
+    HOLEmbedding.write_root!(spec, workdir)
+    HOLEmbedding.write_theory!(spec, workdir)
+
+    result =
+      case backend do
+        :local ->
+          Local.run(workdir, spec, opts)
+
+        :hpc_connect ->
+          HPCConnect.run(workdir, spec, opts)
+
+        other ->
+          {:error, {:unknown_backend, other}}
+      end
+
+    case result do
+      {:ok, log} ->
+        File.write!(output_file, log)
+        {:ok, %{output_file: output_file, log: log, backend: backend}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   # später:
@@ -20,14 +46,16 @@ defmodule Src.Interface.Isabelle.Client do
 
 
   def reason(other, _spec, _opts) do
-    # TODO
+    {:error, {:unsupported_reasoning_mode, other}}
   end
 
   defp default_workdir do
-    # TODO
+    Path.join(["tmp", "isabelle", timestamp()])
   end
 
   defp timestamp do
-    # TODO
+    DateTime.utc_now()
+    |> DateTime.to_iso8601(:basic)
+    |> String.replace(~r/[^0-9A-Za-z]/, "_")
   end
 end

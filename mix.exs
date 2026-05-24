@@ -22,6 +22,7 @@ defmodule AxiomRefiner.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      # {:hpc_connect, github: "penthooose/hpc_connect"}
       # See Src.Interface.CLI
       # {:jason, "~> 1.4"}
       # {:dep_from_hexpm, "~> 0.3.0"},
