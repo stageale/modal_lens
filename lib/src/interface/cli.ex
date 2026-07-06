@@ -1,5 +1,6 @@
 defmodule Src.Interface.CLI do
   alias Src.Core.Parser
+  alias Src.Interface.Experiment
 
   @common_switches [
     relation: :string,
@@ -18,8 +19,12 @@ defmodule Src.Interface.CLI do
         cmd_summary(rest)
       ["axiom" | rest] ->
         cmd_axiom(rest)
-      ["graphviz" | _rest] ->
-        not_implemented("tikz")
+      ["rank" | rest] ->
+        cmd_rank(rest)
+      ["demo" | rest] ->
+        cmd_demo(rest)
+      #["graphviz" | _rest] ->
+      #  not_implemented("tikz")
       [unknown | _] ->
         IO.puts(:stderr, "[ERROR] Unknown command: #{unknown}")
         usage()
@@ -36,17 +41,13 @@ defmodule Src.Interface.CLI do
     Commands:
       summary   Print compact summaries of Nitpick outputs.
       axiom     Generate Isabelle/HOL blocking axiom fragments.
-      graphviz  Not ported yet.
-      tikz      Not ported yet.
+      rank      Rank multiple Nitpick outputs by simple model features.
+      demo      Generate a small demo bundle with DOT/SVG/HTML/JSON outputs.
     """)
 
     0
   end
 
-  defp not_implemented(command) do
-    IO.puts(:stderr, "[ERROR] Command '#{command}' is not implemented yet.")
-    1
-  end
 
   defp cmd_summary(argv) do
     {opts, inputs, invalid} =
@@ -114,6 +115,48 @@ defmodule Src.Interface.CLI do
         IO.puts(:stderr, "[ERROR] #{message}")
         1
     end
+  end
+
+  defp cmd_rank(argv) do
+    {opts, inputs, invalid} =
+      OptionParser.parse(argv,
+        strict: @common_switches ++ [json: :boolean, limit: :integer],
+        aliases: [l: :limit]
+      )
+    with  :ok <- reject_invalid_options(invalid),
+          :ok <- require_inputs(inputs),
+          :ok <- ensure_json_available(opts) do
+            result =
+              inputs
+              |> collect_input_files()
+              |> Experiment.rank_files(opts)
+
+            if Keyword.get(opts, :json, false) do
+              print_json(Map.put(result, :command, "rank"))
+            else
+              print_rank_table(result.ranked_axioms)
+            end
+
+            0
+          else
+            {:error, message} ->
+              IO.puts(:stderr, "[ERROR] #{message}")
+              1
+          end
+  end
+
+  defp print_rank_table(rows) do
+    IO.puts("score\tviolations\tsupport\taffected_models\taxiom")
+
+    Enum.each(rows, fn row ->
+      IO.puts(
+        "#{Float.round(row.score, 4)}\t#{row.violations}\t#{row.support}\t#{row.affected_models}\t#{row.axiom}"
+      )
+    end)
+  end
+
+  defp cmd_demo(argv) do
+
   end
 
   defp run_for_files(files, opts, fun) do

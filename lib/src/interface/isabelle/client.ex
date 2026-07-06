@@ -22,7 +22,7 @@ defmodule Src.Interface.Isabelle.Client do
     result =
       case backend do
         :local ->
-          Local.run(workdir, spec, opts)
+          LocalConnect.run(workdir, spec, opts)
 
         :hpc_connect ->
           HPCConnect.run(workdir, spec, opts)

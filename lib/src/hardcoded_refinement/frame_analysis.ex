@@ -23,6 +23,75 @@ defmodule Src.HardcodedRefinement.FrameAnalysis do
   def frame_axiom(r, :euclidean), do: "∀w v u. (#{r} w v ∧ #{r} w u) → #{r} v u"
   def frame_axiom(r, :functional), do: "∀w. ∃v. (#{r} w v ∧ ¬∃u. #{r} w u ∧ v ≠ u)"
 
+  def worlds_for_model(%{cardinality: cardinality})
+      when is_integer(cardinality) and cardinality > 0 do
+    Enum.to_list(0..(cardinality - 1))
+  end
+
+  def worlds_for_model(_model), do: []
+
+  def analysis_from_model(%{} = model) do
+    analysis_from_model(model, worlds_for_model(model))
+  end
+
+  def analysis_from_model(%{} = model, worlds) when is_list(worlds) do
+    edge_set = MapSet.new(model.edges)
+    has_edge? = fn u, v -> MapSet.member?(edge_set, {u, v}) end
+
+    dead_ends =
+      for u <- worlds,
+          not Enum.any?(worlds, fn v -> has_edge?.(u, v) end),
+          do: u
+
+    missing_loops =
+      for u <- worlds,
+          not has_edge?.(u, u),
+          do: u
+
+    missing_hulls =
+      for u <- worlds,
+          v <- worlds,
+          w <- worlds,
+          has_edge?.(u, v) and has_edge?.(v, w) and not has_edge?.(u, w),
+          do: {u, v, w}
+
+    # Project convention: antisymmetries stores the missing reverse edge.
+    antisymmetries =
+      for u <- worlds,
+          v <- worlds,
+          has_edge?.(u, v) and not has_edge?.(v, u),
+          do: {v, u}
+
+    missing_spans =
+      for u <- worlds,
+          v <- worlds,
+          w <- worlds,
+          has_edge?.(u, v) and has_edge?.(u, w) and not has_edge?.(v, w),
+          do: {u, v, w}
+
+    function_violations =
+      for u <- worlds,
+          successors = Enum.filter(worlds, fn v -> has_edge?.(u, v) end),
+          length(successors) != 1,
+          into: MapSet.new(),
+          do: {u, successors}
+
+    %__MODULE__{
+      serial?: dead_ends == [],
+      reflexive?: missing_loops == [],
+      transitive?: missing_hulls == [],
+      symmetric?: antisymmetries == [],
+      euclidean?: missing_spans == [],
+      functional?: MapSet.size(function_violations) == 0,
+      dead_ends: dead_ends,
+      missing_loops: missing_loops,
+      missing_hulls: missing_hulls,
+      antisymmetries: antisymmetries,
+      missing_spans: missing_spans,
+      function_violations: function_violations
+    }
+  end
+
   def isabelle_axiom(name, formula) do
     """
     axiomatization where

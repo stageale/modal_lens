@@ -1,6 +1,6 @@
 # AxiomRefiner
 
-**TODO: Add description**
+**Countermodel-guided iterative axiom refinement for modal/HOL experiments**
 
 ## Installation
 

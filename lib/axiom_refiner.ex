@@ -1,18 +1,8 @@
 defmodule AxiomRefiner do
   @moduledoc """
-  Documentation for `AxiomRefiner`.
+  Top-level namespace for `AxiomRefiner.
+
+  The public root API is intentionally not fixed yet.
+  Current executable workflows live in the demo modules.
   """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> AxiomRefiner.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
 end

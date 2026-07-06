@@ -107,8 +107,8 @@ defmodule Src.VisualExplanations.DemoGallery do
         auto_atoms: auto_atoms
       )
 
-    worlds = worlds_for_model(model)
-    analysis = analysis_from_model(model)
+    worlds = FrameAnalysis.worlds_for_model(model)
+    analysis = FrameAnalysis.analysis_from_model(model)
 
     %{
       id: source_id(file),
@@ -123,65 +123,6 @@ defmodule Src.VisualExplanations.DemoGallery do
 
   defp default_atoms(:chisholm), do: ["go", "tell"]
   defp default_atoms(:mcube), do: []
-
-  def analysis_from_model(%Model{} = model) do
-    worlds = worlds_for_model(model)
-    edge_set = MapSet.new(model.edges)
-    has_edge? = fn u, v -> MapSet.member?(edge_set, {u, v}) end
-
-    dead_ends =
-      for u <- worlds,
-          not Enum.any?(worlds, fn v -> has_edge?.(u, v) end),
-          do: u
-
-    missing_loops =
-      for u <- worlds,
-          not has_edge?.(u, u),
-          do: u
-
-    missing_hulls =
-      for u <- worlds,
-          v <- worlds,
-          w <- worlds,
-          has_edge?.(u, v) and has_edge?.(v, w) and not has_edge?.(u, w),
-          do: {u, v, w}
-
-    # Project convention: antisymmetries stores the missing reverse edge.
-    antisymmetries =
-      for u <- worlds,
-          v <- worlds,
-          has_edge?.(u, v) and not has_edge?.(v, u),
-          do: {v, u}
-
-    missing_spans =
-      for u <- worlds,
-          v <- worlds,
-          w <- worlds,
-          has_edge?.(u, v) and has_edge?.(u, w) and not has_edge?.(v, w),
-          do: {u, v, w}
-
-    function_violations =
-      for u <- worlds,
-          successors = Enum.filter(worlds, fn v -> has_edge?.(u, v) end),
-          length(successors) != 1,
-          into: MapSet.new(),
-          do: {u, successors}
-
-    %FrameAnalysis{
-      serial?: dead_ends == [],
-      reflexive?: missing_loops == [],
-      transitive?: missing_hulls == [],
-      symmetric?: antisymmetries == [],
-      euclidean?: missing_spans == [],
-      functional?: MapSet.size(function_violations) == 0,
-      dead_ends: dead_ends,
-      missing_loops: missing_loops,
-      missing_hulls: missing_hulls,
-      antisymmetries: antisymmetries,
-      missing_spans: missing_spans,
-      function_violations: function_violations
-    }
-  end
 
   defp rank_axioms(entries, axioms) do
     entries
@@ -442,12 +383,6 @@ defmodule Src.VisualExplanations.DemoGallery do
     end)
     |> Enum.join("\n")
   end
-
-  defp worlds_for_model(%Model{cardinality: cardinality}) when cardinality > 0 do
-    Enum.to_list(0..(cardinality - 1))
-  end
-
-  defp worlds_for_model(%Model{}), do: []
 
   defp source_id(path) do
     path
