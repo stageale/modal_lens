@@ -1,4 +1,6 @@
 defmodule Src.HardcodedRefinement.FrameAnalysis do
+  alias Src.Core.Model
+
   defstruct [
     :serial?,
     :reflexive?,
@@ -28,10 +30,7 @@ defmodule Src.HardcodedRefinement.FrameAnalysis do
   def frame_axiom(r, :euclidean), do: "∀w v u. (#{r} w v ∧ #{r} w u) → #{r} v u"
   def frame_axiom(r, :functional), do: "∀w. ∃v. (#{r} w v ∧ ¬∃u. #{r} w u ∧ v ≠ u)"
 
-  def worlds_for_model(%{cardinality: cardinality})
-      when is_integer(cardinality) and cardinality > 0 do
-    Enum.to_list(0..(cardinality - 1))
-  end
+  def worlds_for_model(%Model{} = model), do: Model.world_indices(model)
 
   def worlds_for_model(_model), do: []
 

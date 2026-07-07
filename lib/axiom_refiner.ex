@@ -7,14 +7,14 @@ defmodule AxiomRefiner do
   """
 
   def refine_files(opts \\ []) do
-    #TODO: Implementation
+    # TODO: Implementation
   end
 
   def rank_files(opts \\ []) do
-    #TODO: Implementation
+    # TODO: Implementation
   end
 
   def run_isabelle(opts \\ []) do
-    #TODO: Implementation
+    # TODO: Implementation
   end
 end

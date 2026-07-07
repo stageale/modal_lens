@@ -15,8 +15,33 @@ defmodule Src.Core.Model do
     "i#{index + 1}"
   end
 
+  def world_indices(%__MODULE__{cardinality: cardinality})
+      when is_integer(cardinality) and cardinality > 0 do
+    Enum.to_list(0..(cardinality - 1))
+  end
+
+  def world_indices(%__MODULE__{}), do: []
+
+  def atom_names(%__MODULE__{} = model) do
+    model.valuations
+    |> Map.keys()
+    |> Enum.sort()
+  end
+
+  def warning_messages(%__MODULE__{} = model) do
+    Enum.map(model.warnings, fn
+      %{message: message} -> message
+      warning when is_binary(warning) -> warning
+      warning -> inspect(warning)
+    end)
+  end
+
   def has_edge(%__MODULE__{edges: edges}, a, b) do
     MapSet.member?(edges, {a, b})
+  end
+
+  def edge_count(%__MODULE__{} = model) do
+    MapSet.size(model.edges)
   end
 
   def self_loops(%__MODULE__{edges: edges}) do
@@ -71,8 +96,8 @@ defmodule Src.Core.Model do
   end
 
   def relation_matrix(%__MODULE__{} = model) do
-    for a <- 0..(model.cardinality - 1) do
-      for b <- 0..(model.cardinality - 1) do
+    for a <- world_indices(model) do
+      for b <- world_indices(model) do
         MapSet.member?(model.edges, {a, b})
       end
     end
@@ -85,9 +110,9 @@ defmodule Src.Core.Model do
       cardinality: model.cardinality,
       relation: model.relation_name,
       initial_world: world_name(model, model.initial_world),
-      edge_count: MapSet.size(model.edges),
-      atoms: model.valuations |> Map.keys() |> Enum.sort(),
-      warnings: Enum.map(model.warnings, fn warning -> Map.get(warning, :message) end)
+      edge_count: edge_count(model),
+      atoms: atom_names(model),
+      warnings: warning_messages(model)
     }
   end
 end

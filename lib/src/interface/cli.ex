@@ -73,6 +73,7 @@ defmodule Src.Interface.CLI do
           else
             print_text_summary(summary)
           end
+
           print_warnings(file, summary.warnings)
         rescue
           exc ->
@@ -109,10 +110,12 @@ defmodule Src.Interface.CLI do
       |> Enum.each(fn file ->
         try do
           model = Experiment.parse_nitpick_file(file, opts)
-          axiom = BlockingAxiom.blocking_axiom(
-            model,
-            include_atoms: include_atoms
-          )
+
+          axiom =
+            BlockingAxiom.blocking_axiom(
+              model,
+              include_atoms: include_atoms
+            )
 
           if out_dir do
             out_path =
@@ -122,6 +125,7 @@ defmodule Src.Interface.CLI do
 
             File.write!(out_path, axiom <> "\n")
           end
+
           IO.puts("")
           IO.puts("(* #{file} *)")
           IO.puts(axiom)

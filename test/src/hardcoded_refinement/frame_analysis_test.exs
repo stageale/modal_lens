@@ -2,6 +2,7 @@ defmodule Src.HardcodedRefinement.FrameAnalysisTest do
   use ExUnit.Case, async: true
 
   alias Src.HardcodedRefinement.FrameAnalysis
+  alias Src.Core.Model
 
   describe "violations/2" do
     test "serial detects dead ends" do
@@ -66,7 +67,7 @@ defmodule Src.HardcodedRefinement.FrameAnalysisTest do
 
   describe "worlds_for_model/1" do
     test "builds zero-based worlds from model cardinality" do
-      model = %{cardinality: 3}
+      model = %Model{cardinality: 3}
 
       assert FrameAnalysis.worlds_for_model(model) == [0, 1, 2]
     end
@@ -80,7 +81,7 @@ defmodule Src.HardcodedRefinement.FrameAnalysisTest do
 
   describe "analysis_from_model/1 and analysis_from_model/2" do
     test "returns a FrameAnalysis struct" do
-      model = %{
+      model = %Model{
         cardinality: 2,
         edges: MapSet.new([{0, 1}])
       }
@@ -89,7 +90,7 @@ defmodule Src.HardcodedRefinement.FrameAnalysisTest do
     end
 
     test "detects frame violations using explicit worlds" do
-      model = %{
+      model = %Model{
         cardinality: 3,
         edges: MapSet.new([{0, 1}, {1, 2}])
       }
@@ -119,7 +120,7 @@ defmodule Src.HardcodedRefinement.FrameAnalysisTest do
     end
 
     test "marks fully reflexive one-world frame as satisfying basic properties" do
-      model = %{
+      model = %Model{
         cardinality: 1,
         edges: MapSet.new([{0, 0}])
       }
