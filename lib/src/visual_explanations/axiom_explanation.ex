@@ -21,12 +21,10 @@ defmodule Src.VisualExplanations.AxiomExplanation do
     :formula,
     :status,
     :summary,
-
     violations: [],
     responsible_edges: MapSet.new(),
     missing_edges: MapSet.new(),
     responsible_worlds: MapSet.new(),
-
     tags: [],
     keywords: [],
     text_variants: %{},
@@ -38,11 +36,9 @@ defmodule Src.VisualExplanations.AxiomExplanation do
     :reflexive,
     :symmetric,
     :transitive,
-    :euclidean,
+    :euclidean
     #!:functional
   ]
-
-
 
   def supported_axioms do
     # TODO: return all supported frame axioms
@@ -53,15 +49,19 @@ defmodule Src.VisualExplanations.AxiomExplanation do
     case axiom do
       :serial ->
         serial_explanation(analysis)
+
       :reflexive ->
         reflexive_explanation(analysis)
+
       :symmetric ->
         symmetric_explanation(analysis)
+
       :transitive ->
         transitive_explanation(analysis)
+
       :euclidean ->
         euclidean_explanation(analysis)
-      #!:functional ->
+        #!:functional ->
         #!functional_explanation(analysis)
     end
   end
@@ -127,7 +127,7 @@ defmodule Src.VisualExplanations.AxiomExplanation do
   end
 
   #!defp functional_explanation(%FrameAnalysis{} = analysis) do
-    #! TODO: explain functionality violations using conflicting outgoing edges
+  #! TODO: explain functionality violations using conflicting outgoing edges
   #!end
 
   defp build(axiom, attrs) do
@@ -140,7 +140,6 @@ defmodule Src.VisualExplanations.AxiomExplanation do
       formula: Keyword.get(attrs, :formula),
       status: if(Enum.empty?(violations), do: :satisfied, else: :violated),
       summary: Keyword.get(attrs, :summary),
-
       violations: violations,
       responsible_edges:
         attrs
@@ -154,7 +153,6 @@ defmodule Src.VisualExplanations.AxiomExplanation do
         attrs
         |> Keyword.get(:responsible_worlds, responsible_worlds(axiom, violations))
         |> MapSet.new(),
-
       tags: Keyword.get(attrs, :tags, [axiom]),
       keywords: Keyword.get(attrs, :keywords, []),
       text_variants: Keyword.get(attrs, :text_variants, %{}),
@@ -166,15 +164,19 @@ defmodule Src.VisualExplanations.AxiomExplanation do
     case axiom do
       :serial ->
         []
+
       :reflexive ->
         []
+
       :symmetric ->
         Enum.map(violations, fn {u, v} -> {v, u} end)
+
       :transitive ->
         Enum.flat_map(violations, fn {u, v, w} -> [{u, v}, {v, w}] end)
+
       :euclidean ->
         Enum.flat_map(violations, fn {u, v, w} -> [{u, v}, {u, w}] end)
-      #!:functional ->
+        #!:functional ->
     end
   end
 
@@ -182,15 +184,19 @@ defmodule Src.VisualExplanations.AxiomExplanation do
     case axiom do
       :serial ->
         []
+
       :reflexive ->
         Enum.map(violations, fn u -> {u, u} end)
+
       :symmetric ->
         violations
+
       :transitive ->
         Enum.map(violations, fn {u, _, w} -> {u, w} end)
+
       :euclidean ->
         Enum.map(violations, fn {_, v, w} -> {v, w} end)
-      #!:functional ->
+        #!:functional ->
     end
   end
 
@@ -198,15 +204,19 @@ defmodule Src.VisualExplanations.AxiomExplanation do
     case axiom do
       :serial ->
         violations
+
       :reflexive ->
         violations
+
       :symmetric ->
         Enum.flat_map(violations, fn {u, v} -> [u, v] end)
+
       :transitive ->
         Enum.flat_map(violations, fn {u, v, w} -> [u, v, w] end)
+
       :euclidean ->
         Enum.flat_map(violations, fn {u, v, w} -> [u, v, w] end)
-      #!:functional ->
+        #!:functional ->
     end
   end
 end

@@ -6,23 +6,21 @@ defmodule Src.Interface.Isabelle.HOLEmbedding do
   it translates our internal/refinement-side ideas into Isabelle/HOL syntax.
   """
 
-  defstruct [
-    theory_name: "Axiom_Refiner_Run",
-    imports: ["Main"],
-    type_name: "i",
-    relation_name: "r",
-    atoms: [],
-    axioms: [],
-    goal: "False",
-    nitpick_options: ["user_axioms"]
-  ]
+  defstruct theory_name: "Axiom_Refiner_Run",
+            imports: ["Main"],
+            type_name: "i",
+            relation_name: "r",
+            atoms: [],
+            axioms: [],
+            goal: "False",
+            nitpick_options: ["user_axioms"]
 
   def new(opts \\ []) do
     struct!(__MODULE__, opts)
   end
 
   def render_theory(%__MODULE__{} = spec) do
-    #TODO
+    # TODO
     """
     theory #{spec.theory_name}
       imports #{Enum.join(spec.imports, " ")}
@@ -55,6 +53,7 @@ defmodule Src.Interface.Isabelle.HOLEmbedding do
     File.mkdir_p!(dir)
 
     path = Path.join(dir, "ROOT")
+
     File.write!(path, """
     session #{spec.theory_name} = HOL +
       theories
@@ -81,10 +80,12 @@ defmodule Src.Interface.Isabelle.HOLEmbedding do
   defp render_axioms(spec) do
     spec.axioms
     |> Enum.with_index(1)
-    |> Enum.map(fn {formula, i} -> """
-    axiomatization where ax_generated_#{i}:
-      "#{formula}"
-    """end)
+    |> Enum.map(fn {formula, i} ->
+      """
+      axiomatization where ax_generated_#{i}:
+        "#{formula}"
+      """
+    end)
     |> Enum.join("\n")
   end
 

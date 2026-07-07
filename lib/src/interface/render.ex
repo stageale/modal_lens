@@ -42,9 +42,7 @@ defmodule Src.Core.Render do
     mkdir_parent!(out)
 
     {_output, status} =
-      System.cmd(dot_exe, ["-T#{fmt}", dot_path, "-o", out],
-        stderr_to_stdout: true
-      )
+      System.cmd(dot_exe, ["-T#{fmt}", dot_path, "-o", out], stderr_to_stdout: true)
 
     if status != 0 do
       raise "GraphViz dot failed with exit status #{status}."
@@ -179,6 +177,7 @@ defmodule Src.Core.Render do
       cond do
         responsible_edge?(highlight, edge) ->
           ~s/ [color="red", fontcolor="red", penwidth=2]/
+
         true ->
           ""
       end

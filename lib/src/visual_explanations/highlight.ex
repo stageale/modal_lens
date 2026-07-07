@@ -1,13 +1,11 @@
 defmodule Src.VisualExplanations.Highlight do
   alias Src.VisualExplanations.AxiomExplanation
 
-  defstruct [
-    responsible_edges: MapSet.new(),
-    missing_edges: MapSet.new(),
-    responsible_worlds: MapSet.new(),
-    tags: [],
-    metadata: %{}
-  ]
+  defstruct responsible_edges: MapSet.new(),
+            missing_edges: MapSet.new(),
+            responsible_worlds: MapSet.new(),
+            tags: [],
+            metadata: %{}
 
   def new(attrs \\ []) do
     %__MODULE__{
@@ -15,17 +13,14 @@ defmodule Src.VisualExplanations.Highlight do
         attrs
         |> Keyword.get(:responsible_edges, [])
         |> MapSet.new(),
-
       missing_edges:
         attrs
         |> Keyword.get(:missing_edges, [])
         |> MapSet.new(),
-
       responsible_worlds:
         attrs
         |> Keyword.get(:responsible_worlds, [])
         |> MapSet.new(),
-
       tags: Keyword.get(attrs, :tags, []),
       metadata: Keyword.get(attrs, :metadata, %{})
     }

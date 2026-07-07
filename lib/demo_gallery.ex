@@ -108,7 +108,7 @@ defmodule Src.VisualExplanations.DemoGallery do
       )
 
     worlds = FrameAnalysis.worlds_for_model(model)
-    analysis = FrameAnalysis.analysis_from_model(model)
+    analysis = FrameAnalysis.analysis_from_model(model, worlds)
 
     %{
       id: source_id(file),
@@ -350,6 +350,7 @@ defmodule Src.VisualExplanations.DemoGallery do
 
           path ->
             rel = relative_to(path, out_dir)
+
             "<img src=\"#{escape_attr(rel)}\" alt=\"#{escape_attr(card.model_id)} #{escape_attr(card.axiom)}\">"
         end
 

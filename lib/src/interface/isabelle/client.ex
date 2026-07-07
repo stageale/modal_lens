@@ -44,7 +44,6 @@ defmodule Src.Interface.Isabelle.Client do
   # später:
   # Sledgehammer, QuickCheck, Prove
 
-
   def reason(other, _spec, _opts) do
     {:error, {:unsupported_reasoning_mode, other}}
   end

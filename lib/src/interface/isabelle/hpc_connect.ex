@@ -27,7 +27,8 @@ defmodule Src.Interface.Isabelle.HPCConnect do
          remote_dir <- remote_dir(spec, opts),
          :ok <- ensure_remote_dir(hpc_module, session, remote_dir, opts),
          :ok <- upload_text(hpc_module, session, remote_dir, "ROOT", root_text, opts),
-         :ok <- upload_text(hpc_module, session, remote_dir, "#{spec.theory_name}.thy", thy_text, opts),
+         :ok <-
+           upload_text(hpc_module, session, remote_dir, "#{spec.theory_name}.thy", thy_text, opts),
          {:ok, log} <- run_remote_isabelle(hpc_module, session, remote_dir, spec, opts) do
       {:ok, log}
     end

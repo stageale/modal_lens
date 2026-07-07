@@ -6,12 +6,17 @@ defmodule Src.HardcodedRefinement.FrameAnalysis do
     :symmetric?,
     :euclidean?,
     :functional?,
-    dead_ends: [],                      #* violations of seriality
-    missing_loops: [],                  #* violations of reflexivity
-    missing_hulls: [],                  #* violations of transitivity
-    antisymmetries: [],                 #* violations of symmetry
-    missing_spans: [],                  #* violations of euclidity
-    function_violations: MapSet.new(),
+    # * violations of seriality
+    dead_ends: [],
+    # * violations of reflexivity
+    missing_loops: [],
+    # * violations of transitivity
+    missing_hulls: [],
+    # * violations of symmetry
+    antisymmetries: [],
+    # * violations of euclidity
+    missing_spans: [],
+    function_violations: MapSet.new()
   ]
 
   def frame_axiom(r \\ "R", kind)
@@ -102,9 +107,10 @@ defmodule Src.HardcodedRefinement.FrameAnalysis do
   def check?(frame, axiom), do: violations(frame, axiom) == []
 
   def violations(frame, axiom) do
-    elems = frame
-        |> Enum.flat_map(fn {u, v} -> [u, v] end)
-        |> MapSet.new()
+    elems =
+      frame
+      |> Enum.flat_map(fn {u, v} -> [u, v] end)
+      |> MapSet.new()
 
     edge_set = MapSet.new(frame)
 
@@ -113,37 +119,38 @@ defmodule Src.HardcodedRefinement.FrameAnalysis do
     case axiom do
       :serial ->
         for u <- elems,
-          not Enum.any?(elems, fn v -> binds.(u, v) end),
-          do: u
+            not Enum.any?(elems, fn v -> binds.(u, v) end),
+            do: u
 
       :reflexive ->
         for u <- elems,
-          not binds.(u, u),
-          do: u
+            not binds.(u, u),
+            do: u
 
       :transitive ->
-        for u <- elems, v <- elems, w <- elems,
-          binds.(u, v) and binds.(v, w) and not binds.(u, w),
-          do: {u, v, w}
+        for u <- elems,
+            v <- elems,
+            w <- elems,
+            binds.(u, v) and binds.(v, w) and not binds.(u, w),
+            do: {u, v, w}
 
       :symmetric ->
-        #? Revision of this measure
-        for u <- elems, v <- elems,
-          binds.(u, v) and not binds.(v, u),
-          do: {v, u}
+        # ? Revision of this measure
+        for u <- elems, v <- elems, binds.(u, v) and not binds.(v, u), do: {v, u}
 
       :euclidean ->
-        for u <- elems, v <- elems, w <- elems,
-          binds.(u, v) and binds.(u, w) and not binds.(v, w),
-          do: {u, v, w}
+        for u <- elems,
+            v <- elems,
+            w <- elems,
+            binds.(u, v) and binds.(u, w) and not binds.(v, w),
+            do: {u, v, w}
 
       :functional ->
-        #* check total functionality
+        # * check total functionality
         for u <- elems,
-          successors = Enum.filter(elems, fn v -> binds.(u, v) end),
-          length(successors) != 1,
-          do: {u, successors}
+            successors = Enum.filter(elems, fn v -> binds.(u, v) end),
+            length(successors) != 1,
+            do: {u, successors}
     end
   end
-
 end

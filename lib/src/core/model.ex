@@ -1,5 +1,4 @@
 defmodule Src.Core.Model do
-
   defstruct [
     :source,
     :kind,
@@ -50,8 +49,12 @@ defmodule Src.Core.Model do
       atoms
       |> Enum.flat_map(fn atom ->
         case Map.get(model.valuations, atom) do
-          nil -> []
-          vals when index >= length(vals) -> []
+          nil ->
+            []
+
+          vals when index >= length(vals) ->
+            []
+
           vals ->
             if Enum.at(vals, index) do
               [atom]

@@ -64,6 +64,84 @@ defmodule Src.HardcodedRefinement.FrameAnalysisTest do
     end
   end
 
+  describe "worlds_for_model/1" do
+    test "builds zero-based worlds from model cardinality" do
+      model = %{cardinality: 3}
+
+      assert FrameAnalysis.worlds_for_model(model) == [0, 1, 2]
+    end
+
+    test "returns an empty world list for invalid cardinalities" do
+      assert FrameAnalysis.worlds_for_model(%{cardinality: 0}) == []
+      assert FrameAnalysis.worlds_for_model(%{cardinality: nil}) == []
+      assert FrameAnalysis.worlds_for_model(%{}) == []
+    end
+  end
+
+  describe "analysis_from_model/1 and analysis_from_model/2" do
+    test "returns a FrameAnalysis struct" do
+      model = %{
+        cardinality: 2,
+        edges: MapSet.new([{0, 1}])
+      }
+
+      assert %FrameAnalysis{} = FrameAnalysis.analysis_from_model(model)
+    end
+
+    test "detects frame violations using explicit worlds" do
+      model = %{
+        cardinality: 3,
+        edges: MapSet.new([{0, 1}, {1, 2}])
+      }
+
+      analysis = FrameAnalysis.analysis_from_model(model, [0, 1, 2])
+
+      assert %FrameAnalysis{} = analysis
+
+      refute analysis.serial?
+      refute analysis.reflexive?
+      refute analysis.transitive?
+      refute analysis.symmetric?
+      refute analysis.euclidean?
+      refute analysis.functional?
+
+      assert analysis.dead_ends == [2]
+      assert analysis.missing_loops == [0, 1, 2]
+      assert {0, 1, 2} in analysis.missing_hulls
+
+      assert {1, 0} in analysis.antisymmetries
+      assert {2, 1} in analysis.antisymmetries
+
+      assert {0, 1, 1} in analysis.missing_spans
+      assert {1, 2, 2} in analysis.missing_spans
+
+      assert MapSet.member?(analysis.function_violations, {2, []})
+    end
+
+    test "marks fully reflexive one-world frame as satisfying basic properties" do
+      model = %{
+        cardinality: 1,
+        edges: MapSet.new([{0, 0}])
+      }
+
+      analysis = FrameAnalysis.analysis_from_model(model)
+
+      assert analysis.serial?
+      assert analysis.reflexive?
+      assert analysis.transitive?
+      assert analysis.symmetric?
+      assert analysis.euclidean?
+      assert analysis.functional?
+
+      assert analysis.dead_ends == []
+      assert analysis.missing_loops == []
+      assert analysis.missing_hulls == []
+      assert analysis.antisymmetries == []
+      assert analysis.missing_spans == []
+      assert MapSet.size(analysis.function_violations) == 0
+    end
+  end
+
   describe "frame_axiom/2" do
     test "emits frame axiom strings" do
       assert FrameAnalysis.frame_axiom("R", :serial) == "∀w. ∃v. R w v"

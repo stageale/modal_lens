@@ -68,7 +68,7 @@ defmodule Src.Interface.Experiment do
     }
   end
 
-  defp parse_nitpick_file(path, opts) do
+  def parse_nitpick_file(path, opts \\ []) do
     Parser.parse_nitpick_file(path,
       relation: Keyword.get(opts, :relation, "R"),
       atoms: opts |> Keyword.get(:atoms, []) |> normalize_atoms(),
@@ -100,7 +100,6 @@ defmodule Src.Interface.Experiment do
     |> rank_results(opts)
   end
 
-
   defp suggestion_rows(entry) do
     Enum.map(entry.suggestions, fn suggestion ->
       %{
@@ -121,15 +120,16 @@ defmodule Src.Interface.Experiment do
       violations: sum(rows, :violations),
       support: sum(rows, :support),
       affected_models: Enum.count(rows, fn row -> row.violations > 0 end),
-      models: Enum.map(rows, fn row ->
-        %{
-          file: row.file,
-          score: row.score,
-          violations: row.violations,
-          support: row.support,
-          density: row.density
-        }
-      end)
+      models:
+        Enum.map(rows, fn row ->
+          %{
+            file: row.file,
+            score: row.score,
+            violations: row.violations,
+            support: row.support,
+            density: row.density
+          }
+        end)
     }
   end
 

@@ -1,6 +1,7 @@
 defmodule Src.Interface.CLI do
   alias Src.Core.Parser
   alias Src.Interface.Experiment
+  alias Src.Core.BlockingAxiom
 
   @common_switches [
     relation: :string,
@@ -13,17 +14,23 @@ defmodule Src.Interface.CLI do
     case argv do
       [] ->
         usage()
+
       ["help" | _] ->
         usage()
+
       ["summary" | rest] ->
         cmd_summary(rest)
+
       ["axiom" | rest] ->
         cmd_axiom(rest)
+
       ["rank" | rest] ->
         cmd_rank(rest)
+
       ["demo" | rest] ->
         cmd_demo(rest)
-      #["graphviz" | _rest] ->
+
+      # ["graphviz" | _rest] ->
       #  not_implemented("tikz")
       [unknown | _] ->
         IO.puts(:stderr, "[ERROR] Unknown command: #{unknown}")
@@ -48,7 +55,6 @@ defmodule Src.Interface.CLI do
     0
   end
 
-
   defp cmd_summary(argv) do
     {opts, inputs, invalid} =
       OptionParser.parse(argv, strict: @common_switches ++ [json: :boolean])
@@ -56,24 +62,30 @@ defmodule Src.Interface.CLI do
     with :ok <- reject_invalid_options(invalid),
          :ok <- require_inputs(inputs),
          :ok <- ensure_json_available(opts) do
-          inputs
-          |> collect_input_files()
-          |> run_for_files(opts, fn file, model ->
-            summary = model_summary(model)
+      inputs
+      |> collect_input_files()
+      |> Enum.each(fn file ->
+        try do
+          summary = Experiment.summary_file(file, opts)
 
-            if Keyword.get(opts, :json, false) do
-              print_json(summary)
-            else
-              print_text_summary(summary)
-            end
-
-            print_warnings(file, model.warnings)
-          end)
-        else
-          {:error, message} ->
-            IO.puts(:stderr, "[ERROR] #{message}")
-            1
+          if Keyword.get(opts, :json, false) do
+            print_json(summary)
+          else
+            print_text_summary(summary)
+          end
+          print_warnings(file, summary.warnings)
+        rescue
+          exc ->
+            IO.puts(:stderr, "[ERROR] #{file}: #{Exception.message(exc)}")
         end
+      end)
+
+      0
+    else
+      {:error, message} ->
+        IO.puts(:stderr, "[ERROR] #{message}")
+        1
+    end
   end
 
   defp cmd_axiom(argv) do
@@ -82,9 +94,11 @@ defmodule Src.Interface.CLI do
         strict: @common_switches ++ [out_dir: :string, no_atoms: :boolean],
         aliases: [o: :out_dir]
       )
+
     with :ok <- reject_invalid_options(invalid),
          :ok <- require_inputs(inputs) do
       out_dir = Keyword.get(opts, :out_dir)
+      include_atoms = not Keyword.get(opts, :no_atoms, false)
 
       if out_dir do
         File.mkdir_p!(out_dir)
@@ -92,23 +106,31 @@ defmodule Src.Interface.CLI do
 
       inputs
       |> collect_input_files()
-      |> run_for_files(opts, fn file, model ->
-        include_atoms = not Keyword.get(opts, :no_atoms, false)
-        axiom = blocking_axiom(model, include_atoms)
+      |> Enum.each(fn file ->
+        try do
+          model = Experiment.parse_nitpick_file(file, opts)
+          axiom = BlockingAxiom.blocking_axiom(
+            model,
+            include_atoms: include_atoms
+          )
 
-        if out_dir do
-          out_path =
-            file
-            |> output_base(out_dir, "blocking_axiom")
-            |> Kernel.<>(".thyfrag")
+          if out_dir do
+            out_path =
+              file
+              |> output_base(out_dir, "blocking_axiom")
+              |> Kernel.<>(".thyfrag")
 
-          File.write!(out_path, axiom <> "\n")
+            File.write!(out_path, axiom <> "\n")
+          end
           IO.puts("")
           IO.puts("(* #{file} *)")
           IO.puts(axiom)
-        end
 
-        print_warnings(file, model.warnings)
+          print_warnings(file, model.warnings)
+        rescue
+          exc ->
+            IO.puts(:stderr, "[ERROR] #{file}: #{Exception.message(exc)}")
+        end
       end)
     else
       {:error, message} ->
@@ -123,26 +145,27 @@ defmodule Src.Interface.CLI do
         strict: @common_switches ++ [json: :boolean, limit: :integer],
         aliases: [l: :limit]
       )
-    with  :ok <- reject_invalid_options(invalid),
-          :ok <- require_inputs(inputs),
-          :ok <- ensure_json_available(opts) do
-            result =
-              inputs
-              |> collect_input_files()
-              |> Experiment.rank_files(opts)
 
-            if Keyword.get(opts, :json, false) do
-              print_json(Map.put(result, :command, "rank"))
-            else
-              print_rank_table(result.ranked_axioms)
-            end
+    with :ok <- reject_invalid_options(invalid),
+         :ok <- require_inputs(inputs),
+         :ok <- ensure_json_available(opts) do
+      result =
+        inputs
+        |> collect_input_files()
+        |> Experiment.rank_files(opts)
 
-            0
-          else
-            {:error, message} ->
-              IO.puts(:stderr, "[ERROR] #{message}")
-              1
-          end
+      if Keyword.get(opts, :json, false) do
+        print_json(Map.put(result, :command, "rank"))
+      else
+        print_rank_table(result.ranked_axioms)
+      end
+
+      0
+    else
+      {:error, message} ->
+        IO.puts(:stderr, "[ERROR] #{message}")
+        1
+    end
   end
 
   defp print_rank_table(rows) do
@@ -155,35 +178,9 @@ defmodule Src.Interface.CLI do
     end)
   end
 
-  defp cmd_demo(argv) do
-
-  end
-
-  defp run_for_files(files, opts, fun) do
-    Enum.reduce_while(files, 0, fn file, status ->
-      try do
-        model = parse_model(file, opts)
-        fun.(file, model)
-        {:cont, status}
-      rescue
-        exc ->
-          IO.puts(:stderr, "[ERROR] #{file}: #{Exception.message(exc)}")
-
-          if Keyword.get(opts, :strict, false) do
-            {:halt, 1}
-          else
-            {:cont, status}
-          end
-      end
-    end)
-  end
-
-  defp parse_model(file, opts) do
-    Parser.parse_nitpick_file(file,
-      relation: Keyword.get(opts, :relation, "R"),
-      atoms: parse_atoms(Keyword.get(opts, :atoms)),
-      auto_atoms: Keyword.get(opts, :auto_atoms, false)
-    )
+  defp cmd_demo(_argv) do
+    IO.puts(:stderr, "[ERROR] demo is not implemented in the CLI yet.")
+    1
   end
 
   defp collect_input_files(paths) do
@@ -202,30 +199,6 @@ defmodule Src.Interface.CLI do
     end)
   end
 
-  defp parse_atoms(nil), do: []
-  defp parse_atoms(""), do: []
-  defp parse_atoms("-"), do: []
-
-  defp parse_atoms(raw) do
-    raw
-    |> String.split(",")
-    |> Enum.map(fn x -> String.trim(x) end)
-    |> Enum.reject(fn x -> x == "" end)
-  end
-
-  defp model_summary(model) do
-    %{
-      source: model.source || "<text>",
-      kind: model.kind,
-      cardinality: model.cardinality,
-      relation: model.relation_name,
-      initial_world: world_name(model.initial_world),
-      edge_count: MapSet.size(model.edges),
-      atoms: model.valuations |> Map.keys() |> Enum.sort(),
-      warning: Enum.map(model.warnings, &warning_message/1)
-    }
-  end
-
   defp print_text_summary(summary) do
     IO.puts(
       "#{summary.source}: #{summary.kind}, card=#{summary.cardinality}, " <>
@@ -242,8 +215,6 @@ defmodule Src.Interface.CLI do
   defp warning_message(warning) when is_binary(warning), do: warning
   defp warning_message(%{message: message}), do: message
   defp warning_message(warning), do: inspect(warning)
-
-  defp world_name(index), do: "i#{index + 1}"
 
   defp output_base(file, out_dir, prefix) do
     ext = Path.extname(file)
@@ -281,14 +252,5 @@ defmodule Src.Interface.CLI do
 
   defp print_json(value) do
     IO.puts(apply(Jason, :encode!, [value, [pretty: true]]))
-  end
-
-  defp blocking_axiom(model, include_atoms) do
-    case Code.ensure_loaded(Src.Core.Axiom) do
-      {:module, _} ->
-        apply(Src.Core.Axiom, :blocking_axiom, [model, [include_atoms: include_atoms]])
-      _ ->
-        raise "Src.Core.Axiom.blocking_axiom/2 is not implemented yet."
-    end
   end
 end

@@ -9,8 +9,10 @@ defmodule Src.Interface.Isabelle.LocalConnect do
 
     args = [
       "build",
-      "-D", workdir,
-      "-o", "threads=#{threads}",
+      "-D",
+      workdir,
+      "-o",
+      "threads=#{threads}",
       spec.theory_name
     ]
 
