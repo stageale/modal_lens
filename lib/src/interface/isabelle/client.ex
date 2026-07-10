@@ -11,7 +11,7 @@ defmodule Src.Interface.Isabelle.Client do
   alias Src.Interface.Isabelle.LocalConnect
   alias Src.Interface.Isabelle.HPCConnect
 
-  def reason(:nitpick, %HOLEmbedding{} = spec, opts \\ []) do
+  defp reason(:nitpick, %HOLEmbedding{} = spec, opts \\ []) do
     backend = Keyword.get(opts, :backend, :local)
     workdir = Keyword.get(opts, :workdir, default_workdir())
     output_file = Keyword.get(opts, :output_file, Path.join(workdir, "nitpick-output.txt"))
@@ -22,10 +22,10 @@ defmodule Src.Interface.Isabelle.Client do
     result =
       case backend do
         :local ->
-          LocalConnect.run(workdir, spec, opts)
+          LocalConnect.build(workdir, spec, opts)
 
         :hpc_connect ->
-          HPCConnect.run(workdir, spec, opts)
+          HPCConnect.build(workdir, spec, opts)
 
         other ->
           {:error, {:unknown_backend, other}}
@@ -41,11 +41,12 @@ defmodule Src.Interface.Isabelle.Client do
     end
   end
 
-  # später:
+  # TODO später:
   # Sledgehammer, QuickCheck, Prove
 
-  def reason(other, _spec, _opts) do
-    {:error, {:unsupported_reasoning_mode, other}}
+
+  def nitpick_countermodel(%HOLEmbedding{} = spec, opts \\ []) do
+    reason(:nitpick, spec, opts)
   end
 
   defp default_workdir do

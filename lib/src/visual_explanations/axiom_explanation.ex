@@ -36,12 +36,11 @@ defmodule Src.VisualExplanations.AxiomExplanation do
     :reflexive,
     :symmetric,
     :transitive,
-    :euclidean
-    #!:functional
+    :euclidean,
+    :functional
   ]
 
   def supported_axioms do
-    # TODO: return all supported frame axioms
     @supported_axioms
   end
 
@@ -61,8 +60,8 @@ defmodule Src.VisualExplanations.AxiomExplanation do
 
       :euclidean ->
         euclidean_explanation(analysis)
-        #!:functional ->
-        #!functional_explanation(analysis)
+      :functional ->
+        functional_explanation(analysis)
     end
   end
 
@@ -126,9 +125,16 @@ defmodule Src.VisualExplanations.AxiomExplanation do
     )
   end
 
-  #!defp functional_explanation(%FrameAnalysis{} = analysis) do
-  #! TODO: explain functionality violations using conflicting outgoing edges
-  #!end
+  defp functional_explanation(%FrameAnalysis{} = analysis) do
+    build(:functional,
+      title: "Functionality",
+      formula: "∀ u v w. ((R u v ∧ R u w) → v = w)",
+      violations: MapSet.to_list(analysis.function_violations),
+      summary: "Functionality is violated by worlds witheither no target or more than one target",
+      tags: [:frame_condition, :modal_axiom, :functional],
+      keywords: ["functionality, target", "branching", "dead-end"]
+    )
+  end
 
   defp build(axiom, attrs) do
     # TODO: construct the final AxiomExplanation struct/map
@@ -162,11 +168,9 @@ defmodule Src.VisualExplanations.AxiomExplanation do
 
   defp responsible_edges(axiom, violations) do
     case axiom do
-      :serial ->
-        []
+      :serial -> []
 
-      :reflexive ->
-        []
+      :reflexive -> []
 
       :symmetric ->
         Enum.map(violations, fn {u, v} -> {v, u} end)
@@ -176,14 +180,15 @@ defmodule Src.VisualExplanations.AxiomExplanation do
 
       :euclidean ->
         Enum.flat_map(violations, fn {u, v, w} -> [{u, v}, {u, w}] end)
-        #!:functional ->
+
+      :functional ->
+        Enum.flat_map(violations, fn {u, v, w} -> [{u, v}, {u, w}] end)
     end
   end
 
   defp missing_edges(axiom, violations) do
     case axiom do
-      :serial ->
-        []
+      :serial -> []
 
       :reflexive ->
         Enum.map(violations, fn u -> {u, u} end)
@@ -196,7 +201,8 @@ defmodule Src.VisualExplanations.AxiomExplanation do
 
       :euclidean ->
         Enum.map(violations, fn {_, v, w} -> {v, w} end)
-        #!:functional ->
+
+      :functional -> []
     end
   end
 
@@ -216,7 +222,9 @@ defmodule Src.VisualExplanations.AxiomExplanation do
 
       :euclidean ->
         Enum.flat_map(violations, fn {u, v, w} -> [u, v, w] end)
-        #!:functional ->
+
+      :functional ->
+        Enum.flat_map(violations, fn {u, v, _} -> [u, v] end) #? OR [u, w]
     end
   end
 end

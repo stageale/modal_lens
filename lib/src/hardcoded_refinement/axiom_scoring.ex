@@ -11,6 +11,16 @@ defmodule Src.HardcodedRefinement.AxiomScoring do
     functional: 1.2
   }
 
+  @core_axioms [
+    :serial,
+    :reflexive,
+    :symmetric,
+    :transitive,
+    :euclidean
+  ]
+
+  @extended_axioms @core_axioms ++ [:functional]
+
   def ranked_suggestions(%FrameAnalysis{} = analysis, worlds, edges, opts \\ []) do
     stats = FrameStats.from_edges(worlds, edges)
     ranked_suggestions_from_stats(analysis, stats, opts)

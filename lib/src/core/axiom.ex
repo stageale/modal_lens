@@ -1,6 +1,6 @@
 defmodule Src.Core.Axiom do
   @moduledoc """
-  Compatibility wrapper for blocking axiom generation.
+  Deprecated! Compatibility wrapper for blocking axiom generation.
 
   Prefer 'Src.Core.BlockingAxiom' in new code.
   """
