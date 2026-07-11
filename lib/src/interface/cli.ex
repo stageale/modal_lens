@@ -1,5 +1,5 @@
 defmodule Src.Interface.CLI do
-  alias Src.Core.Parser
+  #alias Src.Core.Parser
   alias Src.Interface.Experiment
   alias Src.Core.BlockingAxiom
 

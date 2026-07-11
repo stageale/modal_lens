@@ -6,15 +6,15 @@ defmodule AxiomRefiner do
   Current executable workflows live in the demo modules.
   """
 
-  def refine_files(opts \\ []) do
+  def refine_files(_opts \\ []) do
     # TODO: Implementation
   end
 
-  def rank_files(opts \\ []) do
+  def rank_files(_opts \\ []) do
     # TODO: Implementation
   end
 
-  def run_isabelle(opts \\ []) do
+  def run_isabelle(_opts \\ []) do
     # TODO: Implementation
   end
 end
