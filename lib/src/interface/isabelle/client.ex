@@ -125,21 +125,26 @@ defmodule Src.Interface.Isabelle.Client do
   defp run_backend(workdir, session_name, opts) do
     case Keyword.get(opts, :backend, :local) do
       :local ->
-        LocalConnect.build(
-          workdir,
-          %{theory_name: session_name},
-          opts
-        )
+        with {:ok, _build_output} <-
+               LocalConnect.build(
+                 workdir,
+                 %{theory_name: session_name},
+                 opts
+               ),
+             {:ok, session_log} <-
+               LocalConnect.log(session_name, opts) do
+                {:ok, session_log}
+               end
 
-      :hpc_connect ->
-        {:error,
-         {:unsupported_existing_theory_backend,
-          "Existing theory execution through HPCConnect is not connected yet."}}
+    :hpc_connect ->
+      {:error,
+       {:unsupported_existing_theory_backend,
+        "Existing theory execution through HPCConnect is not connected yet."}}
 
-      other ->
-        {:error, {:unknown_backend, other}}
-    end
+    other ->
+      {:error, {:unknown_backend, other}}
   end
+end
 
   defp validate_theory_file(path) do
     cond do

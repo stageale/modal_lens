@@ -4,18 +4,40 @@ defmodule Src.Interface.Isabelle.LocalConnect do
   end
 
   def build(workdir, spec, opts \\ []) do
-    threads = Keyword.get(opts, :threads, System.schedulers_online())
+    threads =
+      Keyword.get(
+        opts,
+        :threads,
+        min(System.schedulers_online(), 2)
+      )
+
+    session_name = Map.fetch!(spec, :theory_name)
 
     args = [
       "build",
-      "-D",
+      "-j",
+      "1",
+      "-d",
       workdir,
       "-o",
+      "system_heaps=false",
+      "-o",
       "threads=#{threads}",
-      spec.theory_name
+      session_name
     ]
 
     run(args, opts)
+  end
+
+  def log(session_name, opts \\ []) do
+    run(
+      [
+        "log",
+        "-v",
+        session_name
+      ],
+      opts
+    )
   end
 
   def configured_isabelle_bin(opts \\ []) do
@@ -27,10 +49,14 @@ defmodule Src.Interface.Isabelle.LocalConnect do
 
     result =
       try do
-        System.cmd(isabelle, args, stderr_to_stdout: true)
+        System.cmd(
+          isabelle,
+          args,
+          stderr_to_stdout: true
+        )
       rescue
-        e in ErlangError ->
-          {:failed_to_start, e}
+        exception in ErlangError ->
+          {:failed_to_start, exception}
       end
 
     case result do
@@ -38,15 +64,20 @@ defmodule Src.Interface.Isabelle.LocalConnect do
         {:ok, output}
 
       {output, status} when is_integer(status) ->
-        {:error, %{status: status, output: output}}
+        {:error, %{
+          status: status,
+          output: output,
+          command: [isabelle | args]
+        }}
 
-      {:failed_to_start, e} ->
-        {:error,
-         %{
-           status: :failed_to_start,
-           output:
-             "Could not start Isabelle executable. Tried: #{inspect(isabelle)}. Error: #{Exception.message(e)}"
-         }}
+      {:failed_to_start, exception} ->
+        {:error, %{
+          status: :failed_to_start,
+          output:
+            "Could not start Isabelle executable. " <>
+              "Tried: #{inspect(isabelle)}. " <>
+              "Error: #{Exception.message(exception)}"
+        }}
     end
   end
 
