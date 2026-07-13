@@ -80,7 +80,9 @@ lemma unconditional_telling_obligation:
     user_axioms, 
     card i = 2,
     timeout = 60,
-    verbose
+    verbose,
+    show_consts,
+    dont_specialize
   ]
   oops
 

@@ -29,11 +29,13 @@ defmodule Src.Interface.Isabelle.LocalConnect do
     run(args, opts)
   end
 
-  def log(session_name, opts \\ []) do
+  def build_log(session_name, opts \\ []) do
     run(
       [
-        "log",
+        "build_log",
         "-v",
+        "-o",
+        "system_heaps=false",
         session_name
       ],
       opts
@@ -85,5 +87,33 @@ defmodule Src.Interface.Isabelle.LocalConnect do
     Keyword.get(opts, :isabelle_bin) ||
       System.get_env("AXIOM_REFINER_ISABELLE_BIN") ||
       "isabelle"
+  end
+
+  def process_theory(theory_path, opts \\ []) do
+    theory_path = Path.expand(theory_path)
+    logic = Keyword.get(opts, :logic, "HOL")
+
+    threads =
+      Keyword.get(
+        opts,
+        :threads,
+        min(System.schedulers_online(), 2)
+      )
+
+    args = [
+      "process_theories",
+      "-O",
+      "-U",
+      "-l",
+      logic,
+      "-o",
+      "system_heaps=false",
+      "-o",
+      "threads=#{threads}",
+      "-f",
+      theory_path
+    ]
+
+    run(args, opts)
   end
 end

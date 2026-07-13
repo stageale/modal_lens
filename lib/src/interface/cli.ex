@@ -143,43 +143,13 @@ defmodule Src.Interface.CLI do
     end
   end
 
-  defp cmd_rank(argv) do
-    {opts, inputs, invalid} =
-      OptionParser.parse(argv,
-        strict: @common_switches ++ [json: :boolean, limit: :integer],
-        aliases: [l: :limit]
-      )
+  defp cmd_rank(_argv) do
+    IO.puts(
+      :stderr,
+      "[ERROR] The rank command belongs to the deprecated axiom-scoring pipeline."
+    )
 
-    with :ok <- reject_invalid_options(invalid),
-         :ok <- require_inputs(inputs),
-         :ok <- ensure_json_available(opts) do
-      result =
-        inputs
-        |> collect_input_files()
-        |> Experiment.rank_files(opts)
-
-      if Keyword.get(opts, :json, false) do
-        print_json(Map.put(result, :command, "rank"))
-      else
-        print_rank_table(result.ranked_axioms)
-      end
-
-      0
-    else
-      {:error, message} ->
-        IO.puts(:stderr, "[ERROR] #{message}")
-        1
-    end
-  end
-
-  defp print_rank_table(rows) do
-    IO.puts("score\tviolations\tsupport\taffected_models\taxiom")
-
-    Enum.each(rows, fn row ->
-      IO.puts(
-        "#{Float.round(row.score, 4)}\t#{row.violations}\t#{row.support}\t#{row.affected_models}\t#{row.axiom}"
-      )
-    end)
+    1
   end
 
   defp cmd_demo(_argv) do

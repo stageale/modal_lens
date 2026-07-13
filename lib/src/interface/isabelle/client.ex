@@ -58,13 +58,6 @@ defmodule Src.Interface.Isabelle.Client do
         |> Keyword.get(:workdir, Path.dirname(theory_path))
         |> Path.expand()
 
-      session_name =
-        Keyword.get(
-          opts,
-          :session_name,
-          default_session_name(theory_name)
-        )
-
       output_file =
         opts
         |> Keyword.get(
@@ -73,17 +66,16 @@ defmodule Src.Interface.Isabelle.Client do
         )
         |> Path.expand()
 
-      write_root? = Keyword.get(opts, :write_root?, true)
+      logic = Keyword.get(opts, :logic, "HOL")
 
       with :ok <- ensure_theory_in_workdir(theory_path, workdir),
-           :ok <- maybe_write_root(workdir, session_name, theory_name, write_root?),
-           {:ok, log} <- run_backend(workdir, session_name, opts),
+           {:ok, log} <- LocalConnect.process_theory(theory_path, opts),
            :ok <- write_log(output_file, log) do
         {:ok,
          %{
            theory_name: theory_name,
            theory_path: theory_path,
-           session_name: session_name,
+           logic: logic,
            workdir: workdir,
            output_file: output_file,
            log: log,
@@ -107,8 +99,8 @@ defmodule Src.Interface.Isabelle.Client do
     HOLEmbedding.write_root!(spec, workdir)
     HOLEmbedding.write_theory!(spec, workdir)
 
-    with {:ok, log} <- run_backend(workdir, spec.theory_name, opts),
-         :ok <- write_log(output_file, log) do
+    with {:ok, result} <- run_backend(workdir, spec.theory_name, opts),
+         :ok <- write_log(output_file, result.log) do
       {:ok,
        %{
          theory_name: spec.theory_name,
@@ -116,7 +108,8 @@ defmodule Src.Interface.Isabelle.Client do
          session_name: spec.theory_name,
          output_file: output_file,
          workdir: workdir,
-         log: log,
+         build_output: result.build_output,
+         log: result.log,
          backend: backend
        }}
     end
@@ -125,15 +118,19 @@ defmodule Src.Interface.Isabelle.Client do
   defp run_backend(workdir, session_name, opts) do
     case Keyword.get(opts, :backend, :local) do
       :local ->
-        with {:ok, _build_output} <-
+        with {:ok, build_output} <-
                LocalConnect.build(
                  workdir,
                  %{theory_name: session_name},
                  opts
                ),
-             {:ok, session_log} <-
-               LocalConnect.log(session_name, opts) do
-                {:ok, session_log}
+             {:ok, log} <-
+               LocalConnect.build_log(session_name, opts) do
+                {:ok,
+                  %{
+                    build_output: build_output,
+                    log: log
+                  }}
                end
 
     :hpc_connect ->
@@ -202,35 +199,7 @@ end
     end
   end
 
-  defp maybe_write_root(_workdir, _session_name, _theory_name, false) do
-    :ok
-  end
-
-  defp maybe_write_root(workdir, session_name, theory_name, true) do
-    root_path = Path.join(workdir, "ROOT")
-
-    if File.exists?(root_path) do
-      :ok
-    else
-      File.mkdir_p!(workdir)
-
-      root_source = """
-      session #{session_name} = HOL +
-        theories
-          #{theory_name}
-      """
-
-      case File.write(root_path, root_source) do
-        :ok ->
-          :ok
-
-        {:error, reason} ->
-          {:error, {:cannot_write_root, root_path, reason}}
-      end
-    end
-  end
-
-  defp write_log(output_file, log) do
+  defp write_log(output_file, log) when is_binary(log) do
     output_file
     |> Path.dirname()
     |> File.mkdir_p!()
@@ -244,9 +213,19 @@ end
     end
   end
 
-  defp default_session_name(theory_name) do
-    "Axiom_Refiner_#{theory_name}"
+  defp write_log(output_file, value) do
+    {:error,
+      {:invalid_isabelle_log,
+        %{
+          output_file: output_file,
+          expected: :binary,
+          received: inspect(value, pretty: true)
+        }
+      }
+    }
   end
+
+
 
   defp default_workdir do
     Path.join(["tmp", "isabelle", timestamp()])

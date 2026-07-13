@@ -19,3 +19,13 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
 be found at <https://hexdocs.pm/axiom_refiner>.
 
+
+
+## Chisholm Demo
+
+First, execute in project ROOT 
+```./cmd/setup_isabelle.sh```
+
+Second, compile the project by ```mix compile```
+
+Third, run the single_model.exs, enumeration.exs

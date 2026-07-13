@@ -56,7 +56,7 @@ defmodule SingleModel do
 		case Client.nitpick_theory(theory_path, client_opts) do
 			{:ok, run} ->
 				IO.puts("CHECK Isabelle build completed")
-				IO.puts("      Session: #{run.session_name}")
+				IO.puts("      Logic: #{run.logic}")
 				IO.puts("      Log: #{run.output_file}")
 
 				process_nitpick_output(run, out_dir)
@@ -84,7 +84,7 @@ defmodule SingleModel do
 				exception ->
           IO.puts(:stderr, "")
           IO.puts(:stderr, "FAIL  Nitpick output could not be parsed")
-          IO.puts(:stderr, "      " ++ Exception.message(exception))
+          IO.puts(:stderr, "      " <> Exception.message(exception))
           IO.puts(:stderr, "")
           IO.puts(:stderr, "      Inspect the captured Isabelle output:")
           IO.puts(:stderr, "      less #{run.output_file}")
