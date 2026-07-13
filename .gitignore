@@ -24,3 +24,7 @@ axiom_refiner-*.tar
 
 # Also ignore demo_output
 demo_output
+*.thyfrag
+*.nitpick.txt
+*.dot
+*.svg
