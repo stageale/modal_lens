@@ -1,0 +1,33 @@
+@startuml
+title Countermodel Enumeration Workflow
+
+start
+
+:Load base theory;
+:Initialize iteration = 1;
+:Initialize blocking_axioms = [];
+
+while (iteration <= max_models?) is (yes)
+
+  :Generate current search theory;
+  :Run Isabelle/Nitpick;
+  :Store Nitpick output;
+
+  if (Countermodel found?) then (no)
+    break
+  else (yes)
+    :Parse model;
+    :Generate DOT;
+    :Render SVG;
+    :Generate blocking axiom;
+    :Append blocking axiom;
+    :iteration = iteration + 1;
+  endif
+
+endwhile (no)
+
+:Stop enumeration;
+:Return enumeration result;
+stop
+
+@enduml

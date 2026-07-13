@@ -67,6 +67,9 @@ lemma contrary_to_duty_obligation:
   by simp
 
 
+(* AXIOM_REFINER_BLOCKS *)
+
+
 section \<open>Nitpick target\<close>
 
 text \<open>

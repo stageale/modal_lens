@@ -171,11 +171,6 @@ defmodule Src.Core.Parser do
   end
 
   # *
-  defp detect_unary_predicates(text, cardinality, nil) do
-    detect_unary_predicates(text, cardinality, MapSet.new())
-  end
-
-  # *
   defp detect_unary_predicates(text, cardinality, exclude) do
     pattern = Regex.compile!("(?:^|\\n)\\s*(#{@identifier})\\s*=\\s*\\(λx\\.\\s*_\\)")
 
