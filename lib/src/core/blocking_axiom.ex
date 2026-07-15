@@ -24,7 +24,7 @@ defmodule Src.Core.BlockingAxiom do
   alias Src.Core.Model
 
   @default_world_prefix "u"
-  @default_initial_world_constant "actual_world"
+  @default_designated_world_constant "actual_world"
 
   @isabelle_not ~S(\<not>)
   @isabelle_exists ~S(\<exists>)
@@ -56,11 +56,11 @@ defmodule Src.Core.BlockingAxiom do
     end
   end
 
-  def source_stem(%Model{source: nil}) do
+  def source_stem(%{source: nil}) do
     "nitpick_model"
   end
 
-  def source_stem(%Model{source: source})
+  def source_stem(%{source: source})
       when is_binary(source) do
     source
     |> Path.basename()
@@ -75,13 +75,13 @@ defmodule Src.Core.BlockingAxiom do
     * `:include_atoms`
       Include all parsed unary predicate valuations. Defaults to `true`.
 
-    * `:include_initial`
+    * `:include_designated_world`
       Include the designated initial-world constant. Defaults to `false`.
 
       This should only be enabled when the parser has reliably recovered the
       designated world from Nitpick's output.
 
-    * `:initial_world_constant`
+    * `:designated_world_constant`
       Isabelle constant denoting the designated world. Defaults to
       `"actual_world"`.
 
@@ -98,7 +98,7 @@ defmodule Src.Core.BlockingAxiom do
         ...
   """
   def exact_structure_formula(
-        %Model{} = model,
+        %{} = model,
         opts \\ []
       ) do
     validate_model!(model)
@@ -106,14 +106,14 @@ defmodule Src.Core.BlockingAxiom do
     include_atoms =
       Keyword.get(opts, :include_atoms, true)
 
-    include_initial =
-      Keyword.get(opts, :include_initial, false)
+    include_designated_world =
+      Keyword.get(opts, :include_designated_world, false)
 
-    initial_world_constant =
+    designated_world_constant =
       Keyword.get(
         opts,
-        :initial_world_constant,
-        @default_initial_world_constant
+        :designated_world_constant,
+        @default_designated_world_constant
       )
 
     world_prefix =
@@ -137,11 +137,11 @@ defmodule Src.Core.BlockingAxiom do
       ]
 
     initial_clauses =
-      initial_world_clauses(
+      designated_world_clauses(
         model,
         worlds,
-        include_initial,
-        initial_world_constant
+        include_designated_world,
+        designated_world_constant
       )
 
     relation_clauses =
@@ -175,7 +175,7 @@ defmodule Src.Core.BlockingAxiom do
   Produces the negation of the exact finite model description.
   """
   def blocking_formula(
-        %Model{} = model,
+        %{} = model,
         opts \\ []
       ) do
     model_formula =
@@ -195,7 +195,7 @@ defmodule Src.Core.BlockingAxiom do
   Existing callers using only `:name` and `:include_atoms` remain compatible.
   """
   def blocking_axiom(
-        %Model{} = model,
+        model,
         opts \\ []
       ) do
     axiom_name =
@@ -242,7 +242,7 @@ defmodule Src.Core.BlockingAxiom do
   end
 
   defp relation_clauses(
-         %Model{} = model,
+         %{} = model,
          worlds
        ) do
     for source_index <-
@@ -278,7 +278,7 @@ defmodule Src.Core.BlockingAxiom do
   end
 
   defp valuation_clauses(
-         %Model{} = model,
+         %{} = model,
          worlds,
          true
        ) do
@@ -301,36 +301,23 @@ defmodule Src.Core.BlockingAxiom do
     end)
   end
 
-  defp initial_world_clauses(
-         _model,
-         _worlds,
-         false,
-         _constant
-       ) do
+  defp designated_world_clauses(_model, _worlds, false, _constant) do
     []
   end
 
-  defp initial_world_clauses(
-         %Model{} = model,
-         worlds,
-         true,
-         initial_world_constant
-       ) do
+  defp designated_world_clauses(%{} = model, worlds, true, constant) do
     validate_isabelle_identifier!(
-      initial_world_constant,
-      :initial_world_constant
+      constant,
+      :designated_world_constant
     )
 
     designated_world =
       Enum.at(
         worlds,
-        model.initial_world
+        Model.designated_world(model)
       )
 
-    [
-      "(#{initial_world_constant} = " <>
-        "#{designated_world})"
-    ]
+    ["(#{constant} = " <> "#{designated_world})"]
   end
 
   defp literal(proposition, true) do
@@ -405,42 +392,39 @@ defmodule Src.Core.BlockingAxiom do
   end
 
   defp validate_model!(
-         %Model{
+         %{
            cardinality: cardinality
          } = model
        )
        when is_integer(cardinality) and
               cardinality > 0 do
-    validate_initial_world!(model)
+    validate_designated_world!(model)
     validate_valuations!(model)
     validate_relation_name!(model)
 
     :ok
   end
 
-  defp validate_model!(%Model{} = model) do
+  defp validate_model!(%{} = model) do
     raise ArgumentError,
           "blocking axioms require a positive finite cardinality, " <>
             "got: #{inspect(model.cardinality)}"
   end
 
-  defp validate_initial_world!(%Model{
-         cardinality: cardinality,
-         initial_world: initial_world
-       })
-       when is_integer(initial_world) and
-              initial_world >= 0 and
-              initial_world < cardinality do
+  defp validate_designated_world!(%{cardinality: cardinality, designated_world: designated_world})
+       when is_integer(designated_world) and
+              designated_world >= 0 and
+              designated_world < cardinality do
     :ok
   end
 
-  defp validate_initial_world!(%Model{} = model) do
+  defp validate_designated_world!(%{} = model) do
     raise ArgumentError,
-          "initial world #{inspect(model.initial_world)} " <>
+          "initial world #{inspect(model.designated_world)} " <>
             "is outside cardinality #{inspect(model.cardinality)}"
   end
 
-  defp validate_valuations!(%Model{} = model) do
+  defp validate_valuations!(%{} = model) do
     Enum.each(
       model.valuations,
       fn {predicate, values} ->
@@ -465,9 +449,7 @@ defmodule Src.Core.BlockingAxiom do
     )
   end
 
-  defp validate_relation_name!(%Model{
-         relation_name: relation_name
-       }) do
+  defp validate_relation_name!(%{relation_name: relation_name}) do
     validate_isabelle_identifier!(
       relation_name,
       :relation

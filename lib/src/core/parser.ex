@@ -1,5 +1,6 @@
 defmodule Src.Core.Parser do
-  alias Src.Core.Model
+  alias Src.Core.Model.DDL, as: DDLModel
+  alias Src.Core.Model.SDL, as: SDLModel
   alias Src.Err.ParseWarning
 
   @world ~S/i(?:⇩|\\<\^sub>)(\d+)/
@@ -17,6 +18,7 @@ defmodule Src.Core.Parser do
 
   # *
   def parse_nitpick_text(text, opts \\ []) do
+    model_logic = Keyword.get(opts, :model_logic, :sdl)
     relation = Keyword.get(opts, :relation, "R")
     atoms = Keyword.get(opts, :atoms, [])
     auto_atoms = Keyword.get(opts, :auto_atoms, false)
@@ -24,9 +26,9 @@ defmodule Src.Core.Parser do
 
     {kind, cardinality} = parse_kind_and_cardinality(text)
 
-    {initial_world, warnings} =
-      case parse_initial_world(text) do
-        nil -> {0, [%ParseWarning{message: "No explicit initial world found; defaulted to i1."}]}
+    {designated_world, warnings} =
+      case parse_designated_world(text) do
+        nil -> {0, [%ParseWarning{message: "No explicit designated world found; defaulted to i1."}]}
         val -> {val, []}
       end
 
@@ -58,17 +60,50 @@ defmodule Src.Core.Parser do
         end
       end)
 
-    %Model{
+    attributes = %{
       source: source,
       kind: kind,
       cardinality: cardinality,
       relation_name: relation,
-      initial_world: initial_world,
+      designated_world: designated_world,
       edges: edge_set,
       valuations: valuations,
       warnings: Enum.reverse(final_warnings),
       raw_text: text
     }
+
+    build_model(
+      model_logic,
+      attributes,
+      designated_world
+    )
+  end
+
+  defp build_model(:sdl, attributes, designated_world) do
+    struct!(
+      SDLModel,
+      Map.put(
+        attributes,
+        :initial_world,
+        designated_world
+      )
+    )
+  end
+
+  defp build_model(:ddl, attributes, designated_world) do
+    struct!(
+      DDLModel,
+      Map.put(
+        attributes,
+        :actual_world,
+        designated_world
+      )
+    )
+  end
+
+  defp build_model(model_logic, _attributes, _world) do
+    raise ArgumentError,
+          "unsupported model logic: #{inspect(model_logic)}"
   end
 
   # *
@@ -93,8 +128,8 @@ defmodule Src.Core.Parser do
   end
 
   # *
-  defp parse_initial_world(text) do
-    pattern = Regex.compile!("(?:^|\\n)\\s*(?:w|aw)\\s*=\\s*#{@world}")
+  defp parse_designated_world(text) do
+    pattern = Regex.compile!("(?:^|\\n)\\s*(?:w|aw|actual_world)\\s*=\\s*#{@world}")
 
     case Regex.run(pattern, text) do
       nil -> nil

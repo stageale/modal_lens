@@ -1,7 +1,8 @@
 defmodule Src.Core.Render do
   alias Src.Core.Model
 
-  def write_dot(%Model{} = model, path, opts \\ []) do
+  def write_dot(model, path, opts \\ []) do
+    Model.assert_supported!(model)
     atoms = Keyword.get(opts, :atoms)
     highlight = Keyword.get(opts, :highlight)
     path = to_string(path)
@@ -10,7 +11,7 @@ defmodule Src.Core.Render do
 
     lines =
       [
-        "digraph KripkeModel {",
+        "digraph #{Model.graph_name(model)} {",
         "  rankdir=LR;",
         "  node [shape=circle, fontsize=10, fixedsize=true, width=1.35];",
         ""
@@ -19,7 +20,7 @@ defmodule Src.Core.Render do
         [
           "",
           "  init [shape=plaintext, label=\"start\"];",
-          "  init -> w#{model.initial_world} [penwidth=2];",
+          "  init -> w#{Model.designated_world(model)} [penwidth=2];",
           ""
         ] ++
         dot_edge_lines(model, highlight) ++
@@ -70,7 +71,8 @@ defmodule Src.Core.Render do
     |> Enum.join()
   end
 
-  def write_tikz(%Model{} = model, path, opts \\ []) do
+  def write_tikz(model, path, opts \\ []) do
+    world = Model.designated_world(model)
     atoms = Keyword.get(opts, :atoms)
     path = to_string(path)
 
@@ -98,7 +100,7 @@ defmodule Src.Core.Render do
         tikz_edge_lines(model) ++
         [
           "",
-          "  \\draw[->,thick] ($ (w#{model.initial_world}.west)+(-8mm,0) $) -- (w#{model.initial_world}.west);",
+          "  \\draw[->,thick] ($ (w#{world}.west)+(-8mm,0) $) -- (w#{world}.west);",
           ~S(\end{tikzpicture}),
           ~S(\end{document})
         ]
@@ -132,7 +134,7 @@ defmodule Src.Core.Render do
   end
 
   defp dot_world_lines(model, atoms, highlight) do
-    for i <- world_indices(model) do
+    for i <- Model.world_indices(model) do
       label =
         model
         |> Model.label_for_world(i, atoms)
@@ -208,7 +210,7 @@ defmodule Src.Core.Render do
   end
 
   defp tikz_world_lines(model, atoms, radius) do
-    for i <- world_indices(model) do
+    for i <- Model.world_indices(model) do
       angle = 360 * i / max(1, model.cardinality)
 
       label =
@@ -255,14 +257,6 @@ defmodule Src.Core.Render do
     path
     |> Path.dirname()
     |> File.mkdir_p!()
-  end
-
-  defp world_indices(%Model{cardinality: cardinality}) when cardinality > 0 do
-    0..(cardinality - 1)
-  end
-
-  defp world_indices(%Model{}) do
-    []
   end
 
   defp format_float(number) do

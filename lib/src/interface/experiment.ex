@@ -132,7 +132,9 @@ defmodule Src.Interface.Experiment do
       BlockingAxiom.blocking_axiom(
         model,
         name: Keyword.get(opts, :blocking_name),
-        include_atoms: Keyword.get(opts, :include_atoms, true)
+        include_atoms: Keyword.get(opts, :include_atoms, true),
+        include_initial: Keyword.get(opts, :include_initial, false),
+        initial_world_constant: Keyword.get(opts, :initial_world_constant, "actual_world")
       )
 
     %{
@@ -169,6 +171,7 @@ defmodule Src.Interface.Experiment do
   """
   def parse_nitpick_file(path, opts \\ []) do
     Parser.parse_nitpick_file(path,
+      model_logic: Keyword.get(opts, :model_logic, :sdl),
       relation: Keyword.get(opts, :relation, "R"),
       atoms:
         opts
@@ -179,7 +182,7 @@ defmodule Src.Interface.Experiment do
   end
 
   defp write_countermodel_artifacts(
-         %Model{} = model,
+         model,
          isabelle_run,
          output_dir,
          iteration,
@@ -214,7 +217,14 @@ defmodule Src.Interface.Experiment do
         BlockingAxiom.blocking_axiom(
           model,
           name: blocking_name,
-          include_atoms: Keyword.get(opts, :include_atoms, true)
+          include_atoms: Keyword.get(opts, :include_atoms, true),
+          include_initial: Keyword.get(opts, :include_initial, false),
+          initial_world_constant:
+            Keyword.get(
+              opts,
+              :initial_world_constant,
+              "actual_world"
+            )
         )
 
       blocking_axiom_file =

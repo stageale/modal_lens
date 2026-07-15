@@ -115,7 +115,7 @@ defmodule Src.ModelEnumeration do
              opts
            )}
 
-        %Model{} = model ->
+        model ->
           with {:ok, artifacts} <-
                  write_countermodel_artifacts(
                    model,
@@ -227,7 +227,9 @@ defmodule Src.ModelEnumeration do
         "#{base_name}_Search_#{search_index}"
 
       theory_dir =
-        Path.join(output_root, "search_theories")
+        opts
+        |> Keyword.get(:search_theory_dir, Path.dirname(base_theory_path))
+        |> Path.expand()
 
       theory_path =
         Path.join(theory_dir, "#{theory_name}.thy")
@@ -277,6 +279,7 @@ defmodule Src.ModelEnumeration do
       model =
         Parser.parse_nitpick_text(text,
           source: source,
+          model_logic: Keyword.get(opts, :model_logic, :sdl),
           relation: Keyword.get(opts, :relation, "R"),
           atoms:
             opts
@@ -298,7 +301,7 @@ defmodule Src.ModelEnumeration do
   end
 
   defp write_countermodel_artifacts(
-         %Model{} = model,
+         model,
          isabelle_run,
          output_dir,
          iteration,
@@ -335,7 +338,9 @@ defmodule Src.ModelEnumeration do
         BlockingAxiom.blocking_axiom(
           model,
           name: blocking_name,
-          include_atoms: Keyword.get(opts, :include_atoms, true)
+          include_atoms: Keyword.get(opts, :include_atoms, true),
+          include_designated_world: Keyword.get(opts, :include_designated_world, false),
+          designated_world_constant: Keyword.get(opts, :designated_world_constant, Model.designated_world_constant(model))
         )
 
       blocking_axiom_file =
@@ -563,7 +568,8 @@ defmodule Src.ModelEnumeration do
             case write_search_theory(
                    base_theory_path,
                    updated_blocking_axioms,
-                   output_dir: output_root
+                   output_dir: output_root,
+                   search_theory_dir: Keyword.get(opts, :search_theory_dir, Path.dirname(base_theory_path))
                  ) do
               {:ok, next_search_theory} ->
                 entry_with_next_theory =

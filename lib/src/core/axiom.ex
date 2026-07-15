@@ -6,13 +6,12 @@ defmodule Src.Core.Axiom do
   """
 
   alias Src.Core.BlockingAxiom
-  alias Src.Core.Model
 
   defdelegate sanitize_name(name), to: BlockingAxiom
   defdelegate source_stem(model), to: BlockingAxiom
   defdelegate exact_structure_formula(model, opts \\ []), to: BlockingAxiom
 
-  def blocking_axiom(%Model{} = model, opts \\ []) do
+  def blocking_axiom(model, opts \\ []) do
     BlockingAxiom.blocking_axiom(model, opts)
   end
 end
