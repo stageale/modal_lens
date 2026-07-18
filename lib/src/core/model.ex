@@ -2,8 +2,8 @@ defmodule Src.Core.Model do
   alias Src.Core.Model.DDL, as: DDLModel
   alias Src.Core.Model.SDL, as: SDLModel
 
-  def supported?(%SDLModel{}), do: SDLModel
-  def supported?(%DDLModel{}), do: DDLModel
+  def supported?(%SDLModel{}), do: true
+  def supported?(%DDLModel{}), do: true
   def supported?(_), do: false
 
   def assert_supported!(model) do
@@ -140,29 +140,35 @@ defmodule Src.Core.Model do
     end
   end
 
-  def as_summary(%SDLModel{} = model) do
-    common_summary(model)
+  def as_summary(%SDLModel{initial_world: world} = model) do
+    common_summary(model, :sdl)
     |> Map.put(
       :initial_world,
-      world_name(model, model.initial_world)
+      world_name(model, world)
     )
   end
 
-  def as_summary(%DDLModel{} = model) do
-    common_summary(model)
+  def as_summary(%DDLModel{actual_world: world} = model) do
+    common_summary(model, :ddl)
     |> Map.put(
-      :initial_world,
-      world_name(model, model.actual_world)
+      :actual_world,
+      world_name(model, world)
     )
   end
 
-  defp common_summary(model) do
+  defp common_summary(%{
+          source: source,
+          kind: kind,
+          cardinality: cardinality,
+          relation_name: relation_name
+        } = model, model_logic
+  ) when model_logic in [:sdl, :ddl] do
     %{
-      source: model.source || "<text>",
-      kind: model.kind,
-      model_logic: model_logic(model),
-      cardinality: model.cardinality,
-      relation: model.relation_name,
+      source: source || "<text>",
+      kind: kind,
+      model_logic: model_logic,
+      cardinality: cardinality,
+      relation: relation_name,
       edge_count: edge_count(model),
       atoms: atom_names(model),
       warnings: warning_messages(model)

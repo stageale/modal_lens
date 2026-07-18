@@ -2,12 +2,26 @@ defmodule Src.Interface.CLI do
   #alias Src.Core.Parser
   alias Src.Interface.Experiment
   alias Src.Core.BlockingAxiom
+  alias Src.ModelEnumeration
 
   @common_switches [
     relation: :string,
     atoms: :string,
     auto_atoms: :boolean,
     strict: :boolean
+  ]
+
+  @enumeration_switches [
+    input: :string,
+    mode: :string,
+    model_logic: :string,
+    max_models: :integer,
+    out_dir: :string,
+    search_theory_dir: :string,
+    isabelle_bin: :string,
+    threads: :integer,
+    include_atoms: :boolean,
+    include_designated_world: :boolean
   ]
 
   def main(argv \\ System.argv()) do
@@ -17,6 +31,9 @@ defmodule Src.Interface.CLI do
 
       ["help" | _] ->
         usage()
+
+      ["enumerate" | rest] ->
+        cmd_enumerate(rest)
 
       ["summary" | rest] ->
         cmd_summary(rest)
@@ -44,15 +61,118 @@ defmodule Src.Interface.CLI do
     Usage:
       axiom_refiner summary INPUTS... [--relation R] [--atoms go,tell] [--auto-atoms] [--json]
       axiom_refiner axiom   INPUTS... [--relation R] [--atoms go,tell] [--auto-atoms] [-o DIR] [--no-atoms]
+      axiom_refiner enumerate INPUT.thy --mode MODE [options]
 
     Commands:
-      summary   Print compact summaries of Nitpick outputs.
-      axiom     Generate Isabelle/HOL blocking axiom fragments.
-      rank      Rank multiple Nitpick outputs by simple model features.
-      demo      Generate a small demo bundle with DOT/SVG/HTML/JSON outputs.
+      enumerate   Enumerate countermodelsor satisfying finite models.
+      summary     Print compact summaries of Nitpick outputs.
+      axiom       Generate Isabelle/HOL blocking axiom fragments.
+      rank        Rank multiple Nitpick outputs by simple model features.
+      demo        Generate a small demo bundle with DOT/SVG/HTML/JSON outputs.
+
+    Options:
+      --input PATH      Isabelle input theory.
+                        Default: lib/data/Input.thy
+
+      --mode MODE       countermodels,
+                        satisfying-models,
+                        consistency-check
     """)
 
     0
+  end
+
+  defp cmd_enumerate(argv) do
+    {opts, positional_args, invalid} =
+      OptionParser.parse(
+        argv,
+        strict: @common_switches ++ @enumeration_switches,
+        aliases: [
+          o: :out_dir
+        ]
+      )
+
+    with :ok <- reject_invalid_options(invalid),
+         :ok <- reject_enumeration_positionals(positional_args),
+        {:ok, mode} <- parse_enumeration_mode(Keyword.get(opts, :mode)),
+        {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")) do
+          input_path =
+            Keyword.get(opts, :input)
+
+          enumeration_opts =
+            opts
+            |> Keyword.drop([:input, :out_dir])
+            |> Keyword.put(:mode, mode)
+            |> Keyword.put(:model_logic, model_logic)
+            |> maybe_put(:output_dir, Keyword.get(opts, :out_dir))
+
+          enumeration_result =
+            case input_path do
+              nil -> ModelEnumeration.enumerate(enumeration_opts)
+              path -> ModelEnumeration.enumerate(path, enumeration_opts)
+            end
+
+          case enumeration_result do
+            {:ok, result} ->
+              IO.puts("Enumeration completed.")
+              IO.puts("Mode: #{mode}")
+              IO.puts("Input: #{result.base_theory_file}")
+              IO.puts("Status: #{inspect(result.status)}")
+              IO.puts("Models found: #{result.model_count}")
+              IO.puts("Output directory: #{result.output_dir}")
+
+              0
+
+            {:error, reason} ->
+              IO.puts(:stderr, "[ERROR] Enumerationfailed:")
+              IO.inspect(reason, pretty: true, limit: :infinity, printable_limit: :infinity)
+
+              1
+          end
+        else
+          {:error, message} ->
+            IO.puts(:stderr, "[ERROR] #{message}")
+
+            2
+        end
+  end
+
+  defp reject_enumeration_positionals([]), do: :ok
+
+  defp reject_enumeration_positionals(positional_args) do
+    {:error, "Unexpected positional arguments: " <> Enum.join(positional_args, " ") <> ". Use --input PATH to select another theory."}
+  end
+
+  defp parse_enumeration_mode("countermodels") do
+    {:ok, :countermodels}
+  end
+
+  defp parse_enumeration_mode("consistency-check") do
+    {:ok, :consistency_check}
+  end
+
+  defp parse_enumeration_mode("satisfying-models") do
+    {:ok, :satisfying_models}
+  end
+
+  defp parse_enumeration_mode(nil) do
+    {:error, "Missing --mode. Use countermodels, satisfying-models, or consistency-check."}
+  end
+
+  defp parse_enumeration_mode(mode) do
+    {:error, "Unknown mode #{inspect(mode)}. Use countermodels, satisfying-models, or consistency-check."}
+  end
+
+  defp parse_model_logic("sdl"), do: {:ok, :sdl}
+  defp parse_model_logic("ddl"), do: {:ok, :ddl}
+  defp parse_model_logic(logic), do: {:error, "Unknown model logic #{inspect(logic)}. Use sdl or ddl."}
+
+  defp maybe_put(opts, _key, nil) do
+    opts
+  end
+
+  defp maybe_put(opts, key, value) do
+    Keyword.put(opts, key, value)
   end
 
   defp cmd_summary(argv) do

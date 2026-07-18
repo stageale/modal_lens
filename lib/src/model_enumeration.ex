@@ -24,7 +24,11 @@ defmodule Src.ModelEnumeration do
   alias Src.Core.Render
   alias Src.Interface.Isabelle.Client
 
+  @default_input_theory "../data/Input.thy"
+  @mode_theory_dir "../data/mod/"
   @blocking_marker "(* AXIOM_REFINER_BLOCKS *)"
+  @search_theory_placeholder "AXIOM_REFINER_SEARCH"
+  @input_theory_placeholder "AXIOM_REFINER_INPUT"
 
   @doc """
   Runs one complete countermodel iteration for an existing Isabelle theory.
@@ -105,9 +109,9 @@ defmodule Src.ModelEnumeration do
              opts
            ) do
       case parsed_result do
-        :no_countermodel ->
+        :no_result ->
           {:ok,
-           no_countermodel_result(
+           no_model_result(
              base_theory_file,
              isabelle_run,
              output_dir,
@@ -116,6 +120,7 @@ defmodule Src.ModelEnumeration do
            )}
 
         model ->
+          # Create artifacts
           with {:ok, artifacts} <-
                  write_countermodel_artifacts(
                    model,
@@ -125,7 +130,7 @@ defmodule Src.ModelEnumeration do
                    opts
                  ) do
             {:ok,
-             countermodel_result(
+             model_result(
                model,
                artifacts,
                base_theory_file,
@@ -138,6 +143,11 @@ defmodule Src.ModelEnumeration do
       end
     end
   end
+
+  def enumerate(opts) when is_list(opts) do
+    enumerate(default_input_theory_path(), opts)
+  end
+
 
   @doc """
   Enumerates distinct countermodels for one fixed base theory.
@@ -156,10 +166,18 @@ defmodule Src.ModelEnumeration do
 
   All remaining options are forwarded to `run_iteration/2`.
   """
-  def enumerate(base_theory_path, opts \\ [])
+  def enumerate(base_theory_path, opts)
       when is_binary(base_theory_path) and is_list(opts) do
+
     base_theory_path = Path.expand(base_theory_path)
-    max_models = Keyword.get(opts, :max_models, 5)
+
+    mode = Keyword.fetch!(opts, :mode)
+
+    max_models =
+      case mode do
+        :consistency_check -> 1
+        _ -> Keyword.get(opts, :max_models, 10)
+      end
 
     output_root =
       opts
@@ -169,99 +187,122 @@ defmodule Src.ModelEnumeration do
       )
       |> Path.expand()
 
+    search_theory_opts =
+      opts
+      |> Keyword.put(:output_dir, output_root)
+      |> Keyword.put_new(:search_theory_dir, Path.dirname(base_theory_path))
+
+    search_theory_dir =
+      opts
+      |> Keyword.get(:search_theory_dir,Path.join(output_root, "search_theories"))
+      |> Path.expand()
+
+    enumeration_opts =
+      opts
+      |> Keyword.put(:search_theory_dir, search_theory_dir)
+
     with :ok <- validate_max_models(max_models),
-         :ok <- ensure_output_dir(output_root) do
-      do_enumerate(
-        base_theory_path,
-        base_theory_path,
-        [],
-        [],
-        1,
-        max_models,
-        output_root,
-        opts
-      )
+         :ok <- ensure_output_dir(output_root),
+        {:ok, initial_search_theory} <- write_search_theory(base_theory_path, [], search_theory_opts) do
+      do_enumerate(base_theory_path, initial_search_theory.theory_path, [], [], 1, max_models, output_root, enumeration_opts)
     end
   end
 
-  @doc """
-  Generates a search theory from the unchanged base theory and all blocking
-  axioms discovered so far.
-
-  The generated theory is a complete copy of the base theory with:
-
-    * a new Isabelle theory name,
-    * all supplied blocking axioms inserted at the blocking marker.
-
-  The original theory is never modified.
-  """
-  def write_search_theory(base_theory_path, blocking_axioms, opts \\ [])
+  defp write_search_theory(base_theory_path, blocking_axioms, opts)
       when is_binary(base_theory_path) and
              is_list(blocking_axioms) and
              is_list(opts) do
     base_theory_path = Path.expand(base_theory_path)
+
+    mode = Keyword.fetch!(opts, :mode)
+
     block_count = length(blocking_axioms)
 
-    output_root =
+    template_path = mode_theory_path(mode)
+
+    base_theory_name = Path.basename(base_theory_path, ".thy")
+
+    base_name = sanitize_path_part(base_theory_name)
+
+    search_index =
+      block_count
+      |> Integer.to_string()
+      |> String.pad_leading(3, "0")
+
+    theory_name =
+      "#{base_name}_Search_#{search_index}"
+
+    theory_dir =
       opts
-      |> Keyword.get(
-        :output_dir,
-        default_enumeration_output_dir(base_theory_path)
-      )
+      |> Keyword.get(:search_theory_dir, Path.dirname(base_theory_path))
       |> Path.expand()
 
-    with :ok <- validate_blocking_axioms(blocking_axioms),
-         {:ok, source} <- read_base_theory(base_theory_path),
-         :ok <- ensure_blocking_marker(source, base_theory_path) do
-      base_name =
-        base_theory_path
-        |> Path.basename(".thy")
-        |> sanitize_path_part()
+    base_theory_import =
+      base_theory_path
+      |> Path.rootname()
+      |> Path.relative_to(theory_dir)
+      |> String.replace("\\", "/")
+      |> then(&~s("#{&1}"))
 
-      search_index =
-        block_count
-        |> Integer.to_string()
-        |> String.pad_leading(3, "0")
+    theory_path =
+      Path.join(theory_dir, "#{theory_name}.thy")
 
-      theory_name =
-        "#{base_name}_Search_#{search_index}"
-
-      theory_dir =
-        opts
-        |> Keyword.get(:search_theory_dir, Path.dirname(base_theory_path))
-        |> Path.expand()
-
-      theory_path =
-        Path.join(theory_dir, "#{theory_name}.thy")
-
+    with  :ok <- validate_blocking_axioms(blocking_axioms),
+         {:ok, template} <- read_search_theory_template(template_path),
+          :ok <- ensure_blocking_marker(template, template_path),
+          :ok <- ensure_output_dir(theory_dir) do
       generated_source =
-        source
-        |> replace_theory_name(theory_name)
+        template
+        |> String.replace(
+          @search_theory_placeholder,
+          theory_name,
+          global: false
+        )
+        |> String.replace(
+          @input_theory_placeholder,
+          base_theory_import,
+          global: false
+        )
         |> insert_blocking_axioms(blocking_axioms)
 
-      with :ok <- ensure_output_dir(theory_dir),
-           :ok <- write_generated_theory(theory_path, generated_source) do
+      with :ok <- write_generated_theory(theory_path, generated_source) do
         {:ok,
          %{
-           theory_name: theory_name,
-           theory_path: theory_path,
-           block_count: block_count,
-           blocking_axioms: blocking_axioms
+            mode: mode,
+            theory_name: theory_name,
+            theory_path: theory_path,
+            template_path: template_path,
+            base_theory_path: base_theory_path,
+            base_theory_name: base_theory_name,
+            block_count: block_count,
+            blocking_axioms: blocking_axioms
          }}
       end
     end
   end
 
+  defp default_input_theory_path do
+    Path.expand(@default_input_theory, __DIR__)
+  end
+
+  defp mode_theory_path(mode) do
+    @mode_theory_dir
+    |> Path.join(mode_theory_file(mode))
+    |> Path.expand(__DIR__)
+  end
+
+  defp mode_theory_file(:countermodels), do: "Countermodels.thy"
+  defp mode_theory_file(:satisfying_models), do: "SatisfyingModels.thy"
+  defp mode_theory_file(:consistency_check), do: "ConsistencyCheck.thy"
+
   defp parse_nitpick_result(path, opts) do
+    mode = Keyword.fetch!(opts, :mode)
     case File.read(path) do
       {:ok, text} ->
-        if String.contains?(
-             text,
-             "Nitpick found no counterexample"
-           ) do
-          {:ok, :no_countermodel}
+        if no_nitpick_model?(text, mode) do
+          {:ok, :no_result}
         else
-          parse_countermodel_text(text, path, opts)
+          parse_model_text(text, path, opts)
         end
 
       {:error, reason} ->
@@ -274,7 +315,12 @@ defmodule Src.ModelEnumeration do
     end
   end
 
-  defp parse_countermodel_text(text, source, opts) do
+  defp no_nitpick_model?(text, :countermodels), do: String.contains?(text, "Nitpick found no counterexample")
+  defp no_nitpick_model?(text, mode) when mode in [:satisfying_models, :consistency_check] do
+    String.contains?(text, "Nitpick found no model")
+  end
+
+  defp parse_model_text(text, source, opts) do
     try do
       model =
         Parser.parse_nitpick_text(text,
@@ -372,7 +418,7 @@ defmodule Src.ModelEnumeration do
     end
   end
 
-  defp countermodel_result(
+  defp model_result(
          model,
          artifacts,
          base_theory_file,
@@ -382,14 +428,14 @@ defmodule Src.ModelEnumeration do
          opts
        ) do
     %{
-      status: :countermodel_found,
+      status: model_status(model),
+      model_kind: model.kind,
       iteration: iteration,
       output_dir: output_dir,
       base_theory_file: base_theory_file,
       search_theory_file: isabelle_run.theory_path,
       theory_name: isabelle_run.theory_name,
       axiom_option: Keyword.get(opts, :axiom_option),
-      query: Keyword.get(opts, :query),
       nitpick_output_file: isabelle_run.output_file,
       model: model,
       model_summary: Model.as_summary(model),
@@ -404,22 +450,29 @@ defmodule Src.ModelEnumeration do
     }
   end
 
-  defp no_countermodel_result(
+  defp model_status(%{kind: :countermodel}), do: :countermodel_found
+  defp model_status(%{kind: :model}), do: :model_found
+
+  defp no_model_result(
          base_theory_file,
          isabelle_run,
          output_dir,
          iteration,
          opts
        ) do
+    status =
+      case Keyword.fetch!(opts, :mode) do
+        :countermodels -> :no_countermodel
+        _ -> :no_model
+      end
     %{
-      status: :no_countermodel,
+      status: status,
       iteration: iteration,
       output_dir: output_dir,
       base_theory_file: base_theory_file,
       search_theory_file: isabelle_run.theory_path,
       theory_name: isabelle_run.theory_name,
       axiom_option: Keyword.get(opts, :axiom_option),
-      query: Keyword.get(opts, :query),
       nitpick_output_file: isabelle_run.output_file,
       model: nil,
       graph_dot_file: nil,
@@ -507,16 +560,7 @@ defmodule Src.ModelEnumeration do
     atoms
   end
 
-  defp do_enumerate(
-         base_theory_path,
-         current_theory_path,
-         blocking_axioms,
-         entries,
-         iteration,
-         max_models,
-         output_root,
-         opts
-       ) do
+  defp do_enumerate(base_theory_path, current_theory_path, blocking_axioms, entries, iteration, max_models, output_root, opts) do
     iteration_dir =
       Path.join(
         output_root,
@@ -535,7 +579,8 @@ defmodule Src.ModelEnumeration do
       )
 
     case run_iteration(current_theory_path, iteration_opts) do
-      {:ok, %{status: :no_countermodel} = terminal_iteration} ->
+      {:ok, %{status: status} = terminal_iteration}
+      when status in [:no_countermodel, :no_model] ->
         {:ok,
          enumeration_result(
            :exhausted,
@@ -545,7 +590,8 @@ defmodule Src.ModelEnumeration do
            terminal_iteration
          )}
 
-      {:ok, %{status: :countermodel_found} = entry} ->
+      {:ok, %{status: status} = entry}
+      when status in [:countermodel_found, :model_found] ->
         updated_entries =
           entries ++ [entry]
 
@@ -568,8 +614,7 @@ defmodule Src.ModelEnumeration do
             case write_search_theory(
                    base_theory_path,
                    updated_blocking_axioms,
-                   output_dir: output_root,
-                   search_theory_dir: Keyword.get(opts, :search_theory_dir, Path.dirname(base_theory_path))
+                   opts
                  ) do
               {:ok, next_search_theory} ->
                 entry_with_next_theory =
@@ -632,7 +677,7 @@ defmodule Src.ModelEnumeration do
       base_theory_file: base_theory_path,
       output_dir: output_root,
       model_count: length(entries),
-      countermodels: entries,
+      models: entries,
       svg_files:
         entries
         |> Enum.map(& &1.graph_svg_file)
@@ -649,14 +694,14 @@ defmodule Src.ModelEnumeration do
     }
   end
 
-  defp read_base_theory(path) do
+  defp read_search_theory_template(path) do
     case File.read(path) do
       {:ok, source} ->
         {:ok, source}
 
       {:error, reason} ->
         {:error,
-         {:cannot_read_base_theory,
+         {:cannot_read_search_theory_template,
           %{
             path: path,
             reason: reason
@@ -675,15 +720,6 @@ defmodule Src.ModelEnumeration do
           expected_marker: @blocking_marker
         }}}
     end
-  end
-
-  defp replace_theory_name(source, theory_name) do
-    Regex.replace(
-      ~r/^(\s*theory\s+)[A-Za-z0-9_'.]+/m,
-      source,
-      "\\1#{theory_name}",
-      global: false
-    )
   end
 
   defp insert_blocking_axioms(source, blocking_axioms) do
@@ -727,10 +763,6 @@ defmodule Src.ModelEnumeration do
             reason: reason
           }}}
     end
-  end
-
-  defp validate_blocking_axioms([]) do
-    {:error, :no_blocking_axioms}
   end
 
   defp validate_blocking_axioms(blocking_axioms) do

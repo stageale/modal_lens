@@ -67,26 +67,9 @@ lemma contrary_to_duty_obligation:
   by simp
 
 
-(* AXIOM_REFINER_BLOCKS *)
+section \<open>Axiom Refiner query\<close>
 
-
-section \<open>Nitpick target\<close>
-
-text \<open>
-  An unconditional obligation to tell does not follow. Nitpick should
-  therefore generate a finite countermodel.
-\<close>
-
-lemma unconditional_telling_obligation:
-  "holds_at_actual (O tell)"
-  nitpick [
-    user_axioms, 
-    card i = 2,
-    timeout = 60,
-    verbose,
-    show_consts,
-    dont_specialize
-  ]
-  oops
+abbreviation axiom_refiner_query :: bool where
+  "axiom_refiner_query \<equiv> holds_at_actual (O tell)"
 
 end
