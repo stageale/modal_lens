@@ -3,7 +3,7 @@ defmodule Src.VisualExplanations.HighlightTest do
 
   alias Src.VisualExplanations.Highlight
 
-  test "builds a highlight from keyword attributes" do
+  test "builds and normalizes a highlight from keyword attributes" do
     highlight =
       Highlight.new(
         responsible_worlds: [0, 2],
@@ -18,6 +18,10 @@ defmodule Src.VisualExplanations.HighlightTest do
     assert highlight.missing_edges == MapSet.new([{2, 1}])
     assert highlight.tags == [:countermodel]
     assert highlight.metadata.reason == :query_failure
+  end
+
+  test "produces an empty highlight" do
+    assert Highlight.empty() == %Highlight{}
   end
 
   test "creates a highlight from a generic explanation map" do
@@ -46,7 +50,7 @@ defmodule Src.VisualExplanations.HighlightTest do
            }
   end
 
-  test "legacy explanation adapter has no struct dependency" do
+  test "adapts legacy explanation maps without a struct dependency" do
     explanation = %{
       axiom: :serial,
       status: :violated,

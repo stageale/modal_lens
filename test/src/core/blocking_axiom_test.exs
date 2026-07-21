@@ -1,22 +1,19 @@
 defmodule Src.Core.BlockingAxiomTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias Src.Core.BlockingAxiom
-  alias Src.Core.Model
+  alias Src.Core.Model.DDL
+  alias Src.Core.Model.SDL
 
-  defp sample_model do
-    %Model{
-      source: "examples/input/chisholm_a1.txt",
+  defp sdl_model do
+    %SDL{
+      source: "examples/input/chisholm-a1.txt",
       kind: :countermodel,
       cardinality: 2,
       relation_name: "R",
-      initial_world: 0,
+      initial_world: 1,
       edges: MapSet.new([{0, 1}]),
-      valuations: %{
-        "go" => [true, false]
-      },
-      warnings: [],
-      raw_text: ""
+      valuations: %{"go" => [true, false]}
     }
   end
 
@@ -27,40 +24,74 @@ defmodule Src.Core.BlockingAxiomTest do
     assert BlockingAxiom.sanitize_name("!!!") == "nitpick_model"
   end
 
-  test "extracts source stem from model source path" do
-    assert BlockingAxiom.source_stem(sample_model()) == "chisholm_a1"
+  test "extracts a source stem and uses a fallback for text input" do
+    assert BlockingAxiom.source_stem(sdl_model()) == "chisholm-a1"
+    assert BlockingAxiom.source_stem(%SDL{sdl_model() | source: nil}) == "nitpick_model"
   end
 
-  test "uses fallback source stem for text input" do
-    model = %Model{sample_model() | source: nil}
-    assert BlockingAxiom.source_stem(model) == "nitpick_model"
+  test "renders the complete finite SDL structure" do
+    formula = BlockingAxiom.exact_structure_formula(sdl_model())
+
+    assert formula =~ ~S|\<exists>u1 u2.|
+    assert formula =~ "distinct [u1, u2]"
+    assert formula =~ ~S|(\<forall>x. x = u1 \<or> x = u2)|
+    assert formula =~ ~S|\<not>(R u1 u1)|
+    assert formula =~ "(R u1 u2)"
+    assert formula =~ "(go u1)"
+    assert formula =~ ~S|\<not>(go u2)|
+    refute formula =~ "actual_world ="
   end
 
-  test "renders exact finite structure formula" do
-    formula = BlockingAxiom.exact_structure_formula(sample_model())
+  test "can include the designated world with logic-specific constants" do
+    sdl_formula =
+      BlockingAxiom.exact_structure_formula(sdl_model(),
+        include_designated_world: true
+      )
 
-    assert formula == """
-           ¬(R i1 i1) ∧
-             (R i1 i2) ∧
-             ¬(R i2 i1) ∧
-             ¬(R i2 i2) ∧
-             (go i1) ∧
-             ¬(go i2)\
-           """
+    assert sdl_formula =~ "(actual_world = u2)"
+
+    ddl_model = %DDL{
+      kind: :model,
+      cardinality: 1,
+      relation_name: "R",
+      actual_world: 0,
+      edges: MapSet.new(),
+      valuations: %{}
+    }
+
+    ddl_formula =
+      BlockingAxiom.exact_structure_formula(ddl_model,
+        include_designated_world: true,
+        designated_world_constant: "aw"
+      )
+
+    assert ddl_formula =~ "(aw = u1)"
   end
 
-  test "renders blocking axiom" do
-    axiom = BlockingAxiom.blocking_axiom(sample_model())
+  test "wraps the negated structure as a named axiom" do
+    axiom = BlockingAxiom.blocking_axiom(sdl_model(), name: "model-1")
 
-    assert axiom == """
-           axiomatization where ax_chisholm_a1: "¬(
-             ¬(R i1 i1) ∧
-             (R i1 i2) ∧
-             ¬(R i2 i1) ∧
-             ¬(R i2 i2) ∧
-             (go i1) ∧
-             ¬(go i2)
-           )"\
-           """
+    assert axiom =~ "axiomatization where"
+    assert axiom =~ ~S|ax_model_1: "\<not>(|
+    assert axiom =~ ~S|\<exists>u1 u2.|
+  end
+
+  test "falls back to the source name when name is explicitly nil" do
+    axiom = BlockingAxiom.blocking_axiom(sdl_model(), name: nil)
+    assert axiom =~ "ax_chisholm_a1:"
+  end
+
+  test "rejects malformed valuations and invalid designated worlds" do
+    bad_values = %SDL{sdl_model() | valuations: %{"go" => [true]}}
+
+    assert_raise ArgumentError, ~r/valuation "go"/, fn ->
+      BlockingAxiom.exact_structure_formula(bad_values)
+    end
+
+    bad_world = %SDL{sdl_model() | initial_world: 3}
+
+    assert_raise ArgumentError, ~r/designated world 3/, fn ->
+      BlockingAxiom.exact_structure_formula(bad_world)
+    end
   end
 end

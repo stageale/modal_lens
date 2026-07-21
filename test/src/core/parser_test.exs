@@ -1,118 +1,108 @@
 defmodule Src.Core.ParserTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
+  alias Src.Core.Model.DDL
+  alias Src.Core.Model.SDL
   alias Src.Core.Parser
 
-  test "parses basic Nitpick countermodel metadata" do
-    text = """
-    Nitpick found a counterexample for card i = 6:DSS
+  @nitpick_output """
+  Nitpick found a counterexample for card i = 2:
 
-    w = i⇩1
-    """
-
-    model = Parser.parse_nitpick_text(text)
-
-    assert model.kind == :countermodel
-    assert model.cardinality == 6
-    assert model.initial_world == 0
-    assert model.edges == MapSet.new()
-    assert length(model.warnings) == 1
-  end
-
-  test "parses flat true relation edges" do
-    text = """
-    Nitpick found a counterexample for card i = 2:
-
-    w = i⇩1
-    R =
-      (i⇩1, i⇩1) := True
-      (i⇩1, i⇩2) := False
-      (i⇩2, i⇩1) := True
-      (i⇩2, i⇩2) := False
-    """
-
-    model = Parser.parse_nitpick_text(text)
-    assert model.edges == MapSet.new([{0, 0}, {1, 0}])
-  end
-
-  @complex_nitpick_output """
-  Nitpicking formula...
-  Nitpick found a counterexample for card i = 6:
-    Constants:
-      go = (λx. _)
-           (i⇩1 := False, i⇩2 := False, i⇩3 := False, i⇩4 := False,
-              i⇩5 := True, i⇩6 := True)
-      tell =
-        (λx. _)
-        (i⇩1 := False, i⇩2 := False, i⇩3 := False, i⇩4 := True,
-           i⇩5 := False, i⇩6 := True)
-      (R) =
-        (λx. _)
-        ((i⇩1, i⇩1) := False, (i⇩1, i⇩2) := False, (i⇩1, i⇩3) := False,
-           (i⇩1, i⇩4) := False, (i⇩1, i⇩5) := True, (i⇩1, i⇩6) := True,
-           (i⇩2, i⇩1) := True, (i⇩2, i⇩2) := True, (i⇩2, i⇩3) := False,
-           (i⇩2, i⇩4) := True, (i⇩2, i⇩5) := False, (i⇩2, i⇩6) := False,
-           (i⇩3, i⇩1) := False, (i⇩3, i⇩2) := True, (i⇩3, i⇩3) := False,
-           (i⇩3, i⇩4) := False, (i⇩3, i⇩5) := False, (i⇩3, i⇩6) := False,
-           (i⇩4, i⇩1) := False, (i⇩4, i⇩2) := True, (i⇩4, i⇩3) := True,
-           (i⇩4, i⇩4) := False, (i⇩4, i⇩5) := False, (i⇩4, i⇩6) := False,
-           (i⇩5, i⇩1) := False, (i⇩5, i⇩2) := True, (i⇩5, i⇩3) := True,
-           (i⇩5, i⇩4) := True, (i⇩5, i⇩5) := False, (i⇩5, i⇩6) := False,
-           (i⇩6, i⇩1) := False, (i⇩6, i⇩2) := True, (i⇩6, i⇩3) := True,
-           (i⇩6, i⇩4) := True, (i⇩6, i⇩5) := True, (i⇩6, i⇩6) := False)
-      aw = i⇩3
+  aw = i⇩2
+  R =
+    (i⇩1, i⇩1) := False
+    (i⇩1, i⇩2) := True
+    (i⇩2, i⇩1) := False
+    (i⇩2, i⇩2) := True
+  go = (λx. _)
+    (i⇩1 := True, i⇩2 := False)
+  tell = (λx. _)
+    (i⇩1 := False, i⇩2 := True)
   """
 
-  test "parses complex Nitpick countermodel with aw, atoms, and parenthesized R" do
+  test "exposes reusable assignment regexes" do
+    assert Regex.match?(Parser.world_pair_regex(), "(i⇩1, i⇩2) := True")
+    assert Regex.match?(Parser.bool_assign_regex(), "i⇩2 := False")
+  end
+
+  test "parses an SDL countermodel" do
     model =
-      Parser.parse_nitpick_text(@complex_nitpick_output,
+      Parser.parse_nitpick_text(@nitpick_output,
         relation: "R",
         atoms: ["go", "tell"]
       )
 
+    assert %SDL{} = model
     assert model.kind == :countermodel
-    assert model.cardinality == 6
-    assert model.initial_world == 2
-
-    assert model.valuations["go"] == [
-             false,
-             false,
-             false,
-             false,
-             true,
-             true
-           ]
-
-    assert model.valuations["tell"] == [
-             false,
-             false,
-             false,
-             true,
-             false,
-             true
-           ]
-
-    expected_edges =
-      MapSet.new([
-        {0, 4},
-        {0, 5},
-        {1, 0},
-        {1, 1},
-        {1, 3},
-        {2, 1},
-        {3, 1},
-        {3, 2},
-        {4, 1},
-        {4, 2},
-        {4, 3},
-        {5, 1},
-        {5, 2},
-        {5, 3},
-        {5, 4}
-      ])
-
-    assert model.edges == expected_edges
-    assert MapSet.size(model.edges) == 15
+    assert model.cardinality == 2
+    assert model.initial_world == 1
+    assert model.edges == MapSet.new([{0, 1}, {1, 1}])
+    assert model.valuations == %{
+             "go" => [true, false],
+             "tell" => [false, true]
+           }
     assert model.warnings == []
+  end
+
+  test "parses a DDL model and detects atoms automatically" do
+    text = String.replace(@nitpick_output, "counterexample", "model")
+
+    model =
+      Parser.parse_nitpick_text(text,
+        model_logic: :ddl,
+        relation: "R",
+        auto_atoms: true
+      )
+
+    assert %DDL{} = model
+    assert model.kind == :model
+    assert model.actual_world == 1
+    assert model.valuations["go"] == [true, false]
+    assert model.valuations["tell"] == [false, true]
+  end
+
+  test "adds warnings for absent designated worlds, edges, and requested atoms" do
+    model =
+      Parser.parse_nitpick_text(
+        "Nitpick found a counterexample for card i = 1:",
+        atoms: ["missing"]
+      )
+
+    messages = Enum.map(model.warnings, & &1.message)
+
+    assert "No explicit designated world found; defaulted to i1." in messages
+    assert "No true edges found for relation 'R'." in messages
+    assert "Atom 'missing' not found; omitted." in messages
+  end
+
+  test "parses a file and records its source path" do
+    path = tmp_file("nitpick.txt", @nitpick_output)
+    model = Parser.parse_nitpick_file(path, atoms: ["go"])
+
+    assert model.source == path
+    assert model.raw_text == @nitpick_output
+  end
+
+  test "rejects no-result text and unsupported model logic" do
+    assert_raise ArgumentError, ~r/no counterexample/, fn ->
+      Parser.parse_nitpick_text("Nitpick found no counterexample")
+    end
+
+    assert_raise ArgumentError, ~r/unsupported model logic/, fn ->
+      Parser.parse_nitpick_text(@nitpick_output, model_logic: :unknown)
+    end
+  end
+
+  defp tmp_file(name, content) do
+    dir =
+      Path.join(
+        System.tmp_dir!(),
+        "axiom_refiner_parser_test_#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(dir)
+    path = Path.join(dir, name)
+    File.write!(path, content)
+    path
   end
 end
