@@ -29,3 +29,18 @@ nitpick.txt
 *.nitpick.txt
 *.dot
 *.svg
+
+# Python environment
+.venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
