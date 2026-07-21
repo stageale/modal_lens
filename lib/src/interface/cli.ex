@@ -8,13 +8,13 @@ defmodule Src.Interface.CLI do
     relation: :string,
     atoms: :string,
     auto_atoms: :boolean,
-    strict: :boolean
+    strict: :boolean,
+    model_logic: :string
   ]
 
   @enumeration_switches [
     input: :string,
     mode: :string,
-    model_logic: :string,
     max_models: :integer,
     out_dir: :string,
     search_theory_dir: :string,
@@ -181,7 +181,11 @@ defmodule Src.Interface.CLI do
 
     with :ok <- reject_invalid_options(invalid),
          :ok <- require_inputs(inputs),
+        {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")),
          :ok <- ensure_json_available(opts) do
+
+      opts = Keyword.put(opts, :model_logic, model_logic)
+
       inputs
       |> collect_input_files()
       |> Enum.each(fn file ->
@@ -212,12 +216,16 @@ defmodule Src.Interface.CLI do
   defp cmd_axiom(argv) do
     {opts, inputs, invalid} =
       OptionParser.parse(argv,
-        strict: @common_switches ++ [out_dir: :string, no_atoms: :boolean],
+        strict: @common_switches ++ [out_dir: :string, no_atoms: :boolean, include_designated_world: :boolean, designated_world_constant: :string],
         aliases: [o: :out_dir]
       )
 
     with :ok <- reject_invalid_options(invalid),
-         :ok <- require_inputs(inputs) do
+         :ok <- require_inputs(inputs),
+        {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")) do
+
+      opts = Keyword.put(opts, :model_logic, model_logic)
+
       out_dir = Keyword.get(opts, :out_dir)
       include_atoms = not Keyword.get(opts, :no_atoms, false)
 
@@ -231,10 +239,20 @@ defmodule Src.Interface.CLI do
         try do
           model = Experiment.parse_nitpick_file(file, opts)
 
+          blocking_opts =
+            [
+              includ_atoms: include_atoms,
+              include_designated_world: Keyword.get(opts, :include_designated_world, false)
+            ]
+            |> maybe_put(
+              :designated_world_constant,
+              Keyword.get(opts, :designated_world_constant)
+            )
+
           axiom =
             BlockingAxiom.blocking_axiom(
               model,
-              include_atoms: include_atoms
+              blocking_opts
             )
 
           if out_dir do

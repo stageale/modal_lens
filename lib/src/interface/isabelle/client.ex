@@ -140,8 +140,8 @@ defmodule Src.Interface.Isabelle.Client do
 
     other ->
       {:error, {:unknown_backend, other}}
+    end
   end
-end
 
   defp validate_theory_file(path) do
     cond do

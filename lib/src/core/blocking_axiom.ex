@@ -24,7 +24,6 @@ defmodule Src.Core.BlockingAxiom do
   alias Src.Core.Model
 
   @default_world_prefix "u"
-  @default_designated_world_constant "actual_world"
 
   @isabelle_not ~S(\<not>)
   @isabelle_exists ~S(\<exists>)
@@ -113,7 +112,7 @@ defmodule Src.Core.BlockingAxiom do
       Keyword.get(
         opts,
         :designated_world_constant,
-        @default_designated_world_constant
+        Model.designated_world_constant(model)
       )
 
     world_prefix =
@@ -198,10 +197,9 @@ defmodule Src.Core.BlockingAxiom do
         model,
         opts \\ []
       ) do
-    axiom_name =
-      opts
-      |> Keyword.get(:name, source_stem(model))
-      |> sanitize_name()
+
+    requested_name = Keyword.get(opts, :name)
+    axiom_name = sanitize_name(requested_name || source_stem(model))
 
     formula =
       model
@@ -411,17 +409,19 @@ defmodule Src.Core.BlockingAxiom do
             "got: #{inspect(model.cardinality)}"
   end
 
-  defp validate_designated_world!(%{cardinality: cardinality, designated_world: designated_world})
-       when is_integer(designated_world) and
-              designated_world >= 0 and
-              designated_world < cardinality do
-    :ok
-  end
+  defp validate_designated_world!(model) do
+    cardinality = model.cardinality
+    designated_world = Model.designated_world(model)
 
-  defp validate_designated_world!(%{} = model) do
-    raise ArgumentError,
-          "initial world #{inspect(model.designated_world)} " <>
-            "is outside cardinality #{inspect(model.cardinality)}"
+    if is_integer(designated_world) and
+      designated_world >= 0 and
+      designated_world < cardinality do
+        :ok
+    else
+      raise ArgumentError,
+        "designated world #{inspect(designated_world)} " <>
+          "is outside cardinality #{inspect(cardinality)}"
+    end
   end
 
   defp validate_valuations!(%{} = model) do

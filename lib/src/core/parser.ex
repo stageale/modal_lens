@@ -65,7 +65,6 @@ defmodule Src.Core.Parser do
       kind: kind,
       cardinality: cardinality,
       relation_name: relation,
-      designated_world: designated_world,
       edges: edge_set,
       valuations: valuations,
       warnings: Enum.reverse(final_warnings),
@@ -129,7 +128,7 @@ defmodule Src.Core.Parser do
 
   # *
   defp parse_designated_world(text) do
-    pattern = Regex.compile!("(?:^|\\n)\\s*(?:w|aw|actual_world)\\s*=\\s*#{@world}")
+    pattern = Regex.compile!("(?:^|\\n)\\s*(?:w|aw|actual_world|initial_world)\\s*=\\s*#{@world}")
 
     case Regex.run(pattern, text) do
       nil -> nil
