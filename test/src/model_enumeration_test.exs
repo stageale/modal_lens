@@ -110,6 +110,33 @@ defmodule Src.ModelEnumerationTest do
     assert File.read!(entry.graph_svg_file) == "<svg/>\n"
     assert File.exists?(entry.blocking_axiom_file)
     assert entry.blocking_axiom =~ "axiomatization where"
+    assert File.exists?(entry.model_json_file)
+
+    json =
+      entry.model_json_file
+      |> File.read!()
+      |> Jason.decode!()
+
+    assert json["schema_version"] == 1
+
+    assert json["metadata"]["iteration"] == 1
+    assert json["metadata"]["mode"] == "countermodels"
+    assert json["metadata"]["theory_name"] == entry.theory_name
+
+    assert json["artifacts"] == %{
+             "nitpick_output" => "nitpick.txt",
+             "dot" => "model.dot",
+             "svg" => "model.svg",
+             "blocking_axiom" => "blocking_axiom.thyfrag",
+             "json" => "model.json"
+          }
+
+    assert json["model"]["logic"] == "sdl"
+    assert json["model"]["kind"] == "countermodel"
+    assert json["model"]["cardinality"] == 1
+    assert json["model"]["designated_world"] == %{"index" => 0, "name" => "i1", "role" => "initial_world"}
+    assert json["model"]["edges"] == [[0, 0]]
+    assert json["model"]["valuations"] == %{}
   end
 
   defp write_theory(dir, name) do

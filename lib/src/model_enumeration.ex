@@ -400,10 +400,45 @@ defmodule Src.ModelEnumeration do
         blocking_axiom <> "\n"
       )
 
+      model_json_file =
+        Path.join(output_dir, "model.json")
+
+      model_json =
+        %{
+          "schema_version" => 1,
+          "metadata" => %{
+            "iteration" => iteration,
+            "mode" =>
+              opts
+              |> Keyword.fetch!(:mode)
+              |> Atom.to_string(),
+            "theory_name" => isabelle_run.theory_name,
+            "base_theory_file" =>
+              opts
+              |> Keyword.fetch!(:mode)
+              |> Atom.to_string(),
+            "search_theory_file" => Path.basename(isabelle_run.theory_path)
+          },
+          "artifacts" => %{
+            "nitpick_output" => Path.basename(isabelle_run.output_file),
+            "dot" => Path.basename(graph_dot_file),
+            "json" => Path.basename(model_json_file),
+            "svg" => Path.basename(graph_svg_file),
+            "blocking_axiom" => Path.basename(blocking_axiom_file)
+          },
+          "model" =>
+            model
+            |> Model.to_export_map()
+            |> json_safe()
+        }
+
+      File.write!(model_json_file, Jason.encode!(model_json, pretty: true) <> "\n")
+
       {:ok,
        %{
          graph_dot_file: graph_dot_file,
          graph_svg_file: graph_svg_file,
+         model_json_file: model_json_file,
          blocking_axiom: blocking_axiom,
          blocking_axiom_file: blocking_axiom_file
        }}
@@ -417,6 +452,23 @@ defmodule Src.ModelEnumeration do
           }}}
     end
   end
+
+  defp json_safe(value) when is_tuple(value) do
+    Tuple.to_list(value)
+    |> Enum.map(&json_safe/1)
+  end
+
+  defp json_safe(value) when is_list(value) do
+    Enum.map(value, &json_safe/1)
+  end
+
+  defp json_safe(value) when is_map(value) do
+    Map.new(value, fn {key, nested_value} ->
+      {key, json_safe(nested_value)}
+    end)
+  end
+
+  defp json_safe(value), do: value
 
   defp model_result(
          model,
@@ -443,6 +495,7 @@ defmodule Src.ModelEnumeration do
       warnings: Model.warning_messages(model),
       graph_dot_file: artifacts.graph_dot_file,
       graph_svg_file: artifacts.graph_svg_file,
+      model_json_file: artifacts.model_json_file,
       blocking_axiom: artifacts.blocking_axiom,
       blocking_axiom_file: artifacts.blocking_axiom_file,
       highlight: Keyword.get(opts, :highlight),
@@ -477,6 +530,7 @@ defmodule Src.ModelEnumeration do
       model: nil,
       graph_dot_file: nil,
       graph_svg_file: nil,
+      model_json_file: nil,
       blocking_axiom: nil,
       blocking_axiom_file: nil,
       isabelle_run: Map.drop(isabelle_run, [:log])

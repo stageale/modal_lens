@@ -105,4 +105,48 @@ defmodule Src.Core.ModelTest do
              warnings: []
            }
   end
+
+  test "builds a JSON-compatible export map" do
+    assert Model.to_export_map(sdl_model()) == %{
+            "logic" => "sdl",
+            "kind" => "countermodel",
+            "cardinality" => 3,
+            "relation" => "R",
+            "designated_world" => %{"index" => 1, "name" => "i2", "role" => "initial_world"},
+            "edges" => [
+              {0, 0},
+              {0, 1},
+              {2, 2}
+            ],
+            "atoms" => ["go", "tell"],
+            "valuations" => %{
+              "go" => [true, false, true],
+              "tell" => [false, true, false]
+            },
+            "warnings" => ["example warning"],
+            "worlds" => [
+              %{
+                "index" => 0,
+                "name" => "i1"
+              },
+              %{
+                "index" => 1,
+                "name" => "i2"
+              },
+              %{
+                "index" => 2,
+                "name" => "i3"
+              }
+            ]
+          }
+  end
+
+  test "exports the designated world for DDL models" do
+    export = Model.to_export_map(ddl_model())
+
+    assert export["logic"] == "ddl"
+    assert export["kind"] == "model"
+    assert export["designated_world"] == %{"index" => 0, "name" => "i1", "role" => "actual_world"}
+    assert export["edges"] == [{0, 1}]
+  end
 end

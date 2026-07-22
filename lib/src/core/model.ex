@@ -174,4 +174,44 @@ defmodule Src.Core.Model do
       warnings: warning_messages(model)
     }
   end
+
+  def to_export_map(model) do
+    assert_supported!(model)
+
+    atoms = atom_names(model)
+    designated_world = designated_world(model)
+
+    %{
+      "logic" =>
+        model
+        |> model_logic()
+        |> Atom.to_string(),
+      "kind" => Atom.to_string(model.kind),
+      "cardinality" => model.cardinality,
+      "relation" => model.relation_name,
+      "designated_world" => %{
+        "index" => designated_world,
+        "name" => world_name(model, designated_world),
+        "role" => designated_world_role(model)
+      },
+      "atoms" => atoms,
+      "edges" =>
+        model.edges
+        |> Enum.sort(),
+      "valuations" => model.valuations,
+      "warnings" => warning_messages(model),
+      "worlds" =>
+        model
+        |> world_indices()
+        |> Enum.map(fn index ->
+          %{
+            "index" => index,
+            "name" => world_name(model, index)
+          }
+      end)
+    }
+  end
+
+  defp designated_world_role(%SDLModel{}), do: "initial_world"
+  defp designated_world_role(%DDLModel{}), do: "actual_world"
 end
