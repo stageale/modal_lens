@@ -1,4 +1,4 @@
-from healthcheck import environment_info
+from graph_ml.healthcheck import environment_info
 
 def test_environment_is_available() -> None:
     info = environment_info()

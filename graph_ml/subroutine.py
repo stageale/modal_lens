@@ -1,10 +1,10 @@
 import argparse as ap
 from pathlib import Path
 
-import lib.src.graph_ml.python.io_schema as io
-import lib.src.graph_ml.python.features as feat
-import lib.src.graph_ml.python.clustering as cluster
-import lib.src.graph_ml.python.mining as mine
+import graph_ml.python.io_schema as io
+import graph_ml.python.features as feat
+import graph_ml.python.clustering as cluster
+import graph_ml.python.mining as mine
 
 def plot_heatmap(features, feature_names, cluster_labels):
     #TODO: Implement a heat map for visual explanation

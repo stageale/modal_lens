@@ -101,6 +101,8 @@ def raw_features(graphs, modal_depth=3):
             "worlds": graph.number_of_nodes()
         })
         
+    return features
+        
 def _reachable_within(graph, source, depth):
     reachable = {source}
     frontier = {source}
