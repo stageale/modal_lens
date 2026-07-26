@@ -21,13 +21,15 @@ def _dict_to_nx_graph(model: dict) -> nx.DiGraph:
     for atom, values in model.get("valuations", {}).items():
         nx.set_node_attributes(graph, dict(enumerate(values)), atom)
 
-    designated = model["designated_world"]
+    designated_world = model["designated_world"]
 
-    if isinstance(designated, dict):
-        designated = designated["index"]
+    if isinstance(designated_world, dict):
+        designated_index = designated_world["index"]
+    else:
+        designated_index = designated_world
 
     nx.set_node_attributes(graph, False, "designated")
-    graph.nodes[designated]["designated"] = True
+    graph.nodes[designated_index]["designated"] = True
 
     relation = model.get("relation", "R")
 
@@ -36,6 +38,10 @@ def _dict_to_nx_graph(model: dict) -> nx.DiGraph:
     graph.graph["logic"] = model.get("logic")
     graph.graph["kind"] = model.get("kind")
     graph.graph["relation"] = relation
+    
+    graph.graph["atoms"] = tuple(str(atom) for atom in model.get("atoms", model.get("valuations", {})))
+    graph.graph["designated_world"] = (dict(designated_world) if isinstance(designated_world, Mapping) else designated_world)
+    graph.graph["warnings"] = list(model.get("warnings", []))
 
     return graph
 

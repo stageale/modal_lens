@@ -229,3 +229,52 @@ def test_current_implementation_requires_a_directed_graph():
 
     with pytest.raises(nx.NetworkXNotImplemented):
         mining.pattern_occurrences(graph)
+        
+def test_cluster_patterns_uses_pattern_as_canonical_tie_breaker(
+    monkeypatch,
+):
+    first_pattern = (
+        "graphlet",
+        3,
+        "z-pattern",
+    )
+
+    second_pattern = (
+        "graphlet",
+        3,
+        "a-pattern",
+    )
+
+    monkeypatch.setattr(
+        mining,
+        "pattern_occurrences",
+        lambda graph, size: {
+            first_pattern: [
+                (0, 1, 2),
+            ],
+            second_pattern: [
+                (0, 1, 2),
+            ],
+        },
+    )
+
+    result = mining.cluster_patterns(
+        [
+            path3(),
+            path3(),
+        ],
+        [
+            0,
+            0,
+        ],
+        min_support=1.0,
+        min_contrast=1.0,
+    )
+
+    assert [
+        item["pattern"]
+        for item in result[0]
+    ] == [
+        second_pattern,
+        first_pattern,
+    ]

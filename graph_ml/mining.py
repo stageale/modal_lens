@@ -33,25 +33,37 @@ def frequent_patterns(graphs, min_support=0.5, size=3):
 def cluster_patterns(graphs, cluster_labels, min_support=0.5, min_contrast=0.2, size=3):
     graphs = list(graphs)
     cluster_labels = list(cluster_labels)
+    
     if len(graphs) != len(cluster_labels):
         raise ValueError("Nummer of graphs and cluster labels must match.")
+    
     occurrences_by_graph = [pattern_occurrences(graph, size) for graph in graphs]
+    
     patterns_by_graph = [set(occurrences) for occurrences in occurrences_by_graph]
+    
     cluster_indices = defaultdict(list)
+    
     for graph_index, cluster_label in enumerate(cluster_labels):
         cluster_indices[int(cluster_label)].append(graph_index)
+        
     all_indices = set(range(len(graphs)))
     results = {}
     
     for cluster_label, inside_indices in cluster_indices.items():
+        
         outside_indices = all_indices - set(inside_indices)
         candidate_patterns = set()
+        
         for graph_index in inside_indices:
             candidate_patterns.update(patterns_by_graph[graph_index])
+            
         patterns = []
+        
         for pattern in candidate_patterns:
+            
             inside_count = sum(pattern in patterns_by_graph[graph_index] for graph_index in inside_indices)
             cluster_support = inside_count / len(inside_indices)
+            
             if cluster_support >= min_support:
                 if outside_indices:
                     outside_count = sum(pattern in patterns_by_graph[graph_index] for graph_index in outside_indices)
@@ -71,7 +83,8 @@ def cluster_patterns(graphs, cluster_labels, min_support=0.5, min_contrast=0.2, 
                         "contrast": contrast,
                         "occurrences": occurrences
                     })
-        patterns.sort(key=lambda item: (item["contrast"], item["cluster_support"]), reverse=True)
+                    
+        patterns.sort(key=lambda item: (-item["contrast"], -item["cluster_support"], repr(item["pattern"])))
         
         results[cluster_label] = patterns
         

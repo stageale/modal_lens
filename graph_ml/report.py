@@ -47,7 +47,7 @@ def _graph_atoms(graph: nx.DiGraph) -> list[str]:
     if declared_atoms is not None:
         return [str(atom) for atom in declared_atoms]
     
-    ignored_attributes = {"name", "label", "role", "index"}
+    ignored_attributes = {"name", "label", "role", "index", "designated"}
     
     atoms: set[str] = set()
     
@@ -60,7 +60,7 @@ def _designated_world(graph: nx.DiGraph) -> Any:
     designated_world = graph.graph.get("designated_world")
     
     if isinstance(designated_world, Mapping):
-        return designated_world.get("index", _designated_world.get("name", designated_world))
+        return designated_world.get("index", designated_world.get("name", designated_world))
     return designated_world
 
 def _model_id(graph: nx.DiGraph, graph_index: int) -> str:
