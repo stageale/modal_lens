@@ -346,13 +346,7 @@ defmodule Src.ModelEnumeration do
     end
   end
 
-  defp write_countermodel_artifacts(
-         model,
-         isabelle_run,
-         output_dir,
-         iteration,
-         opts
-       ) do
+  defp write_countermodel_artifacts(model, isabelle_run, output_dir, iteration, opts) do
     try do
       graph_dot_file =
         Path.join(output_dir, "model.dot")
@@ -360,17 +354,29 @@ defmodule Src.ModelEnumeration do
       graph_svg_file =
         Path.join(output_dir, "model.svg")
 
+      graph_tikz_file =
+        Path.join(output_dir, "model.tex")
+
       Render.write_dot(
         model,
         graph_dot_file,
         atoms: Keyword.get(opts, :render_atoms),
-        highlight: Keyword.get(opts, :highlight)
+        highlight: Keyword.get(opts, :highlight),
+        palette: Keyword.get(opts, :palette, :turbo)
       )
 
       Render.render_dot(
         graph_dot_file,
         fmt: "svg",
         output_path: graph_svg_file
+      )
+
+      Render.write_tikz(
+        model,
+        graph_tikz_file,
+        atoms: Keyword.get(opts, :render_atoms),
+        highlight: Keyword.get(opts, :highlight),
+        palette: Keyword.get(opts, :palette, :turbo)
       )
 
       blocking_name =
@@ -424,6 +430,7 @@ defmodule Src.ModelEnumeration do
             "dot" => Path.basename(graph_dot_file),
             "json" => Path.basename(model_json_file),
             "svg" => Path.basename(graph_svg_file),
+            "tikz" => Path.basename(graph_tikz_file),
             "blocking_axiom" => Path.basename(blocking_axiom_file)
           },
           "model" =>
@@ -438,6 +445,7 @@ defmodule Src.ModelEnumeration do
        %{
          graph_dot_file: graph_dot_file,
          graph_svg_file: graph_svg_file,
+         graph_tikz_file: graph_tikz_file,
          model_json_file: model_json_file,
          blocking_axiom: blocking_axiom,
          blocking_axiom_file: blocking_axiom_file

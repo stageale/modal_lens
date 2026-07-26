@@ -1,10 +1,13 @@
 defmodule Src.Core.Render do
   alias Src.Core.Model
+  alias Src.VisualExplanations.Palette
 
   def write_dot(model, path, opts \\ []) do
     Model.assert_supported!(model)
+
     atoms = Keyword.get(opts, :atoms)
     highlight = Keyword.get(opts, :highlight)
+    palette = Keyword.get(opts, :palette, :cividis)
     path = to_string(path)
 
     mkdir_parent!(path)
@@ -16,14 +19,14 @@ defmodule Src.Core.Render do
         "  node [shape=circle, fontsize=10, fixedsize=true, width=1.35];",
         ""
       ] ++
-        dot_world_lines(model, atoms, highlight) ++
+        dot_world_lines(model, atoms, highlight, palette) ++
         [
           "",
           "  init [shape=plaintext, label=\"start\"];",
           "  init -> w#{Model.designated_world(model)} [penwidth=2];",
           ""
         ] ++
-        dot_edge_lines(model, highlight) ++
+        dot_edge_lines(model, highlight, palette) ++
         ["}"]
 
     File.write!(path, Enum.join(lines, "\n") <> "\n")
@@ -72,8 +75,12 @@ defmodule Src.Core.Render do
   end
 
   def write_tikz(model, path, opts \\ []) do
-    world = Model.designated_world(model)
+    Model.assert_supported!(model)
+
+    d_world = Model.designated_world(model)
     atoms = Keyword.get(opts, :atoms)
+    highlight = Keyword.get(opts, :highlight)
+    palette = Keyword.get(opts, :palette, :cividis)
     path = to_string(path)
 
     mkdir_parent!(path)
@@ -95,12 +102,12 @@ defmodule Src.Core.Render do
         ~S(\begin{tikzpicture}[>=stealth]),
         ""
       ] ++
-        tikz_world_lines(model, atoms, radius) ++
+        tikz_world_lines(model, atoms, radius, highlight, palette) ++
         [""] ++
-        tikz_edge_lines(model) ++
+        tikz_edge_lines(model, highlight, palette) ++
         [
           "",
-          "  \\draw[->,thick] ($ (w#{world}.west)+(-8mm,0) $) -- (w#{world}.west);",
+          "  \\draw[->,thick] ($ (w#{d_world}.west)+(-8mm,0) $) -- (w#{d_world}.west);",
           ~S(\end{tikzpicture}),
           ~S(\end{document})
         ]
@@ -133,7 +140,7 @@ defmodule Src.Core.Render do
     Path.rootname(tex_path) <> ".pdf"
   end
 
-  defp dot_world_lines(model, atoms, highlight) do
+  defp dot_world_lines(model, atoms, highlight, palette) do
     for i <- Model.world_indices(model) do
       label =
         model
@@ -141,75 +148,49 @@ defmodule Src.Core.Render do
         |> dot_escape()
 
       attrs =
-        if responsible_world?(highlight, i) do
-          ~s/[label="#{label}", color="red", penwidth=2]/
-        else
-          ~s/[label="#{label}"]/
-        end
+        dot_world_attributes(label, highlight, palette, i)
 
       "  w#{i} #{attrs};"
     end
   end
 
-  defp dot_edge_lines(model, highlight) do
-    proper =
-      model.edges
-      |> Enum.filter(fn {a, b} -> a != b end)
-      |> Enum.sort()
-      |> Enum.map(fn edge -> dot_edge_line(edge, highlight) end)
+  defp dot_world_attributes(label, highlight, palette, world) do
+    case world_score(highlight, world) do
+      {:ok, score} ->
+        rgb = Palette.color(palette, score)
+        fill = Palette.hex(palette, score)
+        font = contrast_color(rgb)
+        penwidth = score_width(score, 1.0, 3.0)
 
-    loops =
-      model.edges
-      |> Enum.filter(fn {a, b} -> a == b end)
-      |> Enum.sort()
-      |> Enum.map(fn edge -> dot_edge_line(edge, highlight) end)
+        ~s/[label="#{label}", style="filled", fillcolor="#{fill}", color="#222222", fontcolor="#{font}", penwidth=#{format_float(penwidth)}]/
 
-    missing =
-      highlight
-      |> missing_edges()
-      |> Enum.reject(fn edge -> edge in model.edges end)
-      |> Enum.sort()
-      |> Enum.map(&dot_missing_edge_line/1)
-
-    proper ++ loops ++ missing
+      :error ->
+        ~s/[label="#{label}"]/
+    end
   end
 
-  defp dot_edge_line({a, b} = edge, highlight) do
-    attrs =
-      cond do
-        responsible_edge?(highlight, edge) ->
-          ~s/ [color="red", fontcolor="red", penwidth=2]/
+  defp dot_edge_lines(model, highlight, palette) do
+    model.edges
+    |> Enum.sort()
+    |> Enum.map(fn edge -> dot_edge_line(edge, highlight, palette) end)
+  end
 
-        true ->
+  defp dot_edge_line({a, b} = edge, highlight, palette) do
+    attrs =
+      case edge_score(highlight, edge) do
+        {:ok, score} ->
+          color = Palette.hex(palette, score)
+          penwidth = score_width(score, 1.0, 4.0)
+
+          ~s/ [color="#{color}", penwidth=#{format_float(penwidth)}]/
+        :error ->
           ""
       end
 
-    " w#{a} -> w#{b}#{attrs};"
+    "  w#{a} -> w#{b}#{attrs};"
   end
 
-  defp dot_missing_edge_line({a, b}) do
-    ~s/ w#{a} -> w#{b} [color="red", fontcolor="red", style="dashed", penwidth=2];/
-  end
-
-  defp responsible_edge?(nil, _edge), do: false
-
-  defp responsible_edge?(highlight, edge) do
-    MapSet.member?(highlight.responsible_edges, edge)
-  end
-
-  defp responsible_world?(nil, _world), do: false
-
-  defp responsible_world?(highlight, world) do
-    MapSet.member?(highlight.responsible_worlds, world)
-  end
-
-  defp missing_edges(nil), do: []
-
-  defp missing_edges(highlight) do
-    MapSet.to_list(highlight.missing_edges)
-  end
-
-  defp tikz_world_lines(model, atoms, radius) do
+  defp tikz_world_lines(model, atoms, radius, highlight, palette) do
     for i <- Model.world_indices(model) do
       angle = 360 * i / max(1, model.cardinality)
 
@@ -218,33 +199,69 @@ defmodule Src.Core.Render do
         |> Model.label_for_world(i, atoms)
         |> latex_escape()
 
-      "  \\node[world] (w#{i}) at (#{format_float(angle)}:#{format_float(radius)}cm) {#{label}};"
+      options = tikz_world_options(highlight, palette, i)
+
+      "  \\node[#{options}] (w#{i}) at (#{format_float(angle)}:#{format_float(radius)}cm) {#{label}};"
     end
   end
 
-  defp tikz_edge_lines(model) do
-    proper =
-      model.edges
-      |> Enum.filter(fn {a, b} -> a != b end)
-      |> Enum.sort()
-      |> Enum.map(fn {a, b} -> "  \\draw[->] (w#{a}) -- (w#{b});" end)
+  defp tikz_world_options(highlight, palette, world) do
+    case world_score(highlight, world) do
+      {:ok, score} ->
+        rgb = Palette.color(palette, score)
+        text_color = contrast_color(rgb)
+        line_width = score_width(score, 0.8, 2.4)
 
-    loops =
-      model.edges
-      |> Enum.filter(fn {a, b} -> a == b end)
-      |> Enum.sort()
-      |> Enum.map(fn {a, b} ->
-        pos =
-          if rem(a, 2) == 0 do
-            "above"
-          else
-            "below"
-          end
+        [
+          "world",
+          "fill=#{tikz_rgb(rgb)}",
+          "text=#{text_color}",
+          "line width=#{format_float(line_width)}pt"
+        ]
+        |> Enum.join(", ")
 
-        "  \\path[->,loop #{pos}] (w#{a}) edge (w#{b});"
-      end)
+      :error ->
+        "world"
+    end
+  end
 
-    proper ++ loops
+  defp tikz_edge_lines(model, highlight, palette) do
+    model.edges
+    |> Enum.sort()
+    |> Enum.map(fn {a, b} = edge ->
+      options =
+        if a != b do
+          tikz_edge_options(edge, highlight, palette)
+        else
+          loop_pos =
+            if rem(a, 2) == 0 do
+              "above"
+            else
+              "below"
+            end
+
+            tikz_edge_options(edge, highlight, palette, ["loop #{loop_pos}"])
+        end
+      "  \\path[#{options}] (w#{a}) edge (w#{b});"
+    end)
+  end
+
+  defp tikz_edge_options(edge, highlight, palette, additional_options \\ []) do
+    base_options = ["->"] ++ additional_options
+
+    options =
+      case edge_score(highlight, edge) do
+        {:ok, score} ->
+          rgb = Palette.color(palette, score)
+          line_width = score_width(score, 0.7, 3.2)
+
+          base_options ++ ["draw=#{tikz_rgb(rgb)}", "line width=#{format_float(line_width)}pt"]
+
+        :error ->
+          base_options
+      end
+
+    Enum.join(options, ",")
   end
 
   defp dot_escape(string) do
@@ -263,5 +280,38 @@ defmodule Src.Core.Render do
     number
     |> Kernel.*(1.0)
     |> :erlang.float_to_binary(decimals: 2)
+  end
+
+  defp world_score(nil, _world), do: :error
+
+  defp world_score(highlight, world) do
+    highlight.world_scores
+    |> Map.fetch(world)
+  end
+
+  defp edge_score(nil, _edge), do: :error
+
+  defp edge_score(highlight, edge) do
+    highlight.edge_scores
+    |> Map.fetch(edge)
+  end
+
+  defp score_width(score, minimum, maximum) do
+    minimum + score * (maximum - minimum)
+  end
+
+  defp contrast_color({red, green, blue}) do
+    luminance =
+      0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+    if luminance >= 145 do
+      "black"
+    else
+      "white"
+    end
+  end
+
+  defp tikz_rgb({red, green, blue}) do
+    "{rgb,255:red,#{red};green,#{green};blue,#{blue}}"
   end
 end

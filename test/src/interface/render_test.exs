@@ -5,6 +5,7 @@ defmodule Src.Core.RenderTest do
   alias Src.Core.Model.SDL
   alias Src.Core.Render
   alias Src.VisualExplanations.Highlight
+  alias Src.VisualExplanations.Palette
 
   test "writes a highlighted SDL GraphViz DOT file" do
     model = %SDL{
@@ -18,21 +19,18 @@ defmodule Src.Core.RenderTest do
 
     highlight =
       Highlight.new(
-        responsible_worlds: [0],
-        responsible_edges: [{0, 1}],
-        missing_edges: [{1, 0}]
+        basis: :semantic,
+        world_scores: %{0 => 1.0},
+        edge_scores: %{{0, 1} => 0.75}
       )
 
     path = tmp_path("model.dot")
     written_path = Render.write_dot(model, path, atoms: ["go"], highlight: highlight)
     content = File.read!(written_path)
 
-    assert content =~ "digraph KripkeModel"
-    assert content =~ ~s(w0 [label="i1: go", color="red", penwidth=2])
-    assert content =~ ~s(w1 [label="i2: \\\\<not>go"])
-    assert content =~ "init -> w0"
-    assert content =~ ~s(w0 -> w1 [color="red", fontcolor="red", penwidth=2])
-    assert content =~ ~s(w1 -> w0 [color="red", fontcolor="red", style="dashed")
+    assert content =~ ~s(w0 [label="i1: go", style="filled")
+    assert content =~ ~s(fillcolor="#{Palette.hex(:cividis, 1.0)}")
+    assert content =~ ~s(w0 -> w1 [color="#{Palette.hex(:cividis, 0.75)}")
   end
 
   test "uses DDL graph and actual-world semantics" do

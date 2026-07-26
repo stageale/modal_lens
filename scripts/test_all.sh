@@ -3,6 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+mix compile
+
 echo
 echo "========================================"
 echo " Elixir tests"

@@ -128,7 +128,8 @@ defmodule Src.ModelEnumerationTest do
              "dot" => "model.dot",
              "svg" => "model.svg",
              "blocking_axiom" => "blocking_axiom.thyfrag",
-             "json" => "model.json"
+             "json" => "model.json",
+             "tikz" => "model.tex"
           }
 
     assert json["model"]["logic"] == "sdl"

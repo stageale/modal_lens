@@ -1,37 +1,45 @@
 defmodule Src.VisualExplanations.Highlight do
   @moduledoc """
-  Describes structural elements that should be emphasized in a model
-  visualization.
+  Continuous attribution scores for worlds and existing edges of a model.
 
-  A highlight is independent of the component that discovered the cause.
-  It may later be produced from:
-
-    * a deterministic DDL witness analysis,
-    * a failed query,
-    * a comparison between countermodels,
-    * an LLM-assisted explanation,
-    * or legacy axiom explanations.
-
-  The renderer currently supports highlighted worlds, existing edges and
-  missing edges.
+  Scores are normalized to the interval 0..1.
   """
-
-  defstruct responsible_edges: MapSet.new(),
-            missing_edges: MapSet.new(),
-            responsible_worlds: MapSet.new(),
-            tags: [],
-            metadata: %{}
 
   @type world :: non_neg_integer()
   @type edge :: {world(), world()}
 
+  @type basis ::
+        :semantic
+        | :structural_metric
+        | :feature
+        | :pattern
+
+  @type scope ::
+        :model
+        | :cluster
+
+  @type score :: float()
+
+  defstruct basis: nil,
+            scope: :model,
+            world_scores: %{},
+            edge_scores: %{},
+            tags: [],
+            metadata: %{}
+
+
   @type t :: %__MODULE__{
-          responsible_edges: MapSet.t(edge()),
-          missing_edges: MapSet.t(edge()),
-          responsible_worlds: MapSet.t(world()),
-          tags: list(),
-          metadata: map()
-        }
+        basis: basis() | nil,
+        scope: scope(),
+        world_scores: %{optional(world()) => score()},
+        edge_scores: %{optional(edge()) => score()},
+        metadata: map()
+      }
+
+  @spec empty() :: t()
+  def empty do
+    %__MODULE__{}
+  end
 
   @doc """
   Builds a highlight from keyword attributes.
@@ -41,20 +49,12 @@ defmodule Src.VisualExplanations.Highlight do
   @spec new(keyword()) :: t()
   def new(attrs \\ []) when is_list(attrs) do
     %__MODULE__{
-      responsible_edges:
-        attrs
-        |> Keyword.get(:responsible_edges, [])
-        |> normalize_set(),
-      missing_edges:
-        attrs
-        |> Keyword.get(:missing_edges, [])
-        |> normalize_set(),
-      responsible_worlds:
-        attrs
-        |> Keyword.get(:responsible_worlds, [])
-        |> normalize_set(),
+      basis: Keyword.get(attrs, :basis) |> validate_basis!(),
+      scope: Keyword.get(attrs, :scope, :model) |> validate_scope!(),
+      world_scores: Keyword.get(attrs, :world_scores, %{}) |> validate_world_scores!(),
+      edge_scores: Keyword.get(attrs, :edge_scores, %{}) |> validate_edge_scores!(),
       tags: Keyword.get(attrs, :tags, []),
-      metadata: Keyword.get(attrs, :metadata, %{})
+      metadata: Keyword.get(attrs, :metadata, %{}) |> validate_metadata!()
     }
   end
 
@@ -63,9 +63,8 @@ defmodule Src.VisualExplanations.Highlight do
 
   This is useful while no deterministic cause analysis is available yet.
   """
-  @spec empty() :: t()
-  def empty do
-    new()
+  def empty?(%__MODULE__{} = heatmap) do
+    map_size(heatmap.world_scores) == 0 and map_size(heatmap.edge_scores) == 0
   end
 
   @doc """
@@ -88,9 +87,10 @@ defmodule Src.VisualExplanations.Highlight do
       |> normalize_metadata()
 
     new(
-      responsible_edges: Map.get(source, :responsible_edges, []),
-      missing_edges: Map.get(source, :missing_edges, []),
-      responsible_worlds: Map.get(source, :responsible_worlds, []),
+      basis: Map.get(source, :basis),
+      scope: Map.get(source, :scope, :model),
+      world_scores: Map.get(source, :world_scores, %{}),
+      edge_scores: Map.get(source, :edge_scores, %{}),
       tags: Map.get(source, :tags, []),
       metadata:
         source_metadata
@@ -116,10 +116,97 @@ defmodule Src.VisualExplanations.Highlight do
     )
   end
 
-  defp normalize_set(%MapSet{} = value), do: value
-  defp normalize_set(nil), do: MapSet.new()
-  defp normalize_set(value), do: MapSet.new(value)
+  @spec world_score(t(), world(), score()) :: score()
+  def world_score(%__MODULE__{} = heatmap, world, default \\ 0.0) do
+    Map.get(heatmap.world_scores, world, default)
+  end
+
+  @spec edge_score(t(), edge(), score()) :: score()
+  def edge_score(%__MODULE__{} = heatmap, edge, default \\ 0.0) do
+    Map.get(heatmap.edge_scores, edge, default)
+  end
+
+  def put_world_score(%__MODULE__{} = heatmap, world, score) do
+    validate_world!(world)
+    score = validate_score!(score)
+
+    %{heatmap |
+      world_scores: Map.put(heatmap.world_scores, world, score)
+    }
+  end
+
+  @spec put_edge_score(t(), edge(), number()) :: t()
+  def put_edge_score(%__MODULE__{} = heatmap, {source, target} = edge, score) do
+    validate_world!(source)
+    validate_world!(target)
+    score = validate_score!(score)
+
+    %{heatmap |
+      edge_scores: Map.put(heatmap.edge_scores, edge, score)
+    }
+  end
 
   defp normalize_metadata(metadata) when is_map(metadata), do: metadata
   defp normalize_metadata(_metadata), do: %{}
+
+  defp validate_basis!(nil), do: nil
+  defp validate_basis!(basis) when basis in [:semantic, :structural_metric, :feature, :pattern], do: basis
+  defp validate_basis!(basis) do
+    raise ArgumentError,
+          "invalid heatmap basis: #{inspect(basis)}"
+  end
+
+  defp validate_world_scores!(scores) when is_map(scores) do
+    Map.new(scores, fn {world, score} ->
+      validate_world!(world)
+      {world, validate_score!(score)}
+    end)
+  end
+
+  defp validate_world_scores!(scores) do
+    raise ArgumentError,
+          "world_scores must be a map, got: #{inspect(scores)}"
+  end
+
+  defp validate_edge_scores!(scores) when is_map(scores) do
+    Map.new(scores, fn
+      {{source, target} = edge, score} ->
+        validate_world!(source)
+        validate_world!(target)
+
+        {edge, validate_score!(score)}
+      {edge, _score} ->
+        raise ArgumentError,
+              "invalid edge identifier: #{inspect(edge)}"
+    end)
+  end
+
+  defp validate_edge_scores!(scores) do
+    raise ArgumentError,
+          "edge_scores must be a map, got: #{inspect(scores)}"
+  end
+
+  defp validate_world!(world) when is_integer(world) and world >= 0, do: world
+  defp validate_world!(world) do
+    raise ArgumentError,
+          "invalid world identifier: #{inspect(world)}"
+  end
+
+  defp validate_score!(score) when is_number(score) and score >= 0.0 and score <= 1.0, do: score / 1
+  defp validate_score!(score) do
+    raise ArgumentError,
+          "heatmap score must be between 0.0 and 1.0, got: #{inspect(score)}"
+  end
+
+  defp validate_metadata!(metadata) when is_map(metadata), do: metadata
+  defp validate_metadata!(metadata) do
+    raise ArgumentError,
+          "metadata must be a map, got: #{inspect(metadata)}"
+  end
+
+  defp validate_scope!(scope) when scope in [:model, :cluster], do: scope
+  defp validate_scope!(scope) do
+    raise ArgumentError,
+          "invalid heatmap scope: #{inspect(scope)}"
+  end
 end

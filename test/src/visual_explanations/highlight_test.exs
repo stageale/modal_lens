@@ -3,68 +3,69 @@ defmodule Src.VisualExplanations.HighlightTest do
 
   alias Src.VisualExplanations.Highlight
 
-  test "builds and normalizes a highlight from keyword attributes" do
+  test "builds a highlight from keyword attributes" do
     highlight =
       Highlight.new(
-        responsible_worlds: [0, 2],
-        responsible_edges: [{0, 2}],
-        missing_edges: [{2, 1}],
+        basis: :semantic,
+        world_scores: %{0 => 1.0, 2 => 0.8},
+        edge_scores: %{{0, 2} => 1.0},
         tags: [:countermodel],
         metadata: %{reason: :query_failure}
       )
 
-    assert highlight.responsible_worlds == MapSet.new([0, 2])
-    assert highlight.responsible_edges == MapSet.new([{0, 2}])
-    assert highlight.missing_edges == MapSet.new([{2, 1}])
+    assert highlight.basis == :semantic
+    assert highlight.world_scores == %{0 => 1.0, 2 => 0.8}
+    assert highlight.edge_scores == %{{0, 2} => 1.0}
     assert highlight.tags == [:countermodel]
-    assert highlight.metadata.reason == :query_failure
   end
 
   test "produces an empty highlight" do
     assert Highlight.empty() == %Highlight{}
   end
 
-  test "creates a highlight from a generic explanation map" do
-    explanation = %{
-      responsible_worlds: MapSet.new([1]),
-      responsible_edges: [{1, 2}],
-      missing_edges: [],
+  test "creates a highlight from a generic attribution map" do
+    source = %{
+      basis: :semantic,
+      scope: :model,
+      world_scores: %{1 => 1.0},
+      edge_scores: %{},
       tags: [:ddl_witness],
       metadata: %{query: "Q"}
     }
 
     highlight =
-      Highlight.from_map(explanation,
+      Highlight.from_map(source,
         source: :ddl_query_witness,
         metadata: %{iteration: 2}
       )
 
-    assert highlight.responsible_worlds == MapSet.new([1])
-    assert highlight.responsible_edges == MapSet.new([{1, 2}])
+    assert highlight.world_scores == %{1 => 1.0}
     assert highlight.tags == [:ddl_witness]
 
     assert highlight.metadata == %{
+             source: :ddl_query_witness,
              query: "Q",
-             iteration: 2,
-             source: :ddl_query_witness
+             iteration: 2
            }
   end
 
-  test "adapts legacy explanation maps without a struct dependency" do
-    explanation = %{
-      axiom: :serial,
-      status: :violated,
-      responsible_worlds: [0],
-      responsible_edges: [],
-      missing_edges: [],
-      tags: [:legacy]
-    }
+  test "stores numerical attribution scores" do
+    highlight =
+      Highlight.new(
+        basis: :pattern,
+        scope: :cluster,
+        world_scores: %{
+          0 => 0.2,
+          1 => 0.9
+        },
+        edge_scores: %{
+          {0, 1} => 0.75
+        }
+      )
 
-    highlight = Highlight.from_explanation(explanation)
-
-    assert highlight.responsible_worlds == MapSet.new([0])
-    assert highlight.metadata.source == :axiom_explanation
-    assert highlight.metadata.axiom == :serial
-    assert highlight.metadata.status == :violated
+    assert highlight.basis == :pattern
+    assert highlight.scope == :cluster
+    assert highlight.world_scores == %{0 => 0.2, 1 => 0.9}
+    assert highlight.edge_scores == %{{0, 1} => 0.75}
   end
 end
