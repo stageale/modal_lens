@@ -16,203 +16,166 @@ defmodule Src.Interface.Isabelle.HPCConnect do
 
   @default_hpc_module HpcConnect
 
-  def run(workdir, spec, opts \\ []) do
-    hpc_module = Keyword.get(opts, :hpc_module, @default_hpc_module)
+  @type hpc_spec :: %{required(:theory_name) => String.t()}
 
-    with :ok <- ensure_hpc_module_available(hpc_module),
-         {:ok, boot} <- bootstrap(hpc_module, opts),
-         {:ok, session} <- fetch_session(boot),
-         {:ok, root_text} <- read_required_file(Path.join(workdir, "ROOT")),
-         {:ok, thy_text} <- read_required_file(Path.join(workdir, "#{spec.theory_name}.thy")),
-         remote_dir <- remote_dir(spec, opts),
-         :ok <- ensure_remote_dir(hpc_module, session, remote_dir, opts),
-         :ok <- upload_text(hpc_module, session, remote_dir, "ROOT", root_text, opts),
-         :ok <-
-           upload_text(hpc_module, session, remote_dir, "#{spec.theory_name}.thy", thy_text, opts),
-         {:ok, log} <- run_remote_isabelle(hpc_module, session, remote_dir, spec, opts) do
+  @doc """
+  Executes an existing Isabelle session on the configured HPC system.
+  """
+  @spec run(String.t(), hpc_spec(), keyword()) :: {:ok, String.t()} | {:error, term()}
+  def run(workdir, %{theory_name: theory_name}, opts \\ [])
+      when is_binary(workdir) and is_binary(theory_name) do
+    opts =
+      :axiom_refiner
+      |> Application.get_env(__MODULE__, [])
+      |> Keyword.merge(opts)
+
+    workdir = Path.expand(workdir)
+
+    root_path = Path.join(workdir, "ROOT")
+
+    theory_path = Path.join(workdir, "#{theory_name}.thy")
+
+    with {:ok, root_text} <- read_required_file(root_path),
+         {:ok, theory_text} <- read_required_file(theory_path),
+         {:ok, hpc_module, session} <- start_session(opts),
+         {:ok, log} <-
+           execute_remote(
+             hpc_module,
+             session,
+             root_text,
+             theory_name,
+             theory_text,
+             opts
+           ) do
       {:ok, log}
     end
   end
 
-  defp ensure_hpc_module_available(hpc_module) do
-    case Code.ensure_loaded?(hpc_module) do
-      true ->
-        :ok
+  defp execute_remote(hpc_module, session, root_text, theory_name, theory_text, opts) do
+    remote_dir = remote_directory(theory_name, opts)
 
-      false ->
-        {:error,
-         {:hpc_connect_not_available,
-          """
-          The module #{inspect(hpc_module)} is not available.
+    root_path = remote_dir <> "/ROOT"
 
-          Either add the dependency later:
+    theory_path = remote_dir <> "/" <> theory_name <> ".thy"
 
-              {:hpc_connect, github: "penthooose/hpc_connect"}
+    session_name = Keyword.get(opts, :session_name, theory_name)
 
-          or inject a test module via:
+    isabelle_bin = Keyword.get(opts, :isabelle_bin, "isabelle")
 
-              hpc_module: MyFakeHpcConnect
-          """}}
+    threads = Keyword.get(opts, :threads, 8)
+
+    remote_preamble = Keyword.get(opts, :remote_preamble, "")
+
+    root_base64 = Base.encode64(root_text)
+
+    theory_base64 = Base.encode64(theory_text)
+
+    command = """
+    set -e
+    mkdir -p #{shell_escape(remote_dir)}
+    printf '%s' #{shell_escape(root_base64)} | base64 --decode > #{shell_escape(root_path)}
+    printf '%s' #{shell_escape(theory_base64)} | base64 --decode > #{shell_escape(theory_path)}
+    cd #{shell_escape(remote_dir)}
+    #{remote_preamble}
+    #{shell_escape(isabelle_bin)} build \
+      -D . \
+      -o #{shell_escape("threads=#{threads}")} \
+      #{shell_escape(session_name)} 2>&1
+    """
+
+    connect_opts = Keyword.get(opts, :connect_opts, [])
+
+    try do
+      case apply(hpc_module, :connect!, [session, command, connect_opts]) do
+        output when is_binary(output) -> {:ok, output}
+        output -> {:error, {:unexpected_hpc_output, output}}
+      end
+    rescue
+      exception ->
+        {:error, {:hpc_execution_failed, Exception.message(exception)}}
     end
   end
 
-  defp bootstrap(hpc_module, opts) do
+  defp remote_directory(theory_name, opts) do
+    case Keyword.get(opts, :remote_dir) do
+      path when is_binary(path) and path != "" ->
+        String.trim_trailing(path, "/")
+
+      _other ->
+        base_directory =
+          opts
+          |> Keyword.get(:remote_base_dir, "axiom_refiner_runs")
+          |> String.trim_trailing("/")
+
+        run_id =
+          Keyword.get(opts, :run_id, theory_name)
+
+        path_component =
+          run_id
+          |> to_string()
+          |> String.replace(~r/[^a-zA-Z0-9_.-]/, "_")
+
+        base_directory <> "/" <> path_component
+    end
+  end
+
+  defp shell_escape(value) do
+    escaped =
+      value
+      |> to_string()
+      |> String.replace("'", "'\"'\"'")
+
+    "'" <> escaped <> "'"
+  end
+
+  defp start_session(opts) do
+    hpc_module = Keyword.get(opts, :hpc_module, @default_hpc_module)
+
+    key_path =
+      case Keyword.get(opts, :key_path) do
+        path when is_binary(path) -> Path.expand(path)
+        value -> value
+      end
+
     bootstrap_opts =
       [
         mode: Keyword.get(opts, :mode, :local),
-        cluster: Keyword.get(opts, :cluster, :alex),
+        # * aion/alex/iris
+        cluster: Keyword.get(opts, :cluster, :aion),
+        username: Keyword.get(opts, :username),
+        key_path: key_path,
+        env_file: Keyword.get(opts, :env_file),
+        ssh_alias: Keyword.get(opts, :ssh_alias),
+        proxy_jump: Keyword.get(opts, :proxy_jump),
+        work_dir: Keyword.get(opts, :hpc_work_dir),
+        native_ssh: Keyword.get(opts, :native_ssh, false),
         remote_command: Keyword.get(opts, :remote_command, "hostname && whoami"),
-
-        # For Isabelle we do not need the vLLM/Apptainer helper setup.
-        # This keeps bootstrap lightweight.
-        install_scripts: Keyword.get(opts, :install_scripts, false),
-        install_def_files: Keyword.get(opts, :install_def_files, false)
+        connect_opts: Keyword.get(opts, :connect_opts, []),
+        install_scripts: false,
+        install_def_files: false
       ]
-      |> put_if_present(:username, Keyword.get(opts, :username))
-      |> put_if_present(:key_path, expand_path(Keyword.get(opts, :key_path)))
-      |> put_if_present(:env_file, Keyword.get(opts, :env_file))
-      |> put_if_present(:ssh_alias, Keyword.get(opts, :ssh_alias))
-      |> put_if_present(:proxy_jump, Keyword.get(opts, :proxy_jump))
-      |> put_if_present(:work_dir, Keyword.get(opts, :hpc_work_dir))
-      |> put_if_present(:vault_dir, Keyword.get(opts, :vault_dir))
-      |> put_if_present(:native_ssh, Keyword.get(opts, :native_ssh))
+      |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
 
-    try do
-      {:ok, apply(hpc_module, :bootstrap, [bootstrap_opts])}
-    rescue
-      e ->
-        {:error, {:hpc_bootstrap_failed, Exception.message(e)}}
+    if Code.ensure_loaded?(hpc_module) do
+      try do
+        case apply(hpc_module, :bootstrap, [bootstrap_opts]) do
+          %{session: nil} = result -> {:error, {:hpc_session_unavailable, result}}
+          %{session: session} -> {:ok, hpc_module, session}
+          result -> {:error, {:unexpected_hpc_bootstrap_result, result}}
+        end
+      rescue
+        exception ->
+          {:error, {:hpc_bootstrap_failed, Exception.message(exception)}}
+      end
+    else
+      {:error, {:hpc_connect_not_available, hpc_module}}
     end
-  end
-
-  defp fetch_session(%{session: nil}) do
-    {:error, :hpc_bootstrap_returned_no_session}
-  end
-
-  defp fetch_session(%{session: session}) do
-    {:ok, session}
-  end
-
-  defp fetch_session(other) do
-    {:error, {:unexpected_hpc_bootstrap_result, other}}
   end
 
   defp read_required_file(path) do
     case File.read(path) do
-      {:ok, text} ->
-        {:ok, text}
-
-      {:error, reason} ->
-        {:error, {:missing_generated_isabelle_file, path, reason}}
+      {:ok, text} -> {:ok, text}
+      {:error, reason} -> {:error, {:cannot_read_isabelle_file, path, reason}}
     end
-  end
-
-  defp ensure_remote_dir(hpc_module, session, remote_dir, opts) do
-    command = """
-    mkdir -p #{sh(remote_dir)}
-    """
-
-    remote_ok(hpc_module, session, command, opts)
-  end
-
-  defp upload_text(hpc_module, session, remote_dir, filename, text, opts) do
-    remote_path = posix_join(remote_dir, filename)
-    delimiter = heredoc_delimiter(text)
-
-    command = """
-    mkdir -p #{sh(remote_dir)}
-    cat > #{sh(remote_path)} <<'#{delimiter}'
-    #{text}
-    #{delimiter}
-    """
-
-    remote_ok(hpc_module, session, command, opts)
-  end
-
-  defp run_remote_isabelle(hpc_module, session, remote_dir, spec, opts) do
-    isabelle = Keyword.get(opts, :isabelle_bin, "isabelle")
-    threads = Keyword.get(opts, :threads, 8)
-    session_name = Keyword.get(opts, :session_name, spec.theory_name)
-    remote_preamble = Keyword.get(opts, :remote_preamble, "")
-
-    command = """
-    set -e
-    cd #{sh(remote_dir)}
-    #{remote_preamble}
-    #{sh(isabelle)} build -D . -o #{sh("threads=#{threads}")} #{sh(session_name)} 2>&1
-    """
-
-    remote(hpc_module, session, command, opts)
-  end
-
-  defp remote_ok(hpc_module, session, command, opts) do
-    case remote(hpc_module, session, command, opts) do
-      {:ok, _output} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp remote(hpc_module, session, command, opts) do
-    connect_opts = Keyword.get(opts, :connect_opts, [])
-
-    try do
-      output = apply(hpc_module, :connect!, [session, command, connect_opts])
-      {:ok, output}
-    rescue
-      e ->
-        {:error,
-         {:hpc_remote_command_failed,
-          %{
-            message: Exception.message(e),
-            command: command
-          }}}
-    end
-  end
-
-  defp remote_dir(spec, opts) do
-    Keyword.get_lazy(opts, :remote_dir, fn ->
-      run_id =
-        "#{spec.theory_name}_#{System.system_time(:second)}"
-        |> sanitize_path_component()
-
-      "axiom_refiner_runs/#{run_id}"
-    end)
-  end
-
-  defp put_if_present(opts, _key, nil), do: opts
-  defp put_if_present(opts, _key, ""), do: opts
-  defp put_if_present(opts, key, value), do: Keyword.put(opts, key, value)
-
-  defp expand_path(nil), do: nil
-  defp expand_path(path) when is_binary(path), do: Path.expand(path)
-  defp expand_path(path), do: path
-
-  defp posix_join(left, right) do
-    left = String.trim_trailing(left, "/")
-    right = String.trim_leading(right, "/")
-    left <> "/" <> right
-  end
-
-  defp heredoc_delimiter(text) do
-    base = "__AXIOM_REFINER_HEREDOC__"
-
-    if String.contains?(text, base) do
-      "__AXIOM_REFINER_HEREDOC_#{System.unique_integer([:positive])}__"
-    else
-      base
-    end
-  end
-
-  defp sanitize_path_component(value) do
-    value
-    |> to_string()
-    |> String.replace(~r/[^a-zA-Z0-9_.-]/, "_")
-  end
-
-  defp sh(value) do
-    value
-    |> to_string()
-    |> String.replace("'", "'\"'\"'")
-    |> then(&"'#{&1}'")
   end
 end

@@ -13,7 +13,7 @@ defmodule Src.Interface.Isabelle.Client do
 
   alias Src.Interface.Isabelle.HOLEmbedding
   alias Src.Interface.Isabelle.LocalConnect
-  #alias Src.Interface.Isabelle.HPCConnect
+  alias Src.Interface.Isabelle.HPCConnect
 
   @doc """
   Generates an Isabelle theory from a `HOLEmbedding`, runs Nitpick and stores
@@ -58,6 +58,8 @@ defmodule Src.Interface.Isabelle.Client do
         |> Keyword.get(:workdir, Path.dirname(theory_path))
         |> Path.expand()
 
+      session_name = Keyword.get(opts, :session_name, theory_name)
+
       output_file =
         opts
         |> Keyword.get(
@@ -68,17 +70,20 @@ defmodule Src.Interface.Isabelle.Client do
 
       logic = Keyword.get(opts, :logic, "HOL")
 
-      with :ok <- ensure_theory_in_workdir(theory_path, workdir),
-           {:ok, log} <- LocalConnect.process_theory(theory_path, opts),
-           :ok <- write_log(output_file, log) do
+      with  :ok <- ensure_theory_in_workdir(theory_path, workdir),
+            :ok <- ensure_root(workdir, theory_name, session_name, logic, opts),
+           {:ok, result} <- run_backend(workdir, theory_name, opts),
+            :ok <- write_log(output_file, result.log) do
         {:ok,
          %{
            theory_name: theory_name,
            theory_path: theory_path,
+           session_name: session_name,
            logic: logic,
            workdir: workdir,
            output_file: output_file,
-           log: log,
+           build_output: result.build_output,
+           log: result.log,
            backend: Keyword.get(opts, :backend, :local)
          }}
       end
@@ -115,17 +120,12 @@ defmodule Src.Interface.Isabelle.Client do
     end
   end
 
-  defp run_backend(workdir, session_name, opts) do
+  defp run_backend(workdir, theory_name, opts) do
+    session_name = Keyword.get(opts, :session_name, theory_name)
     case Keyword.get(opts, :backend, :local) do
       :local ->
-        with {:ok, build_output} <-
-               LocalConnect.build(
-                 workdir,
-                 %{theory_name: session_name},
-                 opts
-               ),
-             {:ok, log} <-
-               LocalConnect.build_log(session_name, opts) do
+        with {:ok, build_output} <- LocalConnect.build(workdir, %{theory_name: session_name}, opts),
+             {:ok, log} <- LocalConnect.build_log(session_name, opts) do
                 {:ok,
                   %{
                     build_output: build_output,
@@ -134,28 +134,52 @@ defmodule Src.Interface.Isabelle.Client do
                end
 
     :hpc_connect ->
-      {:error,
-       {:unsupported_existing_theory_backend,
-        "Existing theory execution through HPCConnect is not connected yet."}}
+      with {:ok, log} <- HPCConnect.run(workdir, %{theory_name: theory_name}, opts) do
+        {:ok,
+          %{
+            build_output: nil,
+            log: log
+          }
+        }
+      end
 
     other ->
       {:error, {:unknown_backend, other}}
     end
   end
 
+  defp ensure_root(workdir, theory_name, session_name, logic, opts) do
+    root_path = Path.join(workdir, "ROOT")
+    cond do
+      File.regular?(root_path) -> :ok
+      Keyword.get(opts, :write_root?, true) ->
+        root = """
+        session #{session_name} = #{logic} +
+          theories
+            #{theory_name}
+        """
+
+        case File.write(root_path, root) do
+          :ok -> :ok
+          {:error, reason} ->
+            {:error,
+              {
+                :cannot_write_root,
+                root_path,
+                reason
+              }
+            }
+        end
+      true -> {:error, {:missing_root, root_path}}
+    end
+  end
+
   defp validate_theory_file(path) do
     cond do
-      not File.exists?(path) ->
-        {:error, {:theory_not_found, path}}
-
-      not File.regular?(path) ->
-        {:error, {:not_a_regular_file, path}}
-
-      Path.extname(path) != ".thy" ->
-        {:error, {:not_an_isabelle_theory, path}}
-
-      true ->
-        :ok
+      not File.exists?(path) -> {:error, {:theory_not_found, path}}
+      not File.regular?(path) -> {:error, {:not_a_regular_file, path}}
+      Path.extname(path) != ".thy" -> {:error, {:not_an_isabelle_theory, path}}
+      true -> :ok
     end
   end
 
