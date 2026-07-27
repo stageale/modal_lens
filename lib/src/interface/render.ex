@@ -1,6 +1,6 @@
 defmodule Src.Core.Render do
   alias Src.Core.Model
-  alias Src.VisualExplanations.Palette
+  alias Src.Explanation.Visual.Palette
 
   def write_dot(model, path, opts \\ []) do
     Model.assert_supported!(model)

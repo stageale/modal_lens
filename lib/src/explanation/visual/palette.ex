@@ -1,4 +1,4 @@
-defmodule Src.VisualExplanations.Palette do
+defmodule Src.Explanation.Visual.Palette do
   @moduledoc """
   Maps normalized heatmap scores to renderer-independent RGB colors.
   """

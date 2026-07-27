@@ -1,4 +1,4 @@
-defmodule Src.VisualExplanations.Highlight do
+defmodule Src.Explanation.Visual.Highlight do
   @moduledoc """
   Continuous attribution scores for worlds and existing edges of a model.
 
