@@ -6,8 +6,8 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from typing import Any 
 
-VERBALIZATION_FACTS_SCHEMA_VERSION = ["1.0"]
-SUPPORTED_REPORT_SCHEMA_VERSION = ["1.0"]
+VERBALIZATION_FACTS_SCHEMA_VERSION = "1.0"
+SUPPORTED_REPORT_SCHEMA_VERSION = "1.0"
 
 
 def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
@@ -27,7 +27,7 @@ def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
     
     report_schema_version = _require_field(report, "schema_version", path="")
     
-    if report_schema_version not in SUPPORTED_REPORT_SCHEMA_VERSION:
+    if report_schema_version != SUPPORTED_REPORT_SCHEMA_VERSION:
         raise ValueError(f"Unsupported report schema version: {report_schema_version!r}.")
     
     scope = _require_mapping(_require_field(report, "scope", path=""), path="scope")
@@ -170,7 +170,7 @@ def _add_fields(facts: list[dict[str, Any]], known_fact_ids: set[str], *, source
 def _add_representative_model_facts(facts: list[dict[str,Any]], known_fact_ids: set[str], *, representative_model: Mapping[str, Any], cluster_id: int, source_path: str) -> None:
     fact_prefix = (f"cluster.{cluster_id}.representative_model")
     
-    _add_fields(facts, known_fact_ids, representative_model, 
+    _add_fields(facts, known_fact_ids, source=representative_model, 
         fields=(
             "model_id",
             "graph_index",
@@ -237,7 +237,7 @@ def _add_cluster_facts(facts: list[dict[str, Any]], known_fact_ids: set[str], *,
                          "must be an integer.")
     
     fact_prefix = f"cluster.{cluster_id}"
-    _add_fields(facts, known_fact_ids, source=cluster, field=(
+    _add_fields(facts, known_fact_ids, source=cluster, fields=(
         "cluster_id",
         "model_count",
         "model_fraction",
@@ -249,7 +249,7 @@ def _add_cluster_facts(facts: list[dict[str, Any]], known_fact_ids: set[str], *,
         path=f"{source_path}.representative_model"
     )
     
-    _add_representative_model_facts(facts, known_fact_ids, representative_model=representative_model, cluster_id=cluster_id, source_path=f"{source_path}.characteristic_patterns")
+    _add_representative_model_facts(facts, known_fact_ids, representative_model=representative_model, cluster_id=cluster_id, source_path=f"{source_path}.representative_model")
     
     patterns = _require_sequence(_require_field(cluster, "characteristic_patterns", path=source_path), path=f"{source_path}.characteristic_patterns")
     

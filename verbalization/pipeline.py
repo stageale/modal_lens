@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from base import GenerationRequest, Verbalizer
-from facts import build_verbalization_facts, verbalization_facts_sha256
-from prompt import build_verbalization_messages
+from .base import GenerationRequest, Verbalizer
+from .facts import build_verbalization_facts, verbalization_facts_sha256
+from .prompt import build_verbalization_messages
 
 
 def write_verbalization_result(result: Mapping[str, Any], output_directory: str | Path) -> dict[str, Path]:

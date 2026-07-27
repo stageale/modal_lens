@@ -10,7 +10,7 @@ from huggingface_hub import HfApi
 from huggingface_hub.utils import HfHubHTTPError
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed
 
-from base import GenerationRequest, GenerationResult, Verbalizer
+from .base import GenerationRequest, GenerationResult, Verbalizer
 
 
 class TransformersError(RuntimeError):
@@ -39,10 +39,10 @@ class TransformersVerbalizer(Verbalizer):
         self._requested_tokenizer_revision = tokenizer_revision or revision
         
         self._chat_template_kwargs = dict(chat_template_kwargs or {})
-        self._device = self._selected_device(device)
+        self._device = self._select_device(device)
         
-        self._resolved_model_revision(self._model_id, revision)
-        self._resolved_tokenizer_revision(self._resolve_revision(self._tokenizer_id, self._requested_tokenizer_revision))
+        self._resolved_model_revision = self._resolve_revision(self._model_id, revision)
+        self._resolved_tokenizer_revision = self._resolve_revision(self._tokenizer_id, self._requested_tokenizer_revision)
         
         self._tokenizer = AutoTokenizer.from_pretrained(self._tokenizer_id, revision=self._resolved_tokenizer_revision, trust_remote_code=False)
         self._model = AutoModelForCausalLM.from_pretrained(self._model_id, revision=self._resolved_model_revision, torch_dtype=torch_dtype, trust_remote_code=False)

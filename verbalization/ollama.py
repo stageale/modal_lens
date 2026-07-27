@@ -6,7 +6,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from base import GenerationRequest, GenerationResult, Verbalizer
+from .base import GenerationRequest, GenerationResult, Verbalizer
 
 
 class OllamaError(RuntimeError):
@@ -45,7 +45,7 @@ class OllamaVerbalizer(Verbalizer):
             
             headers["Content-Type"] = "application/json"
             
-        request = Request(url=f"{str._base_url}{path}", data=data, headers=headers, method=method)
+        request = Request(url=f"{self._base_url}{path}", data=data, headers=headers, method=method)
         
         try:
             with urlopen(request, timeout=self._timeout) as response:
