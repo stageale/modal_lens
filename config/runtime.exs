@@ -9,6 +9,7 @@ hpc_runtime_options =
     ssh_alias: System.get_env("HPC_CONNECT_SSH_ALIAS"),
     proxy_jump: System.get_env("HPC_CONNECT_PROXY_JUMP"),
     hpc_work_dir: System.get_env("HPC_CONNECT_WORK_DIR"),
+    vault_dir: System.get_env("HPC_CONNECT_VAULT_DIR"),
     remote_base_dir: System.get_env("AXIOM_REFINER_HPC_REMOTE_BASE_DIR"),
     isabelle_bin: System.get_env("AXIOM_REFINER_HPC_ISABELLE_BIN"),
     remote_preamble: System.get_env("AXIOM_REFINER_HPC_PREAMBLE")

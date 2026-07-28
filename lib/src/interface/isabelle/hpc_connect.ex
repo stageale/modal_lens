@@ -14,6 +14,8 @@ defmodule Src.Interface.Isabelle.HPCConnect do
   In tests this can be a fake module.
   """
 
+  alias HpcConnect.Cluster
+
   @default_hpc_module HpcConnect
 
   @type hpc_spec :: %{required(:theory_name) => String.t()}
@@ -131,38 +133,36 @@ defmodule Src.Interface.Isabelle.HPCConnect do
   defp start_session(opts) do
     hpc_module = Keyword.get(opts, :hpc_module, @default_hpc_module)
 
-    key_path =
-      case Keyword.get(opts, :key_path) do
-        path when is_binary(path) -> Path.expand(path)
-        value -> value
-      end
-
-    bootstrap_opts =
-      [
-        mode: Keyword.get(opts, :mode, :local),
-        # * aion/alex/iris
-        cluster: Keyword.get(opts, :cluster, :aion),
-        username: Keyword.get(opts, :username),
-        key_path: key_path,
-        env_file: Keyword.get(opts, :env_file),
-        ssh_alias: Keyword.get(opts, :ssh_alias),
-        proxy_jump: Keyword.get(opts, :proxy_jump),
-        work_dir: Keyword.get(opts, :hpc_work_dir),
-        native_ssh: Keyword.get(opts, :native_ssh, false),
-        remote_command: Keyword.get(opts, :remote_command, "hostname && whoami"),
-        connect_opts: Keyword.get(opts, :connect_opts, []),
-        install_scripts: false,
-        install_def_files: false
-      ]
-      |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
-
     if Code.ensure_loaded?(hpc_module) do
       try do
-        case apply(hpc_module, :bootstrap, [bootstrap_opts]) do
-          %{session: nil} = result -> {:error, {:hpc_session_unavailable, result}}
-          %{session: session} -> {:ok, hpc_module, session}
-          result -> {:error, {:unexpected_hpc_bootstrap_result, result}}
-        end
+        cluster =
+          opts
+          |> Keyword.get(:cluster, :aion)
+          |> ulhpc_cluster()
+
+        identity_file =
+          case Keyword.get(opts, :key_path) do
+            path when is_binary(path) -> Path.expand(path)
+            _other -> nil
+          end
+
+        session_opts =
+          [
+            username: Keyword.get(opts, :username),
+            ssh_alias: Keyword.get(opts, :ssh_alias, cluster.ssh_alias),
+            identity_file: identity_file,
+            proxy_jump: Keyword.get(opts, :proxy_jump),
+            work_dir: Keyword.get(opts, :hpc_work_dir, "axiom_refiner_runtime"),
+            vault_dir: Keyword.get(opts, :vault_dir, "axiom_refiner_vault"),
+            port_range: Keyword.get(opts, :port_range),
+            env_file: Keyword.get(opts, :env_file)
+          ]
+          |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
+
+        session =
+          apply(hpc_module, :new_session, [cluster, session_opts])
+
+        {:ok, hpc_module, session}
       rescue
         exception ->
           {:error, {:hpc_bootstrap_failed, Exception.message(exception)}}
@@ -170,6 +170,38 @@ defmodule Src.Interface.Isabelle.HPCConnect do
     else
       {:error, {:hpc_connect_not_available, hpc_module}}
     end
+  end
+
+  defp ulhpc_cluster(cluster) when cluster in [:aion, "aion", "aion-cluster"] do
+    %Cluster{
+      name: :aion,
+      host: "access-aion.uni.lu",
+      ssh_alias: "aion-cluster",
+      aliases: [
+        "aion",
+        "aion-cluster",
+        "access-aion.uni.lu"
+      ],
+      notes: "University of Luxembourg Aion cluster"
+    }
+  end
+
+  defp ulhpc_cluster(cluster) when cluster in [:iris, "iris", "iris-cluster"] do
+    %Cluster{
+      name: :iris,
+      host: "access-iris.uni.lu",
+      ssh_alias: "iris-cluster",
+      aliases: [
+        "iris",
+        "iris-cluster",
+        "access-iris.uni.lu"
+      ],
+      notes: "University of Luxembourg Iris cluster"
+    }
+  end
+
+  defp ulhpc_cluster(cluster) do
+    raise ArgumentError, "unsupported ULHPC cluster: #{inspect(cluster)}"
   end
 
   defp read_required_file(path) do
