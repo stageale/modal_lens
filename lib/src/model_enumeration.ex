@@ -63,7 +63,7 @@ defmodule Src.ModelEnumeration do
       Formula investigated by the Isabelle theory.
 
     * `:highlight`
-      Optional `Src.VisualExplanations.Highlight` value.
+      Optional `Src.Explanation.Visual.Highlight` value.
 
     * `:include_atoms`
       Whether valuations are included in the generated blocking axiom.

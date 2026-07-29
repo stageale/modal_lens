@@ -4,7 +4,7 @@ defmodule Src.Interface.Ui.Options do
   """
 
   @model_logics [:sdl, :ddl]
-  @graph_formats ["svg", "png"]
+  @graph_formats [:svg, :png]
   @palettes [:cividis, :viridis, :plasma, :magma, :turbo]
 
   @type t :: %__MODULE__{
@@ -48,16 +48,29 @@ defmodule Src.Interface.Ui.Options do
   @doc "Updates am existing option set."
   @spec update(t(), map() | keyword()) :: {:ok, t()} | {:error, term()}
   def update(%__MODULE__{} = options, attrs) do
-    options
-    |> Map.from_struct()
-    |> Map.merge(attrs)
-    |> new()
+    with {:ok, attrs} <- option_map(attrs) do
+      options
+      |> Map.from_struct()
+      |> Map.merge(attrs)
+      |> new()
+    end
   end
 
   @doc "Returns the parameters stored for a user run."
-  @spec to_run_params(t()) :: map()
   def to_run_params(%__MODULE__{} = options) do
-    Map.from_struct(options)
+    %{
+      model_logic: options.model_logic,
+      relation: options.relation,
+      atoms: options.atoms,
+      auto_atoms: options.auto_atoms?,
+      render_graph?: options.render_graph?,
+      graph_format: Atom.to_string(options.graph_format),
+      palette: options.palette,
+      include_atoms: options.include_atoms,
+      include_initial: options.include_initial,
+      verbalize?: options.verbalize?,
+      verbalization_model: options.verbalization_model
+    }
   end
 
   defp validate(%__MODULE__{} = options) do

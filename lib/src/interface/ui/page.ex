@@ -6,10 +6,9 @@ defmodule Src.Interface.Ui.Page do
   alias Src.Interface.Ui.Session
   alias Src.Interface.Ui.View
 
-
   @doc "Renders the complete HTML document."
-  @spec render(Session.t()) :: String.t()
-  def render(variants) do
+  @spec render([map()]) :: String.t()
+  def render(variants) when is_list(variants) do
     variants = encode_variants(variants)
 
     """
@@ -29,7 +28,8 @@ defmodule Src.Interface.Ui.Page do
           color: #20242a;
         }
 
-        header, main {
+        header,
+        main {
           background: white;
           padding: 1.5rem;
           border-radius: 12px;
@@ -41,15 +41,47 @@ defmodule Src.Interface.Ui.Page do
           padding: 0.5rem;
         }
 
+        pre {
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+          background: #f1f3f5;
+          padding: 1rem;
+          border-radius: 8px;
+        }
+
         img {
           max-width: 100%;
         }
 
-        pre {
-          white-space: pre-wrap;
-          background: #f1f3f5;
+        .cluster {
+          border-top: 1px solid #d8dde3;
+          padding-top: 1.5rem;
+          margin-top: 1.5rem;
+        }
+
+        .cluster-text {
           padding: 1rem;
-          border-radius: 8px;
+          border-left: 4px solid #495057;
+          background: #f1f3f5;
+        }
+
+        .models {
+          display: grid;
+          grid-template-columns:
+            repeat(auto-fit, minmax(300px, 1fr));
+          gap: 1rem;
+          margin-top: 1rem;
+        }
+
+        .model {
+          border: 1px solid #d8dde3;
+          border-radius: 10px;
+          padding: 1rem;
+        }
+
+        .model img {
+          width: 100%;
+          height: auto;
         }
       </style>
     </head>
@@ -65,14 +97,9 @@ defmodule Src.Interface.Ui.Page do
 
       <main>
         <h2 id="run-title"></h2>
-        <div id="options"></div>
-        <div id="graph"></div>
-
-        <h3>Blocking axiom</h3>
-        <pre id="axiom"></pre>
-
-        <h3>Explanation</h3>
-        <pre id="explanation"></pre>
+        <pre id="options"></pre>
+        <p id="summary"></p>
+        <div id="clusters"></div>
       </main>
 
       <script>
@@ -89,6 +116,13 @@ defmodule Src.Interface.Ui.Page do
         function showVariant(index) {
           const variant = variants[index];
           const result = variant.result || {};
+          const clusters = result.clusters || [];
+          const clusterVerbs = new Map(
+            (result.cluster_verbs || []).map(entry => [
+              entry.cluster_id,
+              entry
+            ])
+          );
 
           document.getElementById("run-title").textContent =
             variant.run.id + " · " + variant.run.status;
@@ -96,23 +130,107 @@ defmodule Src.Interface.Ui.Page do
           document.getElementById("options").textContent =
             JSON.stringify(variant.options, null, 2);
 
-          document.getElementById("axiom").textContent =
-            result.blocking_axiom || "Not available";
+          document.getElementById("summary").textContent =
+            (result.model_count || 0) +
+            " models · " +
+            clusters.length +
+            " clusters";
 
-          document.getElementById("explanation").textContent =
-            result.llm_explanation || "Not available";
+          const container = document.getElementById("clusters");
+          container.replaceChildren();
 
-          const graph = document.getElementById("graph");
-          graph.replaceChildren();
+          clusters.forEach(cluster => {
+            const section = document.createElement("section");
+            section.className = "cluster";
 
-          if (result.graph_image_file) {
-            const image = document.createElement("img");
-            image.src = result.graph_image_file;
-            image.alt = "Rendered countermodel";
-            graph.appendChild(image);
-          }
+            const title = document.createElement("h3");
+            title.textContent =
+              "Cluster " +
+              cluster.cluster_id +
+              " · " +
+              cluster.model_count +
+              " models";
+
+            section.appendChild(title);
+
+            const verb = clusterVerbs.get(cluster.cluster_id);
+            const explanation = document.createElement("p");
+            explanation.className = "cluster-text";
+            explanation.textContent =
+              verb?.text || "No verbalization generated.";
+
+            section.appendChild(explanation);
+
+            if ((cluster.characteristic_patterns || []).length > 0) {
+              const details = document.createElement("details");
+              const summary = document.createElement("summary");
+              const patterns = document.createElement("pre");
+
+              summary.textContent = "Characteristic patterns";
+              patterns.textContent = JSON.stringify(
+                cluster.characteristic_patterns,
+                null,
+                2
+              );
+
+              details.append(summary, patterns);
+              section.appendChild(details);
+            }
+
+            const models = document.createElement("div");
+            models.className = "models";
+
+            (cluster.models || []).forEach(model => {
+              const article = document.createElement("article");
+              article.className = "model";
+
+              const heading = document.createElement("h4");
+              heading.textContent = "Model " + model.iteration;
+              article.appendChild(heading);
+
+              if (model.graph_image_file) {
+                const image = document.createElement("img");
+                image.src = model.graph_image_file;
+                image.alt =
+                  "Heatmap for model " + model.iteration;
+                article.appendChild(image);
+              }
+
+              const modelDetails = document.createElement("details");
+              const modelSummary = document.createElement("summary");
+              const modelData = document.createElement("pre");
+
+              modelSummary.textContent = "Model data";
+              modelData.textContent = JSON.stringify(
+                model.model_summary || {},
+                null,
+                2
+              );
+
+              modelDetails.append(modelSummary, modelData);
+              article.appendChild(modelDetails);
+
+              if (model.blocking_axiom) {
+                const axiomDetails =
+                  document.createElement("details");
+                const axiomSummary =
+                  document.createElement("summary");
+                const axiom = document.createElement("pre");
+
+                axiomSummary.textContent = "Blocking axiom";
+                axiom.textContent = model.blocking_axiom;
+
+                axiomDetails.append(axiomSummary, axiom);
+                article.appendChild(axiomDetails);
+              }
+
+              models.appendChild(article);
+            });
+
+            section.appendChild(models);
+            container.appendChild(section);
+          });
         }
-
         selector.addEventListener("change", event => {
           showVariant(Number(event.target.value));
         });
@@ -147,47 +265,62 @@ defmodule Src.Interface.Ui.Page do
   end
 
   defp prepare_variants(session, assets_dir, html_dir) do
-    session
-    |> View.variants()
-    |> Enum.reduce_while({:ok, []}, fn variant, {:ok, variants} ->
-      case copy_graph(variant, assets_dir, html_dir) do
-        {:ok, prepared} -> {:cont, {:ok, [prepared | variants]}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-    |> case do
-      {:ok, variants} -> {:ok, Enum.reverse(variants)}
-      error -> error
+    try do
+      variants =
+        session
+        |> View.variants()
+        |> Enum.map(&copy_variant_graphs(&1, assets_dir, html_dir))
+
+      {:ok, variants}
+    rescue
+      error ->
+        {:error,
+         {:cannot_prepare_ui_assets,
+          Exception.message(error)}}
     end
   end
 
-  defp copy_graph(%{result: %{graph_image_file: nil}} = variant, _assets, _html), do: {:ok, variant}
+  defp copy_variant_graphs(%{result: nil} = variant, _assets_dir, _html_dir), do: variant
 
-  defp copy_graph(%{result: %{graph_image_file: source}} = variant, assets_dir, html_dir) do
-    target =
-      Path.join(assets_dir, "#{variant.run.id}-#{Path.basename(source)}")
+  defp copy_variant_graphs(%{result: result} = variant, assets_dir, html_dir) do
+    run_id = variant.run["id"]
 
-    with :ok <- File.cp(source, target) do
-      relative_path =
-        target
-        |> Path.relative_to(html_dir)
-        |> String.replace("\\", "/")
+    clusters =
+      result
+      |> Map.get(:clusters, [])
+      |> Enum.map(fn cluster ->
+        models =
+          cluster
+          |> Map.get(:models, [])
+          |> Enum.map(
+            &copy_model_graph(&1, run_id, assets_dir, html_dir)
+          )
 
-      {:ok, put_in(variant, [:result, :graph_image_file], relative_path)}
-    end
+        Map.put(cluster, :models, models)
+      end)
+
+    put_in(variant, [:result, :clusters], clusters)
   end
 
-  @spec encode([map()]) :: String.t()
-  def encode(variants) when is_list(variants) do
-    variants =
-      variants
-      |> Jason.encode!()
-      |> String.replace("</", "<\\/")
+  defp copy_model_graph(model, run_id, assets_dir, html_dir) do
+    case Map.get(model, :graph_image_file) do
+      nil -> model
 
-    """
-    ...
-    const variants = #{variants}
-    ...
-    """
+      source ->
+        target =
+          Path.join(
+            assets_dir,
+            "#{run_id}-model-#{model.iteration}-#{Path.basename(source)}"
+          )
+
+        File.cp!(source, target)
+
+        relative_path =
+          target
+          |> Path.relative_to(html_dir)
+          |> String.replace("\\", "/")
+
+        Map.put(model, :graph_image_file, relative_path)
+    end
   end
 end

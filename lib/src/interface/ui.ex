@@ -13,9 +13,9 @@ defmodule Src.Interface.Ui do
   def run(theory_path, output_dir, option_sets \\ [%{}]) do
     page_path = Path.join(output_dir, "index.html")
 
-    with {:ok, session} <- Launcher.run(theory_path, output_dir, option_sets),
-         {:ok, page_path} <- Page.write(session, page_path) do
-          {:ok, session, page_path}
-         end
+    with  {:ok, session} <- Launcher.run(theory_path, output_dir, option_sets),
+          {:ok, page_path} <- Page.write(session, page_path) do
+            {:ok, session, page_path}
+          end
   end
 end

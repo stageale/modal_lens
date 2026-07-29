@@ -1,0 +1,3 @@
+session Chisholm = HOL +
+  theories
+    Chisholm

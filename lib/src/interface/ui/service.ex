@@ -9,7 +9,6 @@ defmodule Src.Interface.Ui.Service do
   alias Src.Interface.Ui.Session
 
   @doc "Executes the current selection of a UI session."
-  @spec run(Session.t(), String.t(), String.t()) :: {:ok, Session.t()} | {:error, term()} | {:error, term(), Run.t()}
   def run(%Session{} = session, run_id, output_dir) do
     params = Options.to_run_params(session.options)
 

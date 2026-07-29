@@ -26,7 +26,7 @@ def render_user_message(verbalization_facts: Mapping[str, Any]) -> str:
         "overview": "string",
         "cluster_summaries":[
             {{
-                "cluster_id" 0,
+                "cluster_id": 0,
                 "summary": "string",
                 "evidence": ["fact.identifier"]
             }}

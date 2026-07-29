@@ -181,13 +181,7 @@ defmodule Src.Interface.Experiment do
     )
   end
 
-  defp write_countermodel_artifacts(
-         model,
-         isabelle_run,
-         output_dir,
-         iteration,
-         opts
-       ) do
+  defp write_countermodel_artifacts(model, isabelle_run, output_dir, iteration, opts) do
     try do
       graph_dot_file =
         Path.join(output_dir, "model.dot")
@@ -196,7 +190,8 @@ defmodule Src.Interface.Experiment do
         model,
         graph_dot_file,
         atoms: Keyword.get(opts, :render_atoms),
-        highlight: Keyword.get(opts, :highlight)
+        highlight: Keyword.get(opts, :highlight),
+        palette: Keyword.get(opts, :palette, :turbo)
       )
 
       graph_image_file =

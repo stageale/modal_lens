@@ -39,8 +39,8 @@ defmodule Src.Interface.Ui.Launcher do
     run_id = "ui-variant-#{index}"
     run_dir = Path.join(output_dir, run_id)
 
-    with {:ok, selected_session} <- Session.select(session, attrs) do
-      Service.run(selected_session, run_id, run_dir)
+    with {:ok, options} <- Options.new(attrs) do
+      Service.run(%{session | options: options}, run_id, run_dir)
     end
   end
 end

@@ -17,7 +17,7 @@ defmodule Src.Interface.Ui.View do
           theory_path: session.theory_path,
           options: Options.to_run_params(session.options),
           run: Run.to_map(variant.run),
-          result: variant.result
+          result: result_view(variant.result)
         }
 
       :error ->
@@ -58,17 +58,42 @@ defmodule Src.Interface.Ui.View do
   end
 
   defp result_view(result) do
-    Map.take(result, [
-      :status,
+    %{
+      status: Map.get(result, :status),
+      model_count: Map.get(result, :model_count) || length(Map.get(result, :models, [])),
+      graph_analysis: Map.get(result, :graph_analysis, %{}),
+      clusters:
+        result
+        |> Map.get(:clusters, [])
+        |> Enum.map(&cluster_view/1),
+        cluster_verbs:
+          Map.get(result, :cluster_verbs, [])
+    }
+  end
+
+  defp cluster_view(cluster) do
+    %{
+      cluster_id: Map.get(cluster, :cluster_id),
+      model_count: Map.get(cluster, :model_count),
+      model_fraction: Map.get(cluster, :model_fraction),
+      characteristic_patterns: Map.get(cluster, :characteristic_patterns, []),
+      models:
+        cluster
+        |> Map.get(:models, [])
+        |> Enum.map(&model_view/1)
+    }
+  end
+
+  defp model_view(model) do
+    Map.take(model, [
       :iteration,
+      :cluster_id,
       :theory_name,
       :model_summary,
       :worlds,
       :warnings,
       :graph_image_file,
-      :blocking_axiom,
-      :llm_explanation,
-      :llm_metadata
+      :blocking_axiom
     ])
   end
 end

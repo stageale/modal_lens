@@ -1,8 +1,20 @@
 defmodule Src.Interface.CLI do
-  #alias Src.Core.Parser
   alias Src.Interface.Experiment
   alias Src.Core.BlockingAxiom
   alias Src.ModelEnumeration
+  alias Src.Interface.Ui
+
+  @demo_switches [
+    relation: :string,
+    atoms: :string,
+    auto_atoms: :boolean,
+    model_logic: :string,
+    out_dir: :string,
+    graph_format: :string,
+    palette: :string,
+    verbalize: :boolean,
+    verbalization_model: :string
+  ]
 
   @common_switches [
     relation: :string,
@@ -59,6 +71,9 @@ defmodule Src.Interface.CLI do
   defp usage do
     IO.puts("""
     Usage:
+      axiom_refiner demo INPUT.thy [-o DIR] [--palette turbo] [--graph-format svg] [--verbalize]
+
+      Not supported yet:
       axiom_refiner summary INPUTS... [--relation R] [--atoms go,tell] [--auto-atoms] [--json]
       axiom_refiner axiom   INPUTS... [--relation R] [--atoms go,tell] [--auto-atoms] [-o DIR] [--no-atoms]
       axiom_refiner enumerate INPUT.thy --mode MODE [options]
@@ -68,7 +83,7 @@ defmodule Src.Interface.CLI do
       summary     Print compact summaries of Nitpick outputs.
       axiom       Generate Isabelle/HOL blocking axiom fragments.
       rank        Rank multiple Nitpick outputs by simple model features.
-      demo        Generate a small demo bundle with DOT/SVG/HTML/JSON outputs.
+      demo        Generate a small demo bundle with all outputs outputs.
 
     Options:
       --input PATH      Isabelle input theory.
@@ -290,9 +305,77 @@ defmodule Src.Interface.CLI do
     1
   end
 
-  defp cmd_demo(_argv) do
-    IO.puts(:stderr, "[ERROR] demo is not implemented in the CLI yet.")
-    1
+  defp cmd_demo(argv) do
+    {opts, inputs, invalid} =
+      OptionParser.parse(argv, strict: @demo_switches, aliases: [o: :out_dir])
+
+    case {invalid, inputs} do
+      {[], [theory_path]} ->
+        model_logic =
+          case Keyword.get(opts, :model_logic, "sdl") do
+            "sdl" -> :sdl
+            "ddl" -> :ddl
+            value ->
+              IO.puts(:stderr, "[ERROR] Unsupported model logic: #{value}")
+              nil
+          end
+
+        if model_logic do
+          option_set = %{
+            model_logic: model_logic,
+            relation: Keyword.get(opts, :relation, "R"),
+            atoms:
+              opts
+              |> Keyword.get(:atoms, "")
+              |> String.split(",", trim: true)
+              |> Enum.map(&String.trim/1),
+            auto_atoms?: Keyword.get(opts, :auto_atoms, true),
+            render_graph?: true,
+            graph_format:
+              opts
+              |> Keyword.get(:graph_format, "svg")
+              |> String.to_atom(),
+            palette:
+              opts
+              |> Keyword.get(:palette, "turbo")
+              |> String.to_atom(),
+            verbalize?: Keyword.get(opts, :verbalize, false),
+            verbalization_model:
+              Keyword.get(opts, :verbalization_model, "HuggingFaceTB/SmolLM3-3B")
+          }
+
+          output_dir = Keyword.get(opts, :out_dir, "out/demo")
+
+          case Ui.run(theory_path, output_dir, [option_set]) do
+            {:ok, _session, page_path} ->
+              IO.puts("Demo completed.")
+              IO.puts("HTML: #{page_path}")
+              0
+
+            {:error, reason} ->
+              IO.inspect(reason, label: "[ERROR] Demo failed")
+              1
+
+            {:error, reason, _run} ->
+              IO.inspect(reason, label: "[ERROR] Demo failed")
+              1
+          end
+        else
+          2
+        end
+
+      {[], []} ->
+        IO.puts(:stderr, "[ERROR] Demo requires one .thy file.")
+        2
+
+      {[], _inputs} ->
+        IO.puts(:stderr, "[ERROR] Demo accepts exactly one .thy file.")
+        2
+
+      {_invalid, _inputs} ->
+        IO.puts(:stderr, "[ERROR] Invalid demo options.")
+        2
+    end
   end
 
   defp collect_input_files(paths) do
