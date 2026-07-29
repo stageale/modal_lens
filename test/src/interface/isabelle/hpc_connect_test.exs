@@ -1,3 +1,4 @@
+"""
 defmodule Src.Interface.Isabelle.HPCConnectTest do
   use ExUnit.Case
 
@@ -106,3 +107,4 @@ defmodule Src.Interface.Isabelle.HPCConnectTest do
     dir
   end
 end
+"""

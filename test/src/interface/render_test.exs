@@ -4,8 +4,8 @@ defmodule Src.Core.RenderTest do
   alias Src.Core.Model.DDL
   alias Src.Core.Model.SDL
   alias Src.Core.Render
-  alias Src.VisualExplanations.Highlight
-  alias Src.VisualExplanations.Palette
+  alias Src.Explanation.Visual.Highlight
+  alias Src.Explanation.Visual.Palette
 
   test "writes a highlighted SDL GraphViz DOT file" do
     model = %SDL{

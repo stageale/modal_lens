@@ -1,7 +1,7 @@
-defmodule Src.VisualExplanations.HighlightTest do
+defmodule Src.Explanation.Visual.HighlightTest do
   use ExUnit.Case, async: true
 
-  alias Src.VisualExplanations.Highlight
+  alias Src.Explanation.Visual.Highlight
 
   test "builds a highlight from keyword attributes" do
     highlight =

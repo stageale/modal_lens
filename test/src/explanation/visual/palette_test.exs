@@ -1,7 +1,7 @@
-defmodule Src.VisualExplanations.PaletteTest do
+defmodule Src.Explanation.Visual.PaletteTest do
   use ExUnit.Case, async: true
 
-  alias Src.VisualExplanations.Palette
+  alias Src.Explanation.Visual.Palette
 
   describe "normalize_score/3" do
     test "normalizes non-negative scores" do
