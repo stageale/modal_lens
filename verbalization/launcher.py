@@ -95,6 +95,8 @@ def _load_json_object(path: str | Path, *, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{label} must contain a JSON object.")
     
+    return value
+    
 def _require_string(source: Mapping[str, Any], field: str) -> str:
     value = source.get(field)
     
