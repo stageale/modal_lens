@@ -6,28 +6,11 @@ defmodule Src.Interface.Ui.Page do
   alias Src.Interface.Ui.Session
   alias Src.Interface.Ui.View
 
-  @doc "Writes the session view to an HTML file."
-  @spec write(Session.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
-  def write(%Session{} = session, path) when is_binary(path) do
-    path = Path.expand(path)
-
-    with  :ok <- File.mkdir_p(Path.dirname(path)),
-          :ok <- File.write(path, render(session)) do
-            {:ok, path}
-          end
-  end
-
-  defp encoded_variants(%Session{} = session) do
-    session
-    |> View.variants()
-    |> Jason.encode!()
-    |> String.replace("</", "<\\/")
-  end
 
   @doc "Renders the complete HTML document."
   @spec render(Session.t()) :: String.t()
-  def render(%Session{} = session) do
-    variants = encoded_variants(session)
+  def render(variants) do
+    variants = encode_variants(variants)
 
     """
     <!doctype html>
@@ -143,6 +126,8 @@ defmodule Src.Interface.Ui.Page do
     """
   end
 
+  @doc "Writes the session view and its graph assets to an HTML file."
+  @spec write(Session.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   def write(%Session{} = session, path) when is_binary(path) do
     path = Path.expand(path)
     html_dir = Path.dirname(path)
@@ -153,6 +138,12 @@ defmodule Src.Interface.Ui.Page do
          :ok <- File.write(path, render(variants)) do
            {:ok, path}
          end
+  end
+
+  defp encode_variants(variants) do
+    variants
+    |> Jason.encode!()
+    |> String.replace("</", "<\\/")
   end
 
   defp prepare_variants(session, assets_dir, html_dir) do
@@ -186,8 +177,8 @@ defmodule Src.Interface.Ui.Page do
     end
   end
 
-  @spec render([map()]) :: String.t()
-  def render(variants) when is_list(variants) do
+  @spec encode([map()]) :: String.t()
+  def encode(variants) when is_list(variants) do
     variants =
       variants
       |> Jason.encode!()
