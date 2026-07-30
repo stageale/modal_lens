@@ -7,6 +7,15 @@ defmodule Src.Core.Parser do
   @world_pair "\\(#{@world}\\s*,\\s*#{@world}\\)\\s*:?=\\s*(True|False)"
   @bool_assign "#{@world}\\s*:=\\s*(True|False)"
   @identifier ~S/[A-Za-z][A-Za-z0-9_'.?]*/
+  @nitpick_result_header ~r/
+    Nitpick\ found\
+    (?:
+      a\ counterexample\ for\ card\ i\s*=\s*\d+\s*: |
+      a\ model\ for\ card\ i\s*=\s*\d+\s*: |
+      no counterexample[^\n]* |
+      no model[^\n]*
+    )
+  /x
 
   def world_pair_regex, do: Regex.compile!(@world_pair)
   def bool_assign_regex, do: Regex.compile!(@bool_assign)
@@ -17,7 +26,9 @@ defmodule Src.Core.Parser do
   end
 
   # *
-  def parse_nitpick_text(text, opts \\ []) do
+  def parse_nitpick_text(text, opts) do
+    text = isolate_last_nitpick_result(text)
+
     model_logic = Keyword.get(opts, :model_logic, :sdl)
     relation = Keyword.get(opts, :relation, "R")
     atoms = Keyword.get(opts, :atoms, [])
@@ -252,6 +263,16 @@ defmodule Src.Core.Parser do
             block_end = search_offset + next_start
             binary_part(rest, 0, block_end)
         end
+    end
+  end
+
+  defp isolate_last_nitpick_result(text) do
+    case Regex.scan(@nitpick_result_header, text, return: :index) do
+      [] -> text
+      matches ->
+        [{start_position, _length}] = List.last(matches)
+
+        binary_part(text, start_position, byte_size(text) - start_position)
     end
   end
 end

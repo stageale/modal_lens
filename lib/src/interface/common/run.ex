@@ -7,6 +7,8 @@ defmodule Src.Interface.Common.Run do
   the analysis pipeline itself.
   """
 
+  alias Src.Interface.Common.Json
+
   @schema_version "1.0"
 
   @type status :: :planned | :running | :completed | :failed
@@ -132,11 +134,11 @@ defmodule Src.Interface.Common.Run do
       "id" => run.id,
       "output_dir" => run.output_dir,
       "status" => Atom.to_string(run.status),
-      "params" => json_safe(run.params),
-      "artifacts" => json_safe(run.artifacts),
-      "provenance" => json_safe(run.provenance),
-      "metrics" => json_safe(run.metrics),
-      "error" => json_safe(run.error)
+      "params" => Json.safe(run.params),
+      "artifacts" => Json.safe(run.artifacts),
+      "provenance" => Json.safe(run.provenance),
+      "metrics" => Json.safe(run.metrics),
+      "error" => Json.safe(run.error)
     }
   end
 
@@ -190,30 +192,4 @@ defmodule Src.Interface.Common.Run do
        target_status
      }}
   end
-
-  defp json_safe(nil), do: nil
-  defp json_safe(value) when is_boolean(value), do: value
-  defp json_safe(value) when is_atom(value), do: Atom.to_string(value)
-
-  defp json_safe(value) when is_tuple(value) do
-    value
-    |> Tuple.to_list()
-    |> json_safe()
-  end
-
-  defp json_safe(value) when is_list(value) do
-    Enum.map(value, &json_safe/1)
-  end
-
-  defp json_safe(value) when is_map(value) do
-    Map.new(value, fn {key, nested_value} ->
-      {json_key(key), json_safe(nested_value)}
-    end)
-  end
-
-  defp json_safe(value), do: value
-
-  defp json_key(key) when is_binary(key), do: key
-  defp json_key(key) when is_atom(key), do: Atom.to_string(key)
-  defp json_key(key), do: inspect(key)
 end

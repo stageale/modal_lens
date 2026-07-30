@@ -47,4 +47,4 @@ dist/
 
 # Ignore output and generated auxiliary input
 out/
-examples/input/Chisholm_Search_000.thy
+examples/input/*_Search_000.thy

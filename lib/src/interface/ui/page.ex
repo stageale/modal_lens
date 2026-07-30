@@ -83,6 +83,25 @@ defmodule Src.Interface.Ui.Page do
           width: 100%;
           height: auto;
         }
+
+        .tikz-preview {
+          width: 100%;
+          height: 28rem;
+          border: 1px solid #d8dde3;
+          border-radius: 8px;
+          background: white;
+        }
+
+        .graph-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+          margin: 0.75rem 0;
+        }
+
+        .graph-links a {
+          font-weight: 600;
+        }
       </style>
     </head>
     <body>
@@ -188,14 +207,65 @@ defmodule Src.Interface.Ui.Page do
               heading.textContent = "Model " + model.iteration;
               article.appendChild(heading);
 
-              if (model.graph_image_file) {
+              const tikzSelected =
+                variant.options.graph_format === "tikz";
+
+              if (tikzSelected && model.graph_pdf_file) {
+                const preview = document.createElement("object");
+
+                preview.data = model.graph_pdf_file;
+                preview.type = "application/pdf";
+                preview.className = "tikz-preview";
+
+                const fallbackLink = document.createElement("a");
+                fallbackLink.href = model.graph_pdf_file;
+                fallbackLink.textContent = "Open TikZ PDF";
+                fallbackLink.target = "_blank";
+                fallbackLink.rel = "noopener";
+
+                preview.appendChild(fallbackLink);
+                article.appendChild(preview);
+              } else if (model.graph_svg_file) {
                 const image = document.createElement("img");
-                image.src = model.graph_image_file;
+
+                image.src = model.graph_svg_file;
                 image.alt =
                   "Heatmap for model " + model.iteration;
+
                 article.appendChild(image);
               }
 
+              if (
+                tikzSelected &&
+                (model.graph_pdf_file || model.graph_tikz_file)
+              ) {
+                const links = document.createElement("div");
+                links.className = "graph-links";
+
+                if (model.graph_pdf_file) {
+                  const pdfLink = document.createElement("a");
+
+                  pdfLink.href = model.graph_pdf_file;
+                  pdfLink.textContent = "Open PDF";
+                  pdfLink.target = "_blank";
+                  pdfLink.rel = "noopener";
+
+                  links.appendChild(pdfLink);
+                }
+
+                if (model.graph_tikz_file) {
+                  const sourceLink = document.createElement("a");
+
+                  sourceLink.href = model.graph_tikz_file;
+                  sourceLink.textContent = "Open TikZ source";
+                  sourceLink.target = "_blank";
+                  sourceLink.rel = "noopener";
+
+                  links.appendChild(sourceLink);
+                }
+
+                article.appendChild(links);
+              }
               const modelDetails = document.createElement("details");
               const modelSummary = document.createElement("summary");
               const modelData = document.createElement("pre");
@@ -293,7 +363,7 @@ defmodule Src.Interface.Ui.Page do
           cluster
           |> Map.get(:models, [])
           |> Enum.map(
-            &copy_model_graph(&1, run_id, assets_dir, html_dir)
+            &copy_model_graphs(&1, run_id, assets_dir, html_dir)
           )
 
         Map.put(cluster, :models, models)
@@ -302,8 +372,15 @@ defmodule Src.Interface.Ui.Page do
     put_in(variant, [:result, :clusters], clusters)
   end
 
-  defp copy_model_graph(model, run_id, assets_dir, html_dir) do
-    case Map.get(model, :graph_image_file) do
+  defp copy_model_graphs(model, run_id, assets_dir, html_dir) do
+    [:graph_svg_file, :graph_tikz_file, :graph_pdf_file]
+    |> Enum.reduce(model, fn key, current_model ->
+      copy_model_artifact(current_model, key, run_id, assets_dir, html_dir)
+    end)
+  end
+
+  defp copy_model_artifact(model, key, run_id, assets_dir, html_dir) do
+    case Map.get(model, key) do
       nil -> model
 
       source ->
@@ -320,7 +397,7 @@ defmodule Src.Interface.Ui.Page do
           |> Path.relative_to(html_dir)
           |> String.replace("\\", "/")
 
-        Map.put(model, :graph_image_file, relative_path)
+        Map.put(model, key, relative_path)
     end
   end
 end

@@ -23,6 +23,7 @@ defmodule Src.ModelEnumeration do
   alias Src.Core.Parser
   alias Src.Core.Render
   alias Src.Interface.Isabelle.Client
+  alias Src.Interface.Common.Json
 
   @default_input_theory "../data/Input.thy"
   @mode_theory_dir "../data/mod/"
@@ -197,7 +198,8 @@ defmodule Src.ModelEnumeration do
       |> Keyword.put(:output_dir, output_root)
       |> Keyword.put(:search_theory_dir, search_theory_dir)
 
-    with :ok <- validate_max_models(max_models),
+    with :ok <- validate_base_theory(base_theory_path),
+         :ok <- validate_max_models(max_models),
          :ok <- ensure_output_dir(output_root),
         {:ok, initial_search_theory} <- write_search_theory(base_theory_path, [], enumeration_opts) do
       do_enumerate(base_theory_path, initial_search_theory.theory_path, [], [], 1, max_models, output_root, enumeration_opts)
@@ -375,6 +377,16 @@ defmodule Src.ModelEnumeration do
         palette: Keyword.get(opts, :palette, :turbo)
       )
 
+      graph_pdf_file =
+        case Keyword.get(opts, :graph_format, :svg) do
+          :tikz ->
+            Render.compile_tex(graph_tikz_file)
+          "tikz" ->
+            Render.compile_tex(graph_tikz_file)
+
+          _ -> nil
+        end
+
       blocking_name =
         Keyword.get(
           opts,
@@ -427,12 +439,13 @@ defmodule Src.ModelEnumeration do
             "json" => Path.basename(model_json_file),
             "svg" => Path.basename(graph_svg_file),
             "tikz" => Path.basename(graph_tikz_file),
+            "pdf" => if(graph_pdf_file, do: Path.basename(graph_pdf_file), else: nil),
             "blocking_axiom" => Path.basename(blocking_axiom_file)
           },
           "model" =>
             model
             |> Model.to_export_map()
-            |> json_safe()
+            |> Json.safe()
         }
 
       File.write!(model_json_file, Jason.encode!(model_json, pretty: true) <> "\n")
@@ -442,6 +455,7 @@ defmodule Src.ModelEnumeration do
          graph_dot_file: graph_dot_file,
          graph_svg_file: graph_svg_file,
          graph_tikz_file: graph_tikz_file,
+         graph_pdf_file: graph_pdf_file,
          model_json_file: model_json_file,
          blocking_axiom: blocking_axiom,
          blocking_axiom_file: blocking_axiom_file
@@ -457,32 +471,7 @@ defmodule Src.ModelEnumeration do
     end
   end
 
-  defp json_safe(value) when is_tuple(value) do
-    Tuple.to_list(value)
-    |> Enum.map(&json_safe/1)
-  end
-
-  defp json_safe(value) when is_list(value) do
-    Enum.map(value, &json_safe/1)
-  end
-
-  defp json_safe(value) when is_map(value) do
-    Map.new(value, fn {key, nested_value} ->
-      {key, json_safe(nested_value)}
-    end)
-  end
-
-  defp json_safe(value), do: value
-
-  defp model_result(
-         model,
-         artifacts,
-         base_theory_file,
-         isabelle_run,
-         output_dir,
-         iteration,
-         opts
-       ) do
+  defp model_result(model, artifacts, base_theory_file, isabelle_run, output_dir, iteration, opts) do
     %{
       status: model_status(model),
       model_kind: model.kind,
@@ -499,6 +488,8 @@ defmodule Src.ModelEnumeration do
       warnings: Model.warning_messages(model),
       graph_dot_file: artifacts.graph_dot_file,
       graph_svg_file: artifacts.graph_svg_file,
+      graph_tikz_file: artifacts.graph_tikz_file,
+      graph_pdf_file: artifacts.graph_pdf_file,
       model_json_file: artifacts.model_json_file,
       blocking_axiom: artifacts.blocking_axiom,
       blocking_axiom_file: artifacts.blocking_axiom_file,
@@ -510,13 +501,7 @@ defmodule Src.ModelEnumeration do
   defp model_status(%{kind: :countermodel}), do: :countermodel_found
   defp model_status(%{kind: :model}), do: :model_found
 
-  defp no_model_result(
-         base_theory_file,
-         isabelle_run,
-         output_dir,
-         iteration,
-         opts
-       ) do
+  defp no_model_result(base_theory_file, isabelle_run, output_dir, iteration, opts) do
     status =
       case Keyword.fetch!(opts, :mode) do
         :countermodels -> :no_countermodel
@@ -534,6 +519,8 @@ defmodule Src.ModelEnumeration do
       model: nil,
       graph_dot_file: nil,
       graph_svg_file: nil,
+      graph_tikz_file: nil,
+      graph_pdf_file: nil,
       model_json_file: nil,
       blocking_axiom: nil,
       blocking_axiom_file: nil,
@@ -723,13 +710,7 @@ defmodule Src.ModelEnumeration do
     end
   end
 
-  defp enumeration_result(
-         status,
-         base_theory_path,
-         output_root,
-         entries,
-         terminal_iteration
-       ) do
+  defp enumeration_result(status, base_theory_path, output_root, entries, terminal_iteration) do
     %{
       status: status,
       base_theory_file: base_theory_path,
@@ -739,6 +720,14 @@ defmodule Src.ModelEnumeration do
       svg_files:
         entries
         |> Enum.map(& &1.graph_svg_file)
+        |> Enum.reject(&is_nil/1),
+      tikz_files:
+        entries
+        |> Enum.map(& &1.graph_tikz_file)
+        |> Enum.reject(&is_nil/1),
+      pdf_files:
+        entries
+        |> Enum.map(& &1.graph_pdf_file)
         |> Enum.reject(&is_nil/1),
       blocking_axiom_files:
         entries
@@ -820,6 +809,50 @@ defmodule Src.ModelEnumeration do
             path: path,
             reason: reason
           }}}
+    end
+  end
+
+  defp validate_base_theory(path) do
+    cond do
+      not File.regular?(path) ->
+        {:error,
+          {:base_theory_not_found,
+            %{
+              path: path
+            }}}
+      Path.extname(path) != ".thy" ->
+        {:error,
+          {:invalid_base_theory_extension,
+            %{
+              path: path,
+              expected: ".thy"
+            }}}
+
+        true ->
+          with {:ok, source} <- File.read(path) do
+            case Regex.run(~r/^\s*theory\s+([A-Za-z0-9_'.]+)/m, source, capture: :all_but_first) do
+              [declared_name] ->
+                expected_name =
+                  Path.basename(path, ".thy")
+                if declared_name == expected_name do
+                  :ok
+                else
+                  {:error,
+                    {:theory_name_mismatch,
+                      %{
+                        path: path,
+                        declared: declared_name,
+                        expected: expected_name
+                      }}}
+                end
+              nil ->
+                {:error,
+                  {:missing_theory_declaration,
+                    %{
+                      path: path
+                    }}}
+            end
+          end
     end
   end
 

@@ -4,7 +4,7 @@ defmodule Src.Interface.Ui.Options do
   """
 
   @model_logics [:sdl, :ddl]
-  @graph_formats [:svg, :png]
+  @graph_formats [:svg, :tikz]
   @palettes [:cividis, :viridis, :plasma, :magma, :turbo]
 
   @type t :: %__MODULE__{

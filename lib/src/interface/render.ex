@@ -125,11 +125,13 @@ defmodule Src.Core.Render do
 
     tex_path = to_string(tex_path)
     out_dir = Path.dirname(tex_path)
+    tex_file = Path.basename(tex_path)
 
     {_output, status} =
       System.cmd(
         exe,
-        ["-interaction=nonstopmode", "-output-directory=#{out_dir}", tex_path],
+        ["-interaction=nonstopmode", "-halt-on-error", "-file-line-error", "-output-directory=#{out_dir}", tex_file],
+        cd: out_dir,
         stderr_to_stdout: true
       )
 

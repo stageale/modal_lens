@@ -22,6 +22,8 @@ defmodule Src.Core.BlockingAxiom do
   """
 
   alias Src.Core.Model
+  alias Src.Core.Model.SDL
+  alias Src.Core.Model.DDL
 
   @default_world_prefix "u"
 
@@ -239,10 +241,7 @@ defmodule Src.Core.BlockingAxiom do
     "(#{@isabelle_forall}x. #{alternatives})"
   end
 
-  defp relation_clauses(
-         %{} = model,
-         worlds
-       ) do
+  defp relation_clauses(%{} = model, worlds) do
     for source_index <-
           0..(model.cardinality - 1),
         target_index <-
@@ -254,8 +253,7 @@ defmodule Src.Core.BlockingAxiom do
         Enum.at(worlds, target_index)
 
       proposition =
-        "(#{model.relation_name} " <>
-          "#{source_world} #{target_world})"
+        relation_proposition(model, source_world, target_world)
 
       truth =
         MapSet.member?(
@@ -265,6 +263,14 @@ defmodule Src.Core.BlockingAxiom do
 
       literal(proposition, truth)
     end
+  end
+
+  defp relation_proposition(%DDL{relation_name: relation_name}, source_world, target_world) do
+    "((#{relation_name}) #{source_world} #{target_world})"
+  end
+
+  defp relation_proposition(%SDL{relation_name: relation_name}, source_world, target_world) do
+    "(#{relation_name} #{source_world} #{target_world})"
   end
 
   defp valuation_clauses(

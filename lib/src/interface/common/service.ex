@@ -326,10 +326,8 @@ defmodule Src.Interface.Common.Service do
         atoms -> atoms
       end
 
-    format =
-      run.params
-      |> Map.get(:graph_format, "svg")
-      |> to_string()
+    palette =
+      Map.get(run.params, :palette, :turbo)
 
     try do
       models =
@@ -347,55 +345,56 @@ defmodule Src.Interface.Common.Service do
               Highlight.new(
                 basis: :pattern,
                 scope: :cluster,
-                world_scores: Map.new(
-                  highlight_source["world_scores"] || [],
-                  fn entry ->
-                    {entry["world"], entry["score"]}
-                  end
-                ),
-                edge_scores: Map.new(
-                  highlight_source["edge_scores"] || [],
-                  fn entry ->
-                    {
-                      {
-                        entry["source"],
-                        entry["target"]
-                      },
-                      entry["score"]
-                    }
-                  end
-                ),
+                world_scores:
+                  Map.new(highlight_source["world_scores"] || [], fn entry -> {entry["world"], entry["score"]} end),
+                edge_scores:
+                  Map.new(highlight_source["edge_scores"] || [], fn entry -> { { entry["source"], entry["target"] }, entry["score"]} end),
                 tags: highlight_source["tags"] || [],
-                metadata: highlight_source["metadata"] || %{}
+                metadata:
+                  highlight_source["metadata"] || %{}
               )
             end
-          graph_image_file = Path.rootname(model_result.graph_dot_file) <> ".#{format}"
 
           Render.write_dot(
             model_result.model,
             model_result.graph_dot_file,
             atoms: atoms,
             highlight: highlight,
-            palette: Map.get(run.params, :palette, :turbo)
+            palette: palette
           )
 
           Render.render_dot(
             model_result.graph_dot_file,
-            fmt: format,
-            output_path: graph_image_file
+            fmt: "svg",
+            output_path: model_result.graph_svg_file
           )
 
+          Render.write_tikz(
+            model_result.model,
+            model_result.graph_tikz_file,
+            atoms: atoms,
+            highlight: highlight,
+            palette: palette
+          )
+
+          if model_result.graph_pdf_file do
+            Render.compile_tex(model_result.graph_tikz_file)
+          end
+
           model_result
-          |> Map.put(:cluster_id, graph_highlight["cluster_id"])
+          |> Map.put(
+            :cluster_id,
+            graph_highlight["cluster_id"]
+          )
           |> Map.put(:highlight, highlight)
-          |> Map.put(:graph_image_file, graph_image_file)
         end)
+
       {:ok, models}
     rescue
       error ->
         {:error,
-          {:highlight_failed,
-            Exception.message(error)}}
+         {:highlight_failed,
+          Exception.message(error)}}
     end
   end
 
@@ -468,31 +467,75 @@ defmodule Src.Interface.Common.Service do
   end
 
   defp register_artifacts(%Run{} = run, result) do
-    artifacts = [
-      {:nitpick_output, result[:nitpick_output_file]},
-      {:model_json, result[:model_json_file]},
+    model_results =
+      case Map.get(result, :models) do
+        models when is_list(models) ->
+          models
+
+        _ ->
+          [result]
+      end
+
+    top_level_artifacts = [
       {:report_json, result[:report_file]},
-      {:graph_dot, result[:graph_dot_file]},
-      {:graph_image, result[:graph_image_file]},
-      {:blocking_axiom, result[:blocking_axiom_file]},
-      {:verbalization_request, result[:verbalization_request_file]},
-      {:verbalization_raw_output, result[:verbalization_raw_output_file]},
-      {:verbalization_summary_json, result[:verbalization_summary_json_file]},
-      {:verbalization_summary, result[:verbalization_summary_file]},
-      {:verbalization_provenance, result[:verbalization_provenance_file]}
+      {:verbalization_request,
+       result[:verbalization_request_file]},
+      {:verbalization_raw_output,
+       result[:verbalization_raw_output_file]},
+      {:verbalization_summary_json,
+       result[:verbalization_summary_json_file]},
+      {:verbalization_summary,
+       result[:verbalization_summary_file]},
+      {:verbalization_provenance,
+       result[:verbalization_provenance_file]}
     ]
 
+    model_artifacts =
+      Enum.flat_map(model_results, fn model_result ->
+        iteration =
+          model_result
+          |> Map.get(:iteration, 0)
+          |> Integer.to_string()
+          |> String.pad_leading(3, "0")
+
+        prefix = "model_#{iteration}"
+
+        [
+          {"#{prefix}_nitpick_output",
+           model_result[:nitpick_output_file]},
+          {"#{prefix}_model_json",
+           model_result[:model_json_file]},
+          {"#{prefix}_graph_dot",
+           model_result[:graph_dot_file]},
+          {"#{prefix}_graph_svg",
+           model_result[:graph_svg_file]},
+          {"#{prefix}_graph_tikz",
+           model_result[:graph_tikz_file]},
+          {"#{prefix}_graph_pdf",
+           model_result[:graph_pdf_file]},
+          {"#{prefix}_blocking_axiom",
+           model_result[:blocking_axiom_file]}
+        ]
+      end)
+
     Enum.reduce_while(
-      artifacts,
+      top_level_artifacts ++ model_artifacts,
       {:ok, run},
       fn
-        {_name, nil}, result ->
-          {:cont, result}
+        {_name, nil}, accumulator ->
+          {:cont, accumulator}
 
         {name, path}, {:ok, current_run} ->
-          case ArtifactStore.register(current_run, name, path) do
-            {:ok, updated_run, _absolute_path} -> {:cont, {:ok, updated_run}}
-            {:error, reason} -> {:halt, {:error, reason}}
+          case ArtifactStore.register(
+                 current_run,
+                 name,
+                 path
+               ) do
+            {:ok, updated_run, _absolute_path} ->
+              {:cont, {:ok, updated_run}}
+
+            {:error, reason} ->
+              {:halt, {:error, reason}}
           end
       end
     )

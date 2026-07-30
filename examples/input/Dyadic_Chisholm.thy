@@ -1,36 +1,47 @@
-theory Chisholm_DDL
-    imports
+theory Dyadic_Chisholm
+  imports E
 begin
 
+section \<open>Dyadic deontic logic\<close>
+
+text \<open>
+  The embedding E calls the actual world aw.  Axiom Refiner uses the
+  uniform name actual_world when generating blocking axioms.
+\<close>
+
+abbreviation actual_world :: i where
+  "actual_world \<equiv> aw"
+
+
+section \<open>Chisholm scenario\<close>
+
 consts
-    go      :: \<tau>
-    tell    :: \<tau>
+  go   :: \<sigma>
+  tell :: \<sigma>
 
 text \<open>Jones ought to go and assist his neighbours.\<close>
 
-abbreviation D1 :: \<tau> where
-    "D1 \<equiv>
-        \<circle><go|<^bold>\<top>>"
+abbreviation D1 :: \<sigma> where
+  "D1 \<equiv> \<circle><go|\<^bold>\<top>>"
 
-    
+
 text \<open>If Jones goes, he ought to tell them that he is coming.\<close>
 
-abbreviation D2 :: \<tau> where
-    "D2 \<equiv>
-        \<circle><tell|go>"
+abbreviation D2 :: \<sigma> where
+  "D2 \<equiv> \<circle><tell|go>"
 
 
 text \<open>If Jones does not go, he ought not tell them.\<close>
 
-abbreviation D3 :: \<tau> where
-    "D3 \<equiv> \<circle>\<^bold>\<not>tell|\<^bold>\<not>go>"
+abbreviation D3 :: \<sigma> where
+  "D3 \<equiv> \<circle><\<^bold>\<not>tell|\<^bold>\<not>go>"
 
 
 text \<open>Jones does not go in the actual world.\<close>
 
-abbreviation D4 :: \<tau> where
-    "D4 \<equiv> \<^bold>\<not> go"
-end
+abbreviation D4 :: \<sigma> where
+  "D4 \<equiv> \<^bold>\<not>go"
+
 
 section \<open>Normative theory\<close>
 
@@ -44,22 +55,10 @@ and
   chisholm_4: "\<lfloor>D4\<rfloor>\<^sub>l"
 
 
-(* AXIOM_REFINER_BLOCKS *)
+section \<open>Axiom Refiner query\<close>
 
-
-section \<open>Nitpick target\<close>
-
-lemma detached_contrary_to_duty_obligation:
-  "\<lfloor>\<^bold>\<circle><\<^bold>\<not>tell>\<rfloor>\<^sub>l"
-  nitpick [
-    user_axioms,
-    card i = 2,
-    timeout = 60,
-    verbose,
-    show_consts,
-    dont_specialize,
-    format = 2
-  ]
-  oops
+abbreviation axiom_refiner_query :: bool where
+  "axiom_refiner_query \<equiv>
+     \<lfloor>\<^bold>\<circle><\<^bold>\<not>tell>\<rfloor>\<^sub>l"
 
 end

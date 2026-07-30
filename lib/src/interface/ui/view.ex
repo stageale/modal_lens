@@ -92,7 +92,9 @@ defmodule Src.Interface.Ui.View do
       :model_summary,
       :worlds,
       :warnings,
-      :graph_image_file,
+      :graph_svg_file,
+      :graph_tikz_file,
+      :graph_pdf_file,
       :blocking_axiom
     ])
   end

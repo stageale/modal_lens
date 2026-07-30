@@ -127,12 +127,13 @@ defmodule Src.Interface.Isabelle.Client do
     #session_name = Keyword.get(opts, :session_name, theory_name)
     case Keyword.get(opts, :backend, :local) do
       :local ->
-        theory_path =
-          Keyword.get(opts, :theory_path, Path.join(workdir, "#{theory_name}.thy"))
+        base_theory_path =
+          Keyword.get(opts, :base_theory_file)
 
         theory_paths =
-          [Keyword.get(opts, :base_theory_file, theory_path), Keyword.fetch!(opts, :theory_path)]
+          local_import_files(base_theory_path) ++ [Keyword.get(opts, :base_theory_file), Keyword.fetch!(opts, :theory_path)]
           |> Enum.reject(&is_nil/1)
+          |> Enum.map(&Path.expand/1)
           |> Enum.uniq()
 
         with {:ok, log} <- LocalConnect.process_theories(theory_paths, opts) do
@@ -258,7 +259,29 @@ defmodule Src.Interface.Isabelle.Client do
     }
   end
 
+  defp local_import_files(nil), do: []
 
+  defp local_import_files(theory_path) do
+    with {:ok, source} <- File.read(theory_path),
+        [imports] <- Regex.run(~r/\bimports\s+(.*?)\bbegin\b/s, source, capture: :all_but_first) do
+          imports
+          |> String.replace(~r/\(\*.*?\*\)/s, " ")
+          |> String.replace("\"", "")
+          |> String.split()
+          |> Enum.map(fn import_name ->
+            filename =
+              if Path.extname(import_name) == ".thy" do
+                import_name
+              else
+                import_name <> ".thy"
+              end
+            Path.expand(filename, Path.dirname(theory_path))
+          end)
+          |> Enum.filter(&File.regular?/1)
+        else
+          _ -> []
+        end
+  end
 
   defp default_workdir do
     Path.join(["tmp", "isabelle", timestamp()])
