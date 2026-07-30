@@ -44,3 +44,7 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+# Ignore output and generated auxiliary input
+out/
+examples/input/Chisholm_Search_000.thy

@@ -34,6 +34,7 @@ defmodule Src.Interface.Isabelle.LocalConnect do
       [
         "build_log",
         "-v",
+        "-U",
         "-o",
         "system_heaps=false",
         session_name
@@ -89,8 +90,21 @@ defmodule Src.Interface.Isabelle.LocalConnect do
       "isabelle"
   end
 
-  def process_theory(theory_path, opts \\ []) do
-    theory_path = Path.expand(theory_path)
+  @spec process_theory(
+          binary()
+          | maybe_improper_list(
+              binary() | maybe_improper_list(any(), binary() | []) | char(),
+              binary() | []
+            )
+        ) ::
+          {:error,
+           %{
+             :output => any(),
+             :status => :failed_to_start | pos_integer(),
+             optional(:command) => [...]
+           }}
+          | {:ok, any()}
+  def process_theories(theory_paths, opts \\ []) when is_list(theory_paths) do
     logic = Keyword.get(opts, :logic, "HOL")
 
     threads =
@@ -99,6 +113,13 @@ defmodule Src.Interface.Isabelle.LocalConnect do
         :threads,
         min(System.schedulers_online(), 2)
       )
+
+    file_args =
+      theory_paths
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map(&Path.expand/1)
+      |> Enum.uniq()
+      |> Enum.flat_map(fn path -> ["-f", path] end)
 
     args = [
       "process_theories",
@@ -110,10 +131,12 @@ defmodule Src.Interface.Isabelle.LocalConnect do
       "system_heaps=false",
       "-o",
       "threads=#{threads}",
-      "-f",
-      theory_path
-    ]
+    ] ++ file_args
 
     run(args, opts)
+  end
+
+  def process_theory(theory_path, opts \\ []) do
+    process_theories([theory_path], opts)
   end
 end

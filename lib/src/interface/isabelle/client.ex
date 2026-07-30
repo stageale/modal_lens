@@ -70,9 +70,12 @@ defmodule Src.Interface.Isabelle.Client do
 
       logic = Keyword.get(opts, :logic, "HOL")
 
+      backend_opts =
+        Keyword.put(opts, :theory_path, theory_path)
+
       with  :ok <- ensure_theory_in_workdir(theory_path, workdir),
             :ok <- ensure_root(workdir, theory_name, session_name, logic, opts),
-           {:ok, result} <- run_backend(workdir, theory_name, opts),
+           {:ok, result} <- run_backend(workdir, theory_name, backend_opts),
             :ok <- write_log(output_file, result.log) do
         {:ok,
          %{
@@ -121,55 +124,61 @@ defmodule Src.Interface.Isabelle.Client do
   end
 
   defp run_backend(workdir, theory_name, opts) do
-    session_name = Keyword.get(opts, :session_name, theory_name)
+    #session_name = Keyword.get(opts, :session_name, theory_name)
     case Keyword.get(opts, :backend, :local) do
       :local ->
-        with {:ok, build_output} <- LocalConnect.build(workdir, %{theory_name: session_name}, opts),
-             {:ok, log} <- LocalConnect.build_log(session_name, opts) do
+        theory_path =
+          Keyword.get(opts, :theory_path, Path.join(workdir, "#{theory_name}.thy"))
+
+        theory_paths =
+          [Keyword.get(opts, :base_theory_file, theory_path), Keyword.fetch!(opts, :theory_path)]
+          |> Enum.reject(&is_nil/1)
+          |> Enum.uniq()
+
+        with {:ok, log} <- LocalConnect.process_theories(theory_paths, opts) do
                 {:ok,
                   %{
-                    build_output: build_output,
+                    build_output: nil,
                     log: log
                   }}
                end
 
-    :hpc_connect ->
-      with {:ok, log} <- HPCConnect.run(workdir, %{theory_name: theory_name}, opts) do
-        {:ok,
-          %{
-            build_output: nil,
-            log: log
+      :hpc_connect ->
+        with {:ok, log} <- HPCConnect.run(workdir, %{theory_name: theory_name}, opts) do
+          {:ok,
+            %{
+              build_output: nil,
+              log: log
+            }
           }
-        }
-      end
+        end
 
-    other ->
-      {:error, {:unknown_backend, other}}
+      other ->
+        {:error, {:unknown_backend, other}}
     end
   end
 
   defp ensure_root(workdir, theory_name, session_name, logic, opts) do
     root_path = Path.join(workdir, "ROOT")
-    cond do
-      File.regular?(root_path) -> :ok
-      Keyword.get(opts, :write_root?, true) ->
-        root = """
-        session #{session_name} = #{logic} +
-          theories
-            #{theory_name}
-        """
 
-        case File.write(root_path, root) do
-          :ok -> :ok
-          {:error, reason} ->
-            {:error,
-              {
-                :cannot_write_root,
-                root_path,
-                reason
-              }
-            }
+    session_source = """
+    session #{session_name} = #{logic} +
+      theories
+        #{theory_name}
+    """
+
+    cond do
+      File.regular?(root_path) ->
+        with {:ok, source} <- File.read(root_path) do
+          session_pattern = ~r/!\s*session\s+#{Regex.escape(session_name)}\s*=/m
+
+          if Regex.match?(session_pattern, source) do
+            :ok
+          else
+            File.write(root_path, String.trim_trailing(source) <> "\n\n" <> session_source)
+          end
         end
+      Keyword.get(opts, :write_root?, true) -> File.write(root_path, session_source)
       true -> {:error, {:missing_root, root_path}}
     end
   end

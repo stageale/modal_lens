@@ -187,11 +187,6 @@ defmodule Src.ModelEnumeration do
       )
       |> Path.expand()
 
-    search_theory_opts =
-      opts
-      |> Keyword.put(:output_dir, output_root)
-      |> Keyword.put_new(:search_theory_dir, Path.dirname(base_theory_path))
-
     search_theory_dir =
       opts
       |> Keyword.get(:search_theory_dir,Path.join(output_root, "search_theories"))
@@ -199,11 +194,12 @@ defmodule Src.ModelEnumeration do
 
     enumeration_opts =
       opts
+      |> Keyword.put(:output_dir, output_root)
       |> Keyword.put(:search_theory_dir, search_theory_dir)
 
     with :ok <- validate_max_models(max_models),
          :ok <- ensure_output_dir(output_root),
-        {:ok, initial_search_theory} <- write_search_theory(base_theory_path, [], search_theory_opts) do
+        {:ok, initial_search_theory} <- write_search_theory(base_theory_path, [], enumeration_opts) do
       do_enumerate(base_theory_path, initial_search_theory.theory_path, [], [], 1, max_models, output_root, enumeration_opts)
     end
   end
