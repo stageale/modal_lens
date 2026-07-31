@@ -1,4 +1,4 @@
-# AxiomRefiner
+# AxiomRefiner v0.9
 
 **Countermodel-guided iterative axiom refinement for modal/HOL experiments**
 
