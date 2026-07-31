@@ -1,23 +1,27 @@
+# Version-control metadata
 .git/
 .github/
 
+# Elixi build artifacts and downloaded dependencies
 _build/
 deps/
 cover/
 .elixir_ls/
+
+# Runtime
 erl_crash.dump
 
+# Local Python
 .venv/
-__pycache__/
-*.py[cod]
+
+# Python caches
+*/.pytest_cache
+**/__pycache__/
+**/*.py[cod]
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 
+# Generated project output
 out/
-demo_output/
 tmp/
-
-*.tar
-*.tar.gz
-*.zip

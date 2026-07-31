@@ -12,7 +12,6 @@ ENV DEVIAN_FRONTEND=noninteractive \
     UV_PROJECT_ENVIRONMENT=/workspace/.venv \
     UV_PYTHON=3.12.13 \
     UV_LINK_MODE=copy \
-
     PATH="/workspace/.venv/bin:${PATH}"
 
 RUN apt-get update \
@@ -35,4 +34,4 @@ RUN mix local.hex --force \
 RUN uv python install 3.12.13 \
     && uv sync --locked
 
-CMD ["./scripts/test_all.sh"]
+CMD ["./cmd/test_all.sh"]
