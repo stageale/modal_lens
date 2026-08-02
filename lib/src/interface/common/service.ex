@@ -1,77 +1,70 @@
 defmodule Src.Interface.Common.Service do
   @moduledoc """
-  Executes one experiment as a reproducible run.
+  Executes the countermodel pipeline as a reproducible run.
 
-  The service connects the existing experiment pipeline with
-  run state management and artifact persistence.
+  The service manages the run lifecycle and connects model enumeration,
+  graph analysis, visualization, and optional verbalization.
   """
 
-  alias Src.Core.Model
   alias Src.Core.Render
   alias Src.Explanation.Verbal.Launcher, as: VerbalLauncher
   alias Src.Explanation.Visual.Highlight
+  alias Src.Explanation.Visual.Palette
   alias Src.Interface.Common.ArtifactStore
   alias Src.Interface.Common.Run
   alias Src.ModelEnumeration
-  alias Src.Interface.Experiment
+
 
   @graph_python_module "graph_ml.launcher"
 
   @type result :: {:ok, Run.t(), map()} | {:error, term(), Run.t()}
 
   @doc "Executes one Isabelle theory within the given run."
-  @spec run_theory(Run.t(), String.t(), boolean()) :: result()
-  def run_theory(%Run{} = run, theory_path, experiment \\ false) when is_binary(theory_path) do
+  @spec run_theory(Run.t(), String.t()) :: result()
+  def run_theory(%Run{} = run, theory_path)
+      when is_binary(theory_path) do
     started_at = System.monotonic_time(:millisecond)
-    if experiment do
-      experiment_opts =
-        run.params
-        |> Map.to_list()
-        |> Keyword.put(:run_id, run.id)
-        |> Keyword.put(:output_dir, run.output_dir)
 
-      with {:ok, running_run} <- Run.start(run) do
-        case Experiment.analyse_theory(theory_path, experiment_opts) do
-          {:ok, experiment_result} ->
-            case enrich_result(running_run, theory_path, experiment_result) do
-              {:ok, enriched_result} -> finish_success(running_run, enriched_result, started_at)
-              {:error, reason} -> finish_failure(running_run, reason, started_at)
-            end
-          {:error, reason} -> finish_failure(running_run, reason, started_at)
-        end
-      else
-        {:error, reason} -> {:error, reason, run}
-      end
-    else
-      enumeration_opts =
-        run.params
-        |> Map.to_list()
-        |> Keyword.put(:mode, :countermodels)
-        |> Keyword.put_new(:max_models, 10)
-        |> Keyword.put(:output_dir, run.output_dir)
-        |> Keyword.put(
-          :render_atoms,
-          case Map.get(run.params, :atoms, []) do
-            [] -> nil
-            atoms -> atoms
-          end
-        )
-        |> Keyword.put(:include_designated_world, Map.get(run.params, :include_initial, true))
-      with {:ok, running_run} <- Run.start(run) do
-        case ModelEnumeration.enumerate(theory_path, enumeration_opts) do
-          {:ok, enumeration_result} ->
-            case analyse_enumeration(running_run, theory_path, enumeration_result) do
-              {:ok, result} ->
-                finish_success(running_run, result, started_at)
-              {:error, reason} ->
-                finish_failure(running_run, reason, started_at)
-            end
+    case Run.start(run) do
+      {:ok, running_run} ->
+        with {:ok, enumeration_result} <-
+               ModelEnumeration.enumerate(
+                 theory_path,
+                 enumeration_options(running_run)
+               ),
+             {:ok, result} <-
+               analyse_enumeration(
+                 running_run,
+                 theory_path,
+                 enumeration_result
+               ) do
+          finish_success(running_run, result, started_at)
+        else
           {:error, reason} ->
             finish_failure(running_run, reason, started_at)
         end
-      else
-        {:error, reason} -> {:error, reason, run}
-      end
+
+      {:error, reason} ->
+        {:error, reason, run}
+    end
+  end
+
+  defp enumeration_options(%Run{} = run) do
+    run.params
+    |> Map.to_list()
+    |> Keyword.merge(
+      mode: :countermodels,
+      max_models: Map.get(run.params, :max_models, 10),
+      output_dir: run.output_dir,
+      render_atoms: render_atoms(run),
+      include_designated_world: Map.get(run.params, :include_initial, true)
+    )
+  end
+
+  defp render_atoms(%Run{} = run) do
+    case Map.get(run.params, :atoms, []) do
+      [] -> nil
+      atoms -> atoms
     end
   end
 
@@ -98,7 +91,8 @@ defmodule Src.Interface.Common.Service do
       model_json_files ->
         with {:ok, graph_analysis} <- launch_graph_analysis(run, theory_path, model_json_files),
              {:ok, models} <- apply_highlights(enumeration_result.models, graph_analysis.highlights, run),
-             {:ok, clusters} <- load_clusters(graph_analysis.report_path, models),
+             {:ok, report} <- read_graph_report(graph_analysis.report_path),
+              clusters <- build_clusters(report, models),
              {:ok, cluster_verbs} <- maybe_verbalize_clusters(clusters, graph_analysis.report_path, run) do
           {:ok,
             Map.merge(enumeration_result, %{
@@ -113,160 +107,222 @@ defmodule Src.Interface.Common.Service do
     end
   end
 
-  defp maybe_verbalize_clusters(clusters, report_path, %Run{} = run) do
+  defp maybe_verbalize_clusters(clusters, report, %Run{} = run) do
     if Map.get(run.params, :verbalize?, false) do
       model_id = Map.fetch!(run.params, :verbalization_model)
 
-      backend = Map.get(run.params, :verbalization_backend, "transformers")
+      backend =
+        Map.get(
+          run.params,
+          :verbalization_backend,
+          "transformers"
+        )
 
-      with {:ok, source} <- File.read(report_path),
-          {:ok, report} <- Jason.decode(source) do
-            clusters
-            |> Enum.reduce_while(
-              {:ok, []},
-              fn cluster, {:ok, cluster_verbs} ->
-                cluster_id = cluster.cluster_id
+      launcher_options = [
+        project_root:
+          Map.get(
+            run.params,
+            :project_root,
+            File.cwd!()
+          ),
+        uv_executable:
+          Map.get(
+            run.params,
+            :uv_executable,
+            "uv"
+          ),
+        output_name: ".",
+        seed:
+          Map.get(
+            run.params,
+            :verbalization_seed,
+            42
+          ),
+        max_new_tokens:
+          Map.get(
+            run.params,
+            :verbalization_max_new_tokens,
+            768
+          )
+      ]
 
-                report_cluster =
-                  Enum.find(report["clusters"], &(&1["cluster_id"] == cluster_id))
+      clusters
+      |> Enum.reduce_while(
+        {:ok, []},
+        fn cluster, {:ok, cluster_verbs} ->
+          case verbalize_cluster(
+                 cluster,
+                 report,
+                 run,
+                 backend,
+                 model_id,
+                 launcher_options
+               ) do
+            {:ok, cluster_verb} ->
+              {:cont, {:ok, [cluster_verb | cluster_verbs]}}
 
-                cluster_dir = Path.join(run.output_dir, "verbalization/cluster-#{cluster_id}")
-
-                cluster_report_path = Path.join(cluster_dir, "report.json")
-
-                cluster_report =
-                  report
-                  |> Map.put("clusters", [report_cluster])
-                  |> put_in(["analysis", "model_count"], report_cluster["model_count"])
-                  |> put_in(["analysis", "cluster_count"],1)
-                  |> put_in(["analysis", "reported_pattern_count"], length(report_cluster["characteristic_patterns"] || []))
-
-                  launcher_options = [
-                    project_root: Map.get(run.params, :project_root, File.cwd!()),
-                    uv_executable: Map.get(run.params, :uv_executable, "uv"),
-                    output_name: ".",
-                    seed: Map.get(run.params, :verbalization_seed, 42),
-                    max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 768)
-                  ]
-
-                  with :ok <- File.mkdir_p(cluster_dir),
-                      :ok <- File.write(cluster_report_path, Jason.encode!(cluster_report, pretty: true) <> "\n"),
-                      {:ok, launch} <- VerbalLauncher.launch(
-                        cluster_report_path,
-                        cluster_dir,
-                        backend,
-                        model_id,
-                        launcher_options
-                      ),
-                      artifacts = launch.response["artifacts"],
-                      {:ok, summary_source} <- File.read(artifacts["summary_json"]),
-                      {:ok, summary} <- Jason.decode(summary_source),
-                      cluster_summary <- List.first(summary["cluster_summaries"]) do
-                        cluster_verb = %{
-                          cluster_id: cluster_id,
-                          text: cluster_summary["summary"],
-                          notable_patterns: cluster_summary["notable_patterns"] || [],
-                          evidence: cluster_summary["evidence"] || [],
-                          limitations: summary["limitations"] || [],
-                          metadata: %{
-                            backend: backend,
-                            model_id: model_id
-                          },
-                          artifacts: %{
-                            report: cluster_report_path,
-                            request: launch.request_path,
-                            raw_output: artifacts["raw_output"],
-                            summary_json: artifacts["summary_json"],
-                            summary_markdown: artifacts["summary_markdown"],
-                            provenance: artifacts["provenance"]
-                          }
-                        }
-
-                        {:cont,
-                          {:ok,
-                            [cluster_verb | cluster_verbs]}}
-                      else
-                        {:error, reason} ->
-                          {:halt,
-                            {:error,
-                              {:cluster_verbalization_failed, cluster_id, reason}}}
-                      end
-              end
-            )
-            |> case do
-              {:ok, cluster_verbs} ->
-                {:ok, Enum.reverse(cluster_verbs)}
-              error ->
-                error
-            end
+            {:error, reason} ->
+              {:halt,
+               {:error,
+                {:cluster_verbalization_failed,
+                 cluster.cluster_id, reason}}}
           end
+        end
+      )
+      |> case do
+        {:ok, cluster_verbs} ->
+          {:ok, Enum.reverse(cluster_verbs)}
+
+        {:error, _reason} = error ->
+          error
+      end
     else
       {:ok, []}
     end
   end
 
-  defp load_clusters(report_path, models) do
-    with {:ok, source} <- File.read(report_path),
-        {:ok, report} <- Jason.decode(source),
-        clusters when is_list(clusters) <- report["clusters"] do
-          {:ok,
-            Enum.map(clusters, fn cluster ->
-              model_indices =
-                cluster["model_indices"] || []
+  defp verbalize_cluster(
+         cluster,
+         report,
+         %Run{} = run,
+         backend,
+         model_id,
+         launcher_options
+       ) do
+    cluster_id = cluster.cluster_id
 
-              representative_index =
-                get_in(cluster, ["representative_model", "graph_index"])
+    report_cluster =
+      Enum.find(
+        report["clusters"],
+        &(&1["cluster_id"] == cluster_id)
+      )
 
-              %{
-                cluster_id: cluster["cluster_id"],
-                model_count: cluster["model_count"],
-                model_fraction: cluster["model_fraction"],
-                model_indices: model_indices,
-                characteristic_patterns: cluster["characteristic_patterns"] || [],
-                representative_model_index: representative_index,
-                representative_model: Enum.at(models, representative_index),
-                models: Enum.map(model_indices, &Enum.at(models, &1))
-              }
-            end)
-          }
-        else
-          {:error, reason} ->
-            {:error, {:cannot_read_graph_report, reason}}
-          _ -> {:error, :invalid_graph_report}
-        end
-  end
+    cluster_dir =
+      Path.join(
+        run.output_dir,
+        "verbalization/cluster-#{cluster_id}"
+      )
 
-  defp enrich_result(%Run{} = run, theory_path, experiment_result) do
-    with {:ok, model_json_file} <- write_model_json(run, experiment_result),
-         {:ok, graph_analysis} <- launch_graph_analysis(run, theory_path, [model_json_file]),
-         {:ok, [experiment_result]} <- apply_highlights([experiment_result], run, graph_analysis.highlights) do
-            experiment_result
-            |> Map.merge(%{
-              model_json_file: model_json_file,
-              report_file: graph_analysis.report_path,
-              graph_analysis: graph_analysis.metadata
-            })
-            |> maybe_verbalize(run)
-         end
-  end
+    cluster_report_path =
+      Path.join(cluster_dir, "report.json")
 
-  defp write_model_json(%Run{} = run, experiment_result) do
-    payload = %{
-      "metadata" => %{
-        "run_id" => run.id,
-        "iteration" => experiment_result.iteration,
-        "theory_name" => experiment_result.theory_name
-      },
-      "model" =>
-        experiment_result.model
-        |> Model.to_export_map()
-        |> Map.update!("edges", fn edges -> Enum.map(edges, &Tuple.to_list/1) end)
-    }
+    with report_cluster when is_map(report_cluster) <-
+           report_cluster,
+         cluster_report =
+           build_cluster_report(report, report_cluster),
+         :ok <- File.mkdir_p(cluster_dir),
+         :ok <-
+           File.write(
+             cluster_report_path,
+             Jason.encode!(cluster_report, pretty: true) <> "\n"
+           ),
+         {:ok, launch} <-
+           VerbalLauncher.launch(
+             cluster_report_path,
+             cluster_dir,
+             backend,
+             model_id,
+             launcher_options
+           ),
+         artifacts when is_map(artifacts) <-
+           launch.response["artifacts"],
+         summary_path when is_binary(summary_path) <-
+           artifacts["summary_json"],
+         {:ok, summary_source} <- File.read(summary_path),
+         {:ok, summary} <- Jason.decode(summary_source),
+         cluster_summary when is_map(cluster_summary) <-
+           List.first(summary["cluster_summaries"]) do
+      {:ok,
+       %{
+         cluster_id: cluster_id,
+         text: cluster_summary["summary"],
+         notable_patterns:
+           cluster_summary["notable_patterns"] || [],
+         evidence: cluster_summary["evidence"] || [],
+         limitations: summary["limitations"] || [],
+         metadata: %{
+           backend: backend,
+           model_id: model_id
+         },
+         artifacts: %{
+           report: cluster_report_path,
+           request: launch.request_path,
+           raw_output: artifacts["raw_output"],
+           summary_json: artifacts["summary_json"],
+           summary_markdown:
+             artifacts["summary_markdown"],
+           provenance: artifacts["provenance"]
+         }
+       }}
+    else
+      {:error, reason} ->
+        {:error, reason}
 
-    case ArtifactStore.write_json(run, :model_json, "model.json", payload) do
-      {:ok, _run, path} -> {:ok, path}
-      {:error, reason} -> {:error, reason}
+      nil ->
+        {:error, :missing_cluster_data}
+
+      value when not is_map(value) ->
+        {:error, {:invalid_cluster_data, value}}
     end
+  end
+
+  defp build_cluster_report(report, report_cluster) do
+  report
+  |> Map.put("clusters", [report_cluster])
+  |> put_in(
+    ["analysis", "model_count"],
+    report_cluster["model_count"]
+  )
+  |> put_in(["analysis", "cluster_count"], 1)
+  |> put_in(
+    ["analysis", "reported_pattern_count"],
+    length(
+      report_cluster["characteristic_patterns"] || []
+    )
+  )
+end
+
+  defp read_graph_report(report_path) do
+    with {:ok, source} <- File.read(report_path),
+         {:ok, report} <- Jason.decode(source),
+         clusters when is_list(clusters) <- report["clusters"] do
+      {:ok, report}
+    else
+      {:error, reason} ->
+        {:error, {:cannot_read_graph_report, reason}}
+
+      _other ->
+        {:error, :invalid_graph_report}
+    end
+  end
+
+  defp build_clusters(report, models) do
+    Enum.map(report["clusters"], fn cluster ->
+      model_indices = cluster["model_indices"] || []
+
+      representative_index =
+        get_in(
+          cluster,
+          ["representative_model", "graph_index"]
+        )
+
+      %{
+        cluster_id: cluster["cluster_id"],
+        model_count: cluster["model_count"],
+        model_fraction: cluster["model_fraction"],
+        model_indices: model_indices,
+        characteristic_patterns:
+          cluster["characteristic_patterns"] || [],
+        representative_model_index: representative_index,
+        representative_model:
+          Enum.at(models, representative_index),
+        models:
+          Enum.map(
+            model_indices,
+            &Enum.at(models, &1)
+          )
+      }
+    end)
   end
 
   defp launch_graph_analysis(%Run{} = run, theory_path, model_json_files) when is_list(model_json_files) do
@@ -320,76 +376,42 @@ defmodule Src.Interface.Common.Service do
   end
 
   defp apply_highlights(models, highlights, %Run{} = run) do
-    atoms =
-      case Map.get(run.params, :atoms, []) do
-        [] -> nil
-        atoms -> atoms
-      end
+    highlights_by_graph =
+      Map.new(
+        highlights,
+        &{&1["graph_index"], &1}
+      )
 
-    palette =
-      Map.get(run.params, :palette, :turbo)
+    render_options = [
+      atoms: render_atoms(run),
+      palette:
+        Map.get(
+          run.params,
+          :palette,
+          Palette.default()
+        )
+    ]
 
     try do
-      models =
+      highlighted_models =
         models
         |> Enum.with_index()
         |> Enum.map(fn {model_result, graph_index} ->
           graph_highlight =
-            Enum.find(highlights, &(&1["graph_index"] == graph_index)) || %{}
+            Map.get(
+              highlights_by_graph,
+              graph_index,
+              %{}
+            )
 
-          highlight_source =
-            graph_highlight["highlight"]
-
-          highlight =
-            if is_map(highlight_source) do
-              Highlight.new(
-                basis: :pattern,
-                scope: :cluster,
-                world_scores:
-                  Map.new(highlight_source["world_scores"] || [], fn entry -> {entry["world"], entry["score"]} end),
-                edge_scores:
-                  Map.new(highlight_source["edge_scores"] || [], fn entry -> { { entry["source"], entry["target"] }, entry["score"]} end),
-                tags: highlight_source["tags"] || [],
-                metadata:
-                  highlight_source["metadata"] || %{}
-              )
-            end
-
-          Render.write_dot(
-            model_result.model,
-            model_result.graph_dot_file,
-            atoms: atoms,
-            highlight: highlight,
-            palette: palette
+          apply_model_highlight(
+            model_result,
+            graph_highlight,
+            render_options
           )
-
-          Render.render_dot(
-            model_result.graph_dot_file,
-            fmt: "svg",
-            output_path: model_result.graph_svg_file
-          )
-
-          Render.write_tikz(
-            model_result.model,
-            model_result.graph_tikz_file,
-            atoms: atoms,
-            highlight: highlight,
-            palette: palette
-          )
-
-          if model_result.graph_pdf_file do
-            Render.compile_tex(model_result.graph_tikz_file)
-          end
-
-          model_result
-          |> Map.put(
-            :cluster_id,
-            graph_highlight["cluster_id"]
-          )
-          |> Map.put(:highlight, highlight)
         end)
 
-      {:ok, models}
+      {:ok, highlighted_models}
     rescue
       error ->
         {:error,
@@ -398,40 +420,45 @@ defmodule Src.Interface.Common.Service do
     end
   end
 
-  defp maybe_verbalize(result, %Run{} = run) do
-    if Map.get(run.params, :verbalize?, false) do
-      model_id = Map.fetch!(run.params, :verbalization_model)
+  defp apply_model_highlight(
+    model_result,
+    graph_highlight,
+    render_options
+  ) do
+    highlight = build_highlight(graph_highlight["highlight"])
 
-      opts = [
-        project_root: Map.get(run.params, :project_root, File.cwd!()),
-        uv_executable: Map.get(run.params, :uv_executable, "uv")
-      ]
+    render_model(model_result, Keyword.get(render_options, :highlight, highlight))
 
-      with  {:ok, launch} <- VerbalLauncher.launch(
-              result.report_file,
-              Path.join(run.output_dir, "verbalization"),
-              Map.get(run.params, :verbalization_backend, "transformers"),
-              model_id,
-              opts
-            ),
-          artifacts = launch.response["artifacts"],
-          {:ok, explanation} <- File.read(artifacts["summary_markdown"]),
-          {:ok, provenance} <- File.read(artifacts["provenance"]),
-          {:ok, metadata} <- Jason.decode(provenance) do
-            {:ok, Map.merge(result,
-              %{
-                llm_explanation: explanation,
-                llm_metadata: metadata,
-                verbalization_request_file: launch.request_path,
-                verbalization_raw_output_file: artifacts["raw_output"],
-                verbalization_summary_json_file: artifacts["summary_json"],
-                verbalization_summary_file: artifacts["summary_markdown"],
-                verbalization_provenance_file: artifacts["provenance"]
-              })}
-          end
-    else
-      {:ok, result}
+    model_result
+    |> Map.put(:cluster_id, graph_highlight["cluster_id"])
+    |> Map.put(:highlight, highlight)
+  end
+
+  defp build_highlight(nil), do: nil
+
+  defp build_highlight(source) when is_map(source) do
+    Highlight.new(
+      basis: :pattern,
+      scope: :cluster,
+      world_scores: Map.new(source["world_scores"] || [], &{&1["world"], &1["score"]}),
+      edge_scores: Map.new(source["edge_scores"] || [], &{{&1["source"], &1["target"]}, &1["score"]}),
+      tags: source["tags"] || [],
+      metadata: source["metadata"] || %{}
+    )
+  end
+
+  defp render_model(model_result, options) do
+    Render.write_dot(model_result.model, model_result.graph_dot_file, options)
+
+    Render.render_dot(model_result.graph_dot_file, fmt: "svg", output_path: model_result.graph_svg_file)
+
+    Render.write_tikz(model_result.model, model_result.graph_tikz_file, options)
+
+    if model_result.graph_pdf_file do
+      Render.compile_tex(model_result.graph_tikz_file)
     end
+
+    :ok
   end
 
   defp finish_success(%Run{} = run, experiment_result, started_at) do
@@ -476,18 +503,8 @@ defmodule Src.Interface.Common.Service do
           [result]
       end
 
-    top_level_artifacts = [
-      {:report_json, result[:report_file]},
-      {:verbalization_request,
-       result[:verbalization_request_file]},
-      {:verbalization_raw_output,
-       result[:verbalization_raw_output_file]},
-      {:verbalization_summary_json,
-       result[:verbalization_summary_json_file]},
-      {:verbalization_summary,
-       result[:verbalization_summary_file]},
-      {:verbalization_provenance,
-       result[:verbalization_provenance_file]}
+    run_artifacts = [
+      {:report_json, result[:report_file]}
     ]
 
     model_artifacts =
@@ -518,19 +535,38 @@ defmodule Src.Interface.Common.Service do
         ]
       end)
 
+    verbalization_artifacts =
+      result
+      |> Map.get(:cluster_verbs, [])
+      |> Enum.flat_map(fn cluster_verb ->
+        cluster_id =
+          cluster_verb
+          |> Map.fetch!(:cluster_id)
+          |> to_string()
+          |> String.pad_leading(3, "0")
+
+        artifacts = Map.get(cluster_verb, :artifacts, %{})
+        prefix = "cluster_#{cluster_id}_verbalization"
+
+        [
+          {"#{prefix}_report", artifacts[:report]},
+          {"#{prefix}_request", artifacts[:request]},
+          {"#{prefix}_raw_output", artifacts[:raw_output]},
+          {"#{prefix}_summary_json", artifacts[:summary_json]},
+          {"#{prefix}_summary_markdown", artifacts[:summary_markdown]},
+          {"#{prefix}_provenance", artifacts[:provenance]}
+        ]
+      end)
+
     Enum.reduce_while(
-      top_level_artifacts ++ model_artifacts,
+      run_artifacts ++ model_artifacts ++ verbalization_artifacts,
       {:ok, run},
       fn
         {_name, nil}, accumulator ->
           {:cont, accumulator}
 
         {name, path}, {:ok, current_run} ->
-          case ArtifactStore.register(
-                 current_run,
-                 name,
-                 path
-               ) do
+          case ArtifactStore.register(current_run, name, path) do
             {:ok, updated_run, _absolute_path} ->
               {:cont, {:ok, updated_run}}
 

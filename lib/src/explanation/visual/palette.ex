@@ -1,6 +1,10 @@
 defmodule Src.Explanation.Visual.Palette do
   @moduledoc """
-  Maps normalized heatmap scores to renderer-independent RGB colors.
+  Defines the color palettes used for heatmap visualizations.
+
+  Normalized scores between `0.0` and `1.0` are mapped to RGB colors.
+  The resulting colors are renderer-independent and can be used by both
+  Graphviz and TikZ output.
   """
 
   @type palette ::
@@ -66,8 +70,24 @@ defmodule Src.Explanation.Visual.Palette do
     ]
   }
 
+  # Each palette contains eight color stops, forming seven interfals.
   @intervals 7
 
+  @default_palette :turbo
+
+  @doc "Returns all supported palette names."
+  @spec names() :: [palette()]
+  def names, do: Map.keys(@palettes)
+
+  @doc "Returns the default visualization palette."
+  @spec default() :: palette()
+  def default, do: @default_palette
+
+  @doc "Checks whether the given value is a supported palette."
+  @spec valid?(term()) :: boolean()
+  def valid?(palette), do: Map.has_key?(@palettes, palette)
+
+  @doc "Maps a normalized score between `0.0` and `1.0` to an RGB color."
   @spec color(palette(), number()) :: rgb()
   def color(palette, score) when is_number(score) and score >= 0.0 and score <= 1.0 do
     palette
@@ -79,6 +99,7 @@ defmodule Src.Explanation.Visual.Palette do
     raise ArgumentError, "palette score must be between 0.0 and 1.0, got: #{inspect(score)}"
   end
 
+  @doc "Maps a normalized score to a hexadecimal color string."
   @spec hex(palette(), number()) :: String.t()
   def hex(palette, score) do
     {red, green, blue} = color(palette, score)
@@ -89,27 +110,33 @@ defmodule Src.Explanation.Visual.Palette do
       hex_channel(blue)
   end
 
-  def hex_channel(channel) do
+  defp hex_channel(channel) do
     channel
     |> Integer.to_string(16)
     |> String.pad_leading(2, "0")
     |> String.upcase()
   end
 
-  @spec normalize_score(number(), number(), boolean()) :: float()
-  def normalize_score(score, scale \\ 1.0, negative \\ false)
+  @doc """
+  Normalizes a heatmap score to the interval between `0.0` and `1.0`.
 
-  def normalize_score(score, scale, negative) when is_number(score) and is_number(scale) and scale > 0 and is_boolean(negative) do
-    if negative do
+  When negative scores are disabled, only non-negative values are accepted.
+  When they are enabled, zero is mapped to the center of the palette.
+  """
+  @spec normalize_score(number(), number(), boolean()) :: float()
+  def normalize_score(score, scale \\ 1.0, include_negatives? \\ false)
+
+  def normalize_score(score, scale, include_negatives?) when is_number(score) and is_number(scale) and scale > 0 and is_boolean(include_negatives?) do
+    if include_negatives? do
       normalize_signed_score(score, scale)
     else
       normalize_positive_score(score, scale)
     end
   end
 
-  def normalize_score(score, scale, negative) do
+  def normalize_score(score, scale, include_negatives?) do
     raise ArgumentError,
-          "score and scale must be numerics, scale positive and negative a boolean got: #{inspect(score)}, #{inspect(scale)}, #{inspect(negative)}"
+          "score and scale must be numerics, scale positive and include_negatives? a boolean got: #{inspect(score)}, #{inspect(scale)}, #{inspect(include_negatives?)}"
   end
 
   defp normalize_positive_score(score, scale) when score >= 0 do
@@ -118,7 +145,7 @@ defmodule Src.Explanation.Visual.Palette do
 
   defp normalize_positive_score(score, _scale) do
     raise ArgumentError,
-          "negative score #{inspect(score)} requires enabled_negatives: true"
+          "negative score #{inspect(score)} requires included_negatives?: true"
   end
 
   defp normalize_signed_score(score, scale) do

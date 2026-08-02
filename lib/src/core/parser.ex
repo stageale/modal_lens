@@ -31,7 +31,11 @@ defmodule Src.Core.Parser do
 
     model_logic = Keyword.get(opts, :model_logic, :sdl)
     relation = Keyword.get(opts, :relation, "R")
-    atoms = Keyword.get(opts, :atoms, [])
+    atoms =
+      opts
+      |> Keyword.get(:atoms, [])
+      |> normalize_atoms()
+
     auto_atoms = Keyword.get(opts, :auto_atoms, false)
     source = Keyword.get(opts, :source)
 
@@ -264,6 +268,29 @@ defmodule Src.Core.Parser do
             binary_part(rest, 0, block_end)
         end
     end
+  end
+
+  defp normalize_atoms(nil), do: []
+  defp normalize_atoms(""), do: []
+  defp normalize_atoms("-"), do: []
+
+  defp normalize_atoms(atoms) when is_binary(atoms) do
+    atoms
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp normalize_atoms(atoms) when is_list(atoms) do
+    atoms
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp normalize_atoms(atoms) do
+    raise ArgumentError,
+          "atoms must be a comma-separated string or a list of strings, got: " <>
+            inspect(atoms)
   end
 
   defp isolate_last_nitpick_result(text) do

@@ -7,7 +7,7 @@ defmodule Src.Core.Render do
 
     atoms = Keyword.get(opts, :atoms)
     highlight = Keyword.get(opts, :highlight)
-    palette = Keyword.get(opts, :palette, :cividis)
+    palette = Keyword.get(opts, :palette, Palette.default())
     path = to_string(path)
 
     mkdir_parent!(path)
@@ -80,7 +80,7 @@ defmodule Src.Core.Render do
     d_world = Model.designated_world(model)
     atoms = Keyword.get(opts, :atoms)
     highlight = Keyword.get(opts, :highlight)
-    palette = Keyword.get(opts, :palette, :cividis)
+    palette = Keyword.get(opts, :palette, Palette.default())
     path = to_string(path)
 
     mkdir_parent!(path)

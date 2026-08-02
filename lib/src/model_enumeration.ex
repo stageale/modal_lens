@@ -325,10 +325,7 @@ defmodule Src.ModelEnumeration do
           source: source,
           model_logic: Keyword.get(opts, :model_logic, :sdl),
           relation: Keyword.get(opts, :relation, "R"),
-          atoms:
-            opts
-            |> Keyword.get(:atoms, [])
-            |> normalize_atoms(),
+          atoms: Keyword.get(opts, :atoms, []),
           auto_atoms: Keyword.get(opts, :auto_atoms, false)
         )
 
@@ -586,23 +583,6 @@ defmodule Src.ModelEnumeration do
       "_"
     )
     |> String.trim("_")
-  end
-
-  defp normalize_atoms(nil), do: []
-  defp normalize_atoms(""), do: []
-  defp normalize_atoms("-"), do: []
-
-  defp normalize_atoms(atoms)
-       when is_binary(atoms) do
-    atoms
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-  end
-
-  defp normalize_atoms(atoms)
-       when is_list(atoms) do
-    atoms
   end
 
   defp do_enumerate(base_theory_path, current_theory_path, blocking_axioms, entries, iteration, max_models, output_root, opts) do

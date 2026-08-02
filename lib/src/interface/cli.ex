@@ -1,4 +1,5 @@
 defmodule Src.Interface.CLI do
+
   alias Src.Interface.Experiment
   alias Src.Core.BlockingAxiom
   alias Src.ModelEnumeration
@@ -256,7 +257,7 @@ defmodule Src.Interface.CLI do
 
           blocking_opts =
             [
-              includ_atoms: include_atoms,
+              include_atoms: include_atoms,
               include_designated_world: Keyword.get(opts, :include_designated_world, false)
             ]
             |> maybe_put(
