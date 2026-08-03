@@ -12,6 +12,7 @@ defmodule Src.Interface.Common.Run do
   @schema_version "1.0"
 
   @type status :: :planned | :running | :completed | :failed
+  @type name :: atom() | String.t()
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -103,15 +104,31 @@ defmodule Src.Interface.Common.Run do
   @doc """
   Registers one generated artifact under a stable name.
   """
-  @spec put_artifact(t(), atom() | String.t(), term()) :: {:ok, t()} | {:error, term()}
+  @spec put_artifact(t(), name(), term()) :: {:ok, t()} | {:error, term()}
   def put_artifact(%__MODULE__{} = run, name, value) do
     put_named_value(run, :artifacts, name, value)
   end
 
   @doc """
+  Returns the value registered for an artifact name.
+  """
+  @spec fetch_artifact(t(), name()) :: {:ok, term()} | {:error, term()}
+  def fetch_artifact(%__MODULE__{} = run, name) do
+    with {:ok, normalized_name} <- normalize_name(name) do
+      case Map.fetch(run.artifacts, normalized_name) do
+        {:ok, value} ->
+          {:ok, value}
+
+        :error ->
+          {:error, {:unkown_artifact, normalized_name}}
+      end
+    end
+  end
+
+  @doc """
   Adds one provenance value to the run.
   """
-  @spec put_provenance(t(), atom() | String.t(), term()) :: {:ok, t()} | {:error, term()}
+  @spec put_provenance(t(), name(), term()) :: {:ok, t()} | {:error, term()}
   def put_provenance(%__MODULE__{} = run, name, value) do
     put_named_value(run, :provenance, name, value)
   end
@@ -119,7 +136,7 @@ defmodule Src.Interface.Common.Run do
   @doc """
   Adds one runtime or resource measurement to the run.
   """
-  @spec put_metric(t(), atom() | String.t(), term()) :: {:ok, t()} | {:error, term()}
+  @spec put_metric(t(), name(), term()) :: {:ok, t()} | {:error, term()}
   def put_metric(%__MODULE__{} = run, name, value) do
     put_named_value(run, :metrics, name, value)
   end

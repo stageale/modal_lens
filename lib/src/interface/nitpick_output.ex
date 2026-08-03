@@ -1,10 +1,12 @@
-defmodule Src.Interface.Experiment do
+defmodule Src.Interface.NitpickOutput do
   @moduledoc """
-  Provides the file-based workflow for stored Isabelle/Nitpick output.
+  Provides file-based operations for existing Isabelle/Nitpick output.
 
-  Theory execution and countermodel enumeration are handled by
-  `Src.ModelEnumeration`. This module only parses existing Nitpick output and
-  derives summaries or blocking axioms from the parsed model.
+  The module parses stored Nitpick results and derives analyses, summaries,
+  or blocking axioms from the resulting finite model.
+
+  Live Isabelle execution and repeated model enumeration are handled by
+  `Src.ModelEnumeration`.
   """
 
   alias Src.Core.BlockingAxiom

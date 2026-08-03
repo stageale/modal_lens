@@ -9,31 +9,10 @@ defmodule Src.Interface.Common.ArtifactStore do
 
   @manifest_filename "run.json"
 
-  @type artifact_name :: atom() | String.t()
-
-
-  @doc """
-  Creates the output directory of a run.
-  """
-  @spec prepare(Run.t()) :: {:ok, Run.t()} | {:error, term()}
-  def prepare(%Run{} = run) do
-    case File.mkdir_p(run.output_dir) do
-      :ok -> {:ok, run}
-      {:error, reason} ->
-        {:error,
-          {
-            :cannot_create_output_directory,
-            run.output_dir,
-            reason
-          }
-        }
-    end
-  end
-
   @doc """
   Writes deterministic JSON and registers it as an artifact.
   """
-  @spec write_json(Run.t(), artifact_name(), String.t(), term()) :: {:ok, Run.t(), String.t()} | {:error, term()}
+  @spec write_json(Run.t(), Run.name(), String.t(), term()) :: {:ok, Run.t(), String.t()} | {:error, term()}
   def write_json(%Run{} = run, name, relative_path, value) do
     case Jason.encode(value, pretty: true) do
       {:ok, json} -> write_artifact(run, name, relative_path, json <> "\n")
@@ -44,7 +23,7 @@ defmodule Src.Interface.Common.ArtifactStore do
   @doc """
   Writes text and registers it as an artifact.
   """
-  @spec write_text(Run.t(), artifact_name(), String.t(), binary()) :: {:ok, Run.t(), String.t()} | {:error, term()}
+  @spec write_text(Run.t(), Run.name(), String.t(), binary()) :: {:ok, Run.t(), String.t()} | {:error, term()}
   def write_text(%Run{} = run, name, relative_path, content) do
     if is_binary(content) do
       write_artifact(run, name, relative_path, content)
@@ -56,7 +35,7 @@ defmodule Src.Interface.Common.ArtifactStore do
   @doc """
   Registers an existing regular file belonging to the run.
   """
-  @spec register(Run.t(), artifact_name(), String.t()) :: {:ok, Run.t(), String.t()} | {:error, term()}
+  @spec register(Run.t(), Run.name(), String.t()) :: {:ok, Run.t(), String.t()} | {:error, term()}
   def register(%Run{} = run, name, path) when is_binary(path) do
     with {:ok, absolute_path, relative_path} <- resolve_path(run, path),
          true <- File.regular?(absolute_path),
@@ -75,13 +54,12 @@ defmodule Src.Interface.Common.ArtifactStore do
   def persist(%Run{} = run) do
     path = manifest_path(run)
 
-    with {:ok, _run} <- prepare(run),
-         {:ok, json} <- Jason.encode(Run.to_map(run), pretty: true),
-          :ok <- File.write(path, json <> "\n") do
+    with {:ok, json} <- Jason.encode(Run.to_map(run), pretty: true),
+          :ok <- write_file(path, json <> "\n") do
             {:ok, path}
     else
       {:error, %Jason.EncodeError{} = reason} -> {:error, {:json_encoding_failed, reason}}
-      {:error, reason} -> {:error, {:cannot_persist_run, path, reason}}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -125,41 +103,36 @@ defmodule Src.Interface.Common.ArtifactStore do
   @doc """
   Resolves the absolute path of a registered artifact.
   """
-  @spec artifact_path(Run.t(), artifact_name()) :: {:ok, String.t()} | {:error, term()}
+  @spec artifact_path(Run.t(), Run.name()) :: {:ok, String.t()} | {:error, term()}
   def artifact_path(%Run{} = run, name) do
-    name =
-      if is_atom(name) do
-        Atom.to_string(name)
-      else
-        name
-      end
-
-    case Map.fetch(run.artifacts, name) do
-      {:ok, relative_path} ->
-        case resolve_path(run, relative_path) do
-          {:ok, absolute_path, _relative_path} -> {:ok, absolute_path}
-          {:error, _reason} = error -> error
-        end
-
-      :error -> {:error, {:unknown_artifact, name}}
-    end
+    with {:ok, relative_path} <- Run.fetch_artifact(run, name),
+         {:ok, absolute_path, _relative_path} <- resolve_path(run, relative_path) do
+           {:ok, absolute_path}
+         end
   end
 
   defp write_artifact(%Run{} = run, name, relative_path, content) do
-    with {:ok, _run} <- prepare(run),
-         {:ok, absolute_path, relative_path} <- resolve_path(run, relative_path),
-         :ok <- File.mkdir_p(Path.dirname(absolute_path)),
-         :ok <- File.write(absolute_path, content),
-         {:ok, updated_run} <- Run.put_artifact(run, name, relative_path) do
+    with {:ok, absolute_path, relative_path} <- resolve_path(run, relative_path),
+         {:ok, updated_run} <- Run.put_artifact(run, name, relative_path),
+          :ok <- write_file(absolute_path, content) do
       {:ok, updated_run, absolute_path}
-    else
+    end
+  end
+
+  defp write_file(path, content) when is_binary(path) and is_binary(content) do
+    directory = Path.dirname(path)
+
+    case File.mkdir_p(directory) do
+      :ok ->
+        case File.write(path, content) do
+          :ok -> :ok
+
+          {:error, reason} ->
+            {:error, {:cannot_write_file, path, reason}}
+        end
+
       {:error, reason} ->
-        {:error,
-          {:cannot_write_artifact,
-            relative_path,
-            reason
-          }
-        }
+        {:error, {:cannot_create_directory, directory, reason}}
     end
   end
 

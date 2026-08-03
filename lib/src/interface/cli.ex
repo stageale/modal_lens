@@ -1,6 +1,6 @@
 defmodule Src.Interface.CLI do
 
-  alias Src.Interface.Experiment
+  alias Src.Interface.NitpickOutput
   alias Src.Core.BlockingAxiom
   alias Src.ModelEnumeration
   alias Src.Interface.Ui
@@ -206,7 +206,7 @@ defmodule Src.Interface.CLI do
       |> collect_input_files()
       |> Enum.each(fn file ->
         try do
-          summary = Experiment.summary_file(file, opts)
+          summary = NitpickOutput.summary_file(file, opts)
 
           if Keyword.get(opts, :json, false) do
             print_json(summary)
@@ -253,7 +253,7 @@ defmodule Src.Interface.CLI do
       |> collect_input_files()
       |> Enum.each(fn file ->
         try do
-          model = Experiment.parse_nitpick_file(file, opts)
+          model = NitpickOutput.parse_nitpick_file(file, opts)
 
           blocking_opts =
             [
