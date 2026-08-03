@@ -1,4 +1,4 @@
-defmodule Src.Interface.NitpickOutput do
+defmodule Src.NitpickOutput do
   @moduledoc """
   Provides file-based operations for existing Isabelle/Nitpick output.
 
@@ -6,7 +6,7 @@ defmodule Src.Interface.NitpickOutput do
   or blocking axioms from the resulting finite model.
 
   Live Isabelle execution and repeated model enumeration are handled by
-  `Src.ModelEnumeration`.
+  `Src.Enumeration`.
   """
 
   alias Src.Core.BlockingAxiom

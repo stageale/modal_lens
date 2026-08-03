@@ -1,4 +1,4 @@
-defmodule Src.Interface.Isabelle.HOLEmbedding do
+defmodule Src.Isabelle.HOLEmbedding do
   @moduledoc """
   Generates Isabelle/HOL theory files used as input for Isabelle/Nitpick
 

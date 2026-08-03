@@ -1,4 +1,4 @@
-defmodule Src.Core.Render do
+defmodule Src.Explanation.Visual.Render do
   alias Src.Core.Model
   alias Src.Explanation.Visual.Palette
 

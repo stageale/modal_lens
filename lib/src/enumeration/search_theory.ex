@@ -1,4 +1,4 @@
-defmodule Src.ModelEnumeration.SearchTheory do
+defmodule Src.Enumeration.SearchTheory do
   @moduledoc """
   Generates Isabelle search theories for model enumeration.
 

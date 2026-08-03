@@ -1,4 +1,4 @@
-defmodule Src.Interface.Common.Service do
+defmodule Src.Execution.Pipeline do
   @moduledoc """
   Executes the countermodel pipeline as a reproducible run.
 
@@ -6,13 +6,13 @@ defmodule Src.Interface.Common.Service do
   graph analysis, visualization, and optional verbalization.
   """
 
-  alias Src.Core.Render
   alias Src.Explanation.Verbal.Launcher, as: VerbalLauncher
   alias Src.Explanation.Visual.Highlight
   alias Src.Explanation.Visual.Palette
-  alias Src.Interface.Common.ArtifactStore
-  alias Src.Interface.Common.Run
-  alias Src.ModelEnumeration
+  alias Src.Explanation.Visual.Render
+  alias Src.Execution.ArtifactStore
+  alias Src.Execution.Run
+  alias Src.Enumeration
 
 
   @graph_python_module "graph_ml.launcher"
@@ -28,7 +28,7 @@ defmodule Src.Interface.Common.Service do
     case Run.start(run) do
       {:ok, running_run} ->
         with {:ok, enumeration_result} <-
-               ModelEnumeration.enumerate(
+               Enumeration.enumerate(
                  theory_path,
                  enumeration_options(running_run)
                ),

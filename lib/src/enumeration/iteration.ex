@@ -1,4 +1,4 @@
-defmodule Src.ModelEnumeration.Iteration do
+defmodule Src.Enumeration.Iteration do
   @moduledoc """
   Executes one Isabelle/Nitpick iteration of model enumeration.
 
@@ -9,10 +9,14 @@ defmodule Src.ModelEnumeration.Iteration do
   alias Src.Core.BlockingAxiom
   alias Src.Core.Model
   alias Src.Core.Parser
-  alias Src.Core.Render
   alias Src.Explanation.Visual.Palette
-  alias Src.Interface.Common.Json
-  alias Src.Interface.Isabelle.Client
+  alias Src.Explanation.Visual.Render
+  alias Src.Serialization, as: Serial
+  alias Src.Isabelle.Client
+
+  @schema "axiom-refiner/model"
+  @schema_version "1.0"
+
 
   @doc """
   Runs one complete model-enumeration iteration.
@@ -227,7 +231,8 @@ defmodule Src.ModelEnumeration.Iteration do
 
       model_json =
         %{
-          "schema_version" => 1,
+          "schema" => @schema,
+          "schema_version" => @schema_version,
           "metadata" => %{
             "iteration" => iteration,
             "mode" =>
@@ -258,7 +263,7 @@ defmodule Src.ModelEnumeration.Iteration do
           "model" =>
             model
             |> Model.to_export_map()
-            |> Json.safe()
+            |> Serial.safe()
         }
 
       File.write!(model_json_file, Jason.encode!(model_json, pretty: true) <> "\n")

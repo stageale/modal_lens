@@ -1,4 +1,4 @@
-defmodule Src.Interface.Isabelle.HPCConnect do
+defmodule Src.Isabelle.HPCConnect do
   @moduledoc """
   Remote Isabelle backend using the external `penthooose/hpc_connect` library.
 

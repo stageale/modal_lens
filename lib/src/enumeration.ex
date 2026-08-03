@@ -1,14 +1,14 @@
-defmodule Src.ModelEnumeration do
+defmodule Src.Enumeration do
   @moduledoc """
   The module controls repeated model enumeration.
 
   Individual Isabelle/Nitpick iterations are executed by
-  `Src.ModelEnumeration.Iteration`, while generated search theories are handled
-  by `Src.ModelEnumeration.SearchTheory`.
+  `Src.Enumeration.Iteration`, while generated search theories are handled
+  by `Src.Enumeration.SearchTheory`.
   """
 
-  alias Src.ModelEnumeration.Iteration
-  alias Src.ModelEnumeration.SearchTheory
+  alias Src.Enumeration.Iteration
+  alias Src.Enumeration.SearchTheory
 
   @default_input_theory "../data/Input.thy"
 

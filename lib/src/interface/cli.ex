@@ -1,8 +1,8 @@
 defmodule Src.Interface.CLI do
 
-  alias Src.Interface.NitpickOutput
+  alias Src.NitpickOutput
   alias Src.Core.BlockingAxiom
-  alias Src.ModelEnumeration
+  alias Src.Enumeration
   alias Src.Interface.Ui
 
   @demo_switches [
@@ -124,8 +124,8 @@ defmodule Src.Interface.CLI do
 
           enumeration_result =
             case input_path do
-              nil -> ModelEnumeration.enumerate(enumeration_opts)
-              path -> ModelEnumeration.enumerate(path, enumeration_opts)
+              nil -> Enumeration.enumerate(enumeration_opts)
+              path -> Enumeration.enumerate(path, enumeration_opts)
             end
 
           case enumeration_result do

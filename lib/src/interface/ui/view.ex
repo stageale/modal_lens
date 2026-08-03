@@ -3,7 +3,7 @@ defmodule Src.Interface.Ui.View do
   Projects calculated UI variants into data consumed by the HTML page.
   """
 
-  alias Src.Interface.Common.Run
+  alias Src.Execution.Run
   alias Src.Interface.Ui.Options
   alias Src.Interface.Ui.Session
 

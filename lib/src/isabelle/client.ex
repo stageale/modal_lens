@@ -1,4 +1,4 @@
-defmodule Src.Interface.Isabelle.Client do
+defmodule Src.Isabelle.Client do
   @moduledoc """
   High-level entry point for Isabelle-based reasoning.
 
@@ -11,9 +11,9 @@ defmodule Src.Interface.Isabelle.Client do
   subsequently be consumed by the existing Nitpick parser.
   """
 
-  alias Src.Interface.Isabelle.HOLEmbedding
-  alias Src.Interface.Isabelle.LocalConnect
-  alias Src.Interface.Isabelle.HPCConnect
+  alias Src.Isabelle.HOLEmbedding
+  alias Src.Isabelle.LocalConnect
+  alias Src.Isabelle.HPCConnect
 
   @doc """
   Generates an Isabelle theory from a `HOLEmbedding`, runs Nitpick and stores

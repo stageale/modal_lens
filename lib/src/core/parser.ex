@@ -1,7 +1,7 @@
 defmodule Src.Core.Parser do
   alias Src.Core.Model.DDL, as: DDLModel
   alias Src.Core.Model.SDL, as: SDLModel
-  alias Src.Err.ParseWarning
+  alias Src.Core.ParseWarning
 
   @world ~S/i(?:⇩|\\<\^sub>)(\d+)/
   @world_pair "\\(#{@world}\\s*,\\s*#{@world}\\)\\s*:?=\\s*(True|False)"

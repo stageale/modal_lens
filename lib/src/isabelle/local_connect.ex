@@ -1,4 +1,5 @@
-defmodule Src.Interface.Isabelle.LocalConnect do
+defmodule Src.Isabelle.LocalConnect do
+
   def version(opts \\ []) do
     run(["version"], opts)
   end

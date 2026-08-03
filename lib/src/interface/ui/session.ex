@@ -3,7 +3,7 @@ defmodule Src.Interface.Ui.Session do
   Collects the calculated UI variants for one Isabelle theory.
   """
 
-  alias Src.Interface.Common.Run
+  alias Src.Execution.Run
   alias Src.Interface.Ui.Options
 
   @type variant :: %{

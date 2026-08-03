@@ -1,4 +1,4 @@
-defmodule Src.Interface.Common.Json do
+defmodule Src.Serialization do
   @moduledoc """
   Converts internal Elixir values into deterministic JSON-compatible data.
   """

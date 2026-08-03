@@ -1,4 +1,4 @@
-defmodule Src.Interface.Common.Run do
+defmodule Src.Execution.Run do
   @moduledoc """
   Describes one reproducible Axiom Refiner run.
 
@@ -7,7 +7,7 @@ defmodule Src.Interface.Common.Run do
   the analysis pipeline itself.
   """
 
-  alias Src.Interface.Common.Json
+  alias Src.Serialization, as: Serial
 
   @schema_version "1.0"
 
@@ -151,11 +151,11 @@ defmodule Src.Interface.Common.Run do
       "id" => run.id,
       "output_dir" => run.output_dir,
       "status" => Atom.to_string(run.status),
-      "params" => Json.safe(run.params),
-      "artifacts" => Json.safe(run.artifacts),
-      "provenance" => Json.safe(run.provenance),
-      "metrics" => Json.safe(run.metrics),
-      "error" => Json.safe(run.error)
+      "params" => Serial.safe(run.params),
+      "artifacts" => Serial.safe(run.artifacts),
+      "provenance" => Serial.safe(run.provenance),
+      "metrics" => Serial.safe(run.metrics),
+      "error" => Serial.safe(run.error)
     }
   end
 

@@ -3,8 +3,8 @@ defmodule Src.Interface.Ui do
   Runs and exports one interactive Axiom Refiner example.
   """
 
-  alias Src.Interface.Common.Run
-  alias Src.Interface.Common.Service, as: CommonService
+  alias Src.Execution.Pipeline
+  alias Src.Execution.Run
   alias Src.Interface.Ui.Options
   alias Src.Interface.Ui.Page
   alias Src.Interface.Ui.Session
@@ -59,7 +59,7 @@ defmodule Src.Interface.Ui do
     with {:ok, options} <- Options.new(option_attrs),
         params = Options.to_run_params(options),
         {:ok, run} <- Run.new(run_id, run_dir, params),
-        {:ok, completed_run, result} <- CommonService.run_theory(run, session.theory_path) do
+        {:ok, completed_run, result} <- Pipeline.run_theory(run, session.theory_path) do
 
           {:ok,
            Session.put_variant(

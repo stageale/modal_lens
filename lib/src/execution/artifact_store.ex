@@ -1,11 +1,11 @@
-defmodule Src.Interface.Common.ArtifactStore do
+defmodule Src.Execution.ArtifactStore do
   @moduledoc """
   Persists run manifests and manages files belonging to one run.
 
   Artifact paths are stored relative to the run output directory.
   """
 
-  alias Src.Interface.Common.Run
+  alias Src.Execution.Run
 
   @manifest_filename "run.json"
 
