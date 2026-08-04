@@ -68,7 +68,7 @@ defmodule Src.NitpickOutput do
       model_logic: Keyword.get(opts, :model_logic, :sdl),
       relation: Keyword.get(opts, :relation, "R"),
       atoms: Keyword.get(opts, :atoms, []),
-      auto_atoms: Keyword.get(opts, :auto_atoms, false)
+      auto_atoms: Keyword.get(opts, :auto_atoms, true)
     )
   end
 end

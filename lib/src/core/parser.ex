@@ -36,7 +36,7 @@ defmodule Src.Core.Parser do
       |> Keyword.get(:atoms, [])
       |> normalize_atoms()
 
-    auto_atoms = Keyword.get(opts, :auto_atoms, false)
+    auto_atoms = Keyword.get(opts, :auto_atoms, true)
     source = Keyword.get(opts, :source)
 
     {kind, cardinality} = parse_kind_and_cardinality(text)

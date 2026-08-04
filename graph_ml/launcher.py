@@ -14,6 +14,10 @@ from .mining import cluster_patterns
 from .report import write_report_json
 
 
+RESULT_SCHEMA = "axiom-refiner/graph-analysis-result"
+RESULT_SCHEMA_VERSION = "1.0"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the Axiom Refiner graph-analysis pipeline.")
     parser.add_argument("models", nargs="+", help="Exported model JSON files")
@@ -76,6 +80,7 @@ def launch_analysis(
     matrix = feature_matrix(vectors)
     cluster_labels = hierarchical_cluster(matrix)
     pattern_results = cluster_patterns(graphs, cluster_labels, size=graphlet_size)
+    highlights = _pattern_highlights(graphs, cluster_labels, pattern_results)
     theory = _theory_report(Path(theory_path).resolve())
     report_path = Path(output_path).resolve()
     
@@ -84,13 +89,15 @@ def launch_analysis(
         theory=theory,
         graphs=graphs,
         cluster_labels=cluster_labels,
-        cluster_pattern_results=pattern_results
+        cluster_pattern_results=pattern_results,
+        highlights=highlights
     )
     
     return {
+        "schema": RESULT_SCHEMA,
+        "schema_version": RESULT_SCHEMA_VERSION,
         "status": "completed",
         "report_path": str(report_path),
-        "highlight": _pattern_highlights(graphs, cluster_labels, pattern_results),
         "model_count": report["analysis"]["model_count"],
         "cluster_count": report["analysis"]["cluster_count"],
         "feature_method": feature_method,

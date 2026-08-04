@@ -4,7 +4,7 @@ defmodule Src.Interface.Ui.View do
   """
 
   alias Src.Execution.Run
-  alias Src.Interface.Ui.Options
+  alias Src.Execution.Options
   alias Src.Interface.Ui.Session
 
   @doc "Returns all calculated variants in their execution order."

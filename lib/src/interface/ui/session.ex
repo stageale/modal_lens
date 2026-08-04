@@ -4,7 +4,7 @@ defmodule Src.Interface.Ui.Session do
   """
 
   alias Src.Execution.Run
-  alias Src.Interface.Ui.Options
+  alias Src.Execution.Options
 
   @type variant :: %{
     options: Options.t(),

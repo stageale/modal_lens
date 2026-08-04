@@ -16,6 +16,12 @@ defmodule Src.Execution.Pipeline do
 
 
   @graph_python_module "graph_ml.launcher"
+  @graph_analysis_schema "axiom-refiner/graph-analysis-result"
+  @graph_analysis_schema_version "1.0"
+
+  @report_schema "axiom-refiner/analysis-report"
+  @report_schema_version "1.0"
+
 
   @type result :: {:ok, Run.t(), map()} | {:error, term(), Run.t()}
 
@@ -50,15 +56,71 @@ defmodule Src.Execution.Pipeline do
   end
 
   defp enumeration_options(%Run{} = run) do
-    run.params
-    |> Map.to_list()
-    |> Keyword.merge(
+    [
       mode: :countermodels,
-      max_models: Map.get(run.params, :max_models, 10),
+      max_models:
+        Map.get(
+          run.params,
+          :max_models,
+          10
+        ),
       output_dir: run.output_dir,
+      model_logic:
+        Map.get(
+          run.params,
+          :model_logic,
+          :sdl
+        ),
+      relation:
+        Map.get(
+          run.params,
+          :relation,
+          "R"
+        ),
+      atoms:
+        Map.get(
+          run.params,
+          :atoms,
+          []
+        ),
+      auto_atoms:
+        Map.get(
+          run.params,
+          :auto_atoms?,
+          true
+        ),
       render_atoms: render_atoms(run),
-      include_designated_world: Map.get(run.params, :include_initial, true)
-    )
+      render_graph:
+        Map.get(
+          run.params,
+          :render_graph?,
+          true
+        ),
+      graph_format:
+        Map.get(
+          run.params,
+          :graph_format,
+          :svg
+        ),
+      palette:
+        Map.get(
+          run.params,
+          :palette,
+          Palette.default()
+        ),
+      include_atoms:
+        Map.get(
+          run.params,
+          :include_atoms?,
+          true
+        ),
+      include_designated_world:
+        Map.get(
+          run.params,
+          :include_designated_world?,
+          true
+        )
+    ]
   end
 
   defp render_atoms(%Run{} = run) do
@@ -90,17 +152,18 @@ defmodule Src.Execution.Pipeline do
 
       model_json_files ->
         with {:ok, graph_analysis} <- launch_graph_analysis(run, theory_path, model_json_files),
-             {:ok, models} <- apply_highlights(enumeration_result.models, graph_analysis.highlights, run),
              {:ok, report} <- read_graph_report(graph_analysis.report_path),
-              clusters <- build_clusters(report, models),
-             {:ok, cluster_verbs} <- maybe_verbalize_clusters(clusters, graph_analysis.report_path, run) do
+              highlights = report["highlights"],
+             {:ok, models} <- apply_highlights(enumeration_result.models, highlights, run),
+              clusters = build_clusters(report["clusters"], models),
+             {:ok, cluster_verbs} <- maybe_verbalize_clusters(clusters, report, run) do
           {:ok,
             Map.merge(enumeration_result, %{
               models: models,
               clusters: clusters,
               cluster_verbs: cluster_verbs,
               report_file: graph_analysis.report_path,
-              highlights: graph_analysis.highlights,
+              highlights: highlights,
               graph_analysis: graph_analysis.metadata
            })}
         end
@@ -285,7 +348,10 @@ end
   defp read_graph_report(report_path) do
     with {:ok, source} <- File.read(report_path),
          {:ok, report} <- Jason.decode(source),
-         clusters when is_list(clusters) <- report["clusters"] do
+         schema when schema == @report_schema <- report["schema"],
+         version when version == @report_schema_version <- report["schema_version"],
+         clusters when is_list(clusters) <- report["clusters"],
+         highlights when is_list(highlights)  <- report["highlights"] do
       {:ok, report}
     else
       {:error, reason} ->
@@ -296,31 +362,31 @@ end
     end
   end
 
-  defp build_clusters(report, models) do
-    Enum.map(report["clusters"], fn cluster ->
-      model_indices = cluster["model_indices"] || []
+  defp build_clusters(report_clusters, models) when is_list(report_clusters) and is_list(models) do
+    models_by_index =
+      models
+      |> Enum.with_index()
+      |> Map.new(fn {model, index} -> {index, model} end)
+
+    Enum.map(report_clusters, fn cluster when is_map(cluster) ->
+      model_indices =
+        case Map.get(cluster, "model_indices", []) do
+          indices when is_list(indices) -> indices
+          _other -> []
+        end
 
       representative_index =
-        get_in(
-          cluster,
-          ["representative_model", "graph_index"]
-        )
+        get_in(cluster, ["representative_model", "graph_index"])
 
       %{
         cluster_id: cluster["cluster_id"],
         model_count: cluster["model_count"],
         model_fraction: cluster["model_fraction"],
         model_indices: model_indices,
-        characteristic_patterns:
-          cluster["characteristic_patterns"] || [],
+        characteristic_patterns: cluster["characteristic_patterns"] || [],
         representative_model_index: representative_index,
-        representative_model:
-          Enum.at(models, representative_index),
-        models:
-          Enum.map(
-            model_indices,
-            &Enum.at(models, &1)
-          )
+        representative_model: Map.get(models_by_index, representative_index),
+        models: Enum.map(model_indices, &Map.get(models_by_index, &1))
       }
     end)
   end
@@ -358,15 +424,29 @@ end
               end
             end)
           case response do
-            %{"status" => "completed"} ->
+            %{
+              "schema" => @graph_analysis_schema,
+              "schema_version" => @graph_analysis_schema_version,
+              "status" => "completed",
+              "report_path" => returned_report_path
+            } when is_binary(returned_report_path) ->
               {:ok,
                 %{
-                  report_path: response["report_path"] || report_path,
-                  highlights: response["highlights"] || [],
-                  metadata: Map.drop(response, ["status", "report_path", "highlights"])
+                  report_path: returned_report_path,
+                  metadata: Map.drop(response, [
+                    "schema",
+                    "schema_version",
+                    "status",
+                    "report_path"
+                  ])
                 }
               }
-            _ -> {:error, {:graph_analysis_failed, output}}
+
+            %{"status" => "error"} ->
+              {:error, {:graph_analysis_failed, response}}
+
+            _ ->
+              {:error, {:invalid_graph_analysis_result, response}}
           end
         {output, status} -> {:error, {:graph_analysis_failed, status, output}}
       end
@@ -380,6 +460,13 @@ end
       Map.new(
         highlights,
         &{&1["graph_index"], &1}
+      )
+
+    render_graph? =
+      Map.get(
+        run.params,
+        :render_graph?,
+        true
       )
 
     render_options = [
@@ -407,7 +494,8 @@ end
           apply_model_highlight(
             model_result,
             graph_highlight,
-            render_options
+            render_options,
+            render_graph?
           )
         end)
 
@@ -420,14 +508,12 @@ end
     end
   end
 
-  defp apply_model_highlight(
-    model_result,
-    graph_highlight,
-    render_options
-  ) do
+  defp apply_model_highlight(model_result, graph_highlight, render_options, render_graph?) do
     highlight = build_highlight(graph_highlight["highlight"])
 
-    render_model(model_result, Keyword.get(render_options, :highlight, highlight))
+    if render_graph? do
+      render_model(model_result, Keyword.put(render_options, :highlight, highlight))
+    end
 
     model_result
     |> Map.put(:cluster_id, graph_highlight["cluster_id"])

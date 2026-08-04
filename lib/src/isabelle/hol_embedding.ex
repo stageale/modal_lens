@@ -1,9 +1,9 @@
 defmodule Src.Isabelle.HOLEmbedding do
   @moduledoc """
-  Generates Isabelle/HOL theory files used as input for Isabelle/Nitpick
+  Generates Isabelle/HOL theories for generated reasoning tasks.
 
-  This module is intentionally an interface module:
-  it translates our internal/refinement-side ideas into Isabelle/HOL syntax.
+  The module translates an embedding specification into Isabelle theory
+  and ROOT files that can be executed through `Src.Isabelle.Client`.
   """
 
   defstruct theory_name: "Axiom_Refiner_Run",
@@ -20,7 +20,6 @@ defmodule Src.Isabelle.HOLEmbedding do
   end
 
   def render_theory(%__MODULE__{} = spec) do
-    # TODO
     """
     theory #{spec.theory_name}
       imports #{Enum.join(spec.imports, " ")}

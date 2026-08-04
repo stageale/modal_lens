@@ -3,7 +3,8 @@ defmodule Src.Explanation.Verbal.Job do
   Builds and writes Python verbalization job requests.
   """
 
-  @schema_version "1.0"
+  @request_schema "axiom-refiner/verbalization-request"
+  @request_schema_version "1.0"
   @default_seed 42
   @default_max_new_tokens 768
 
@@ -54,7 +55,8 @@ defmodule Src.Explanation.Verbal.Job do
 
   def to_map(%__MODULE__{} = job) do
     %{
-      "schema_version" => @schema_version,
+      "schema" => @request_schema,
+      "schema_version" => @request_schema_version,
       "backend" => job.backend,
       "model_id" => job.model_id,
       "report_path" => job.report_path,

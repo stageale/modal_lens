@@ -9,6 +9,13 @@ from typing import Any
 from .base import GenerationRequest, Verbalizer
 from .facts import build_verbalization_facts, verbalization_facts_sha256
 from .prompt import build_verbalization_messages
+from .summary_schema import parse_and_validate_summary_json
+
+
+VERBALIZATION_SUMMARY_SCHEMA = "axiom-refiner/verbalization-summary"
+VERBALIZATION_SUMMARY_SCHEMA_VERSION = "1.0"
+VERBALIZATION_PROVENANCE_SCHEMA = "axiom-refiner/verbalization-provenance"
+VERBALIZATION_PROVENANCE_SCHEMA_VERSION = "1.0"
 
 
 def write_verbalization_result(result: Mapping[str, Any], output_directory: str | Path) -> dict[str, Path]:
@@ -28,9 +35,17 @@ def write_verbalization_result(result: Mapping[str, Any], output_directory: str 
 
     raw_output_path.write_text(str(result["raw_output"]), encoding="utf-8")
 
+    summary = result["summary"]
+    
+    summary_document = {
+        "schema": VERBALIZATION_SUMMARY_SCHEMA,
+        "schema_version": VERBALIZATION_SUMMARY_SCHEMA_VERSION,
+        **summary
+    }
+
     summary_json_path.write_text(
         json.dumps(
-            result["summary"],
+            summary_document,
             ensure_ascii=False,
             indent=2,
             sort_keys=True,
@@ -44,9 +59,20 @@ def write_verbalization_result(result: Mapping[str, Any], output_directory: str 
         encoding="utf-8"
     )
 
+    provenance = result["provenance"]
+    
+    if not isinstance(provenance, Mapping):
+        raise ValueError("Verbalization provenance must be a mapping.")
+
+    provenance_document = {
+        **provenance,
+        "schema": VERBALIZATION_PROVENANCE_SCHEMA,
+        "schema_version": VERBALIZATION_PROVENANCE_SCHEMA_VERSION
+    }
+
     provenance_path.write_text(
         json.dumps(
-            result["provenance"],
+            provenance_document,
             ensure_ascii=False,
             indent=2,
             sort_keys=True
@@ -76,7 +102,13 @@ def run_verbalization(report: Mapping[str, Any], verbalizer: Verbalizer, *, seed
 
     generation = verbalizer.generate(request)
 
-    summary = _parse_summary(generation.raw_text)
+    summary = parse_and_validate_summary_json(generation.raw_text)
+    
+    summary_document = {
+        "schema": VERBALIZATION_SUMMARY_SCHEMA,
+        "schema_version": VERBALIZATION_SUMMARY_SCHEMA_VERSION,
+        **summary
+    }
 
     return {
         "summary": summary,
@@ -99,28 +131,6 @@ def _sha256_text(text: str) -> str:
 def _messages_sha256(messages: tuple[Mapping[str, str], ...]) -> str:
     serialized = json.dumps(messages, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return _sha256_text(serialized)
-
-def _parse_summary(raw_text: str) -> dict[str, Any]:
-    try:
-        summary = json.loads(raw_text.strip())
-    except json.JSONDecodeError as error:
-        raise ValueError("Model response is not valid JSON.") from error
-    
-    if not isinstance(summary, dict):
-        raise ValueError("Model response must be a JSON object.")
-    
-    required_fields = {
-        "overview",
-        "cluster_summaries",
-        "limitations"
-    }
-    
-    missing_fields = required_fields - summary.keys()
-    
-    if missing_fields:
-        raise ValueError("Model response is missing fields: " + ", ".join(sorted(missing_fields)))
-    
-    return summary
 
 def _render_summary_markdown(
     summary: Mapping[str, Any],

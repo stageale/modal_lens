@@ -1,21 +1,12 @@
 defmodule AxiomRefiner do
   @moduledoc """
-  Top-level namespace for AxiomRefiner prototype.
+  Top-level namespace for the Axiom Refiner prototype.
 
   The current executable entry point is `Src.Interface.CLI`.
-  A stable public Elixir API will be introdcued after the internal pipeline has been consolidated.
-  As long as this takes, the demo commmand is recommended.
+  Programmatic execution is provided internally by
+  `Src.Execution.Pipeline`.
+
+  A stable public Elixir API will be introduced once the prototype
+  interfaces and refinement workflow have been finalized.
   """
-
-  def refine_files(_opts \\ []) do
-    # TODO: Implementation
-  end
-
-  def rank_files(_opts \\ []) do
-    # TODO: Implementation
-  end
-
-  def run_isabelle(_opts \\ []) do
-    # TODO: Implementation
-  end
 end

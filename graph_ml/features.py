@@ -70,7 +70,6 @@ def _model_atoms(graph):
 #==================== WL Features ===================#
 
 
-#TODO: Parallelization
 def wl_features(graphs, iterations=2):
     return [wl_feature_vector(graph, iterations) for graph in graphs]
 

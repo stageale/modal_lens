@@ -5,7 +5,7 @@ defmodule Src.Interface.Ui do
 
   alias Src.Execution.Pipeline
   alias Src.Execution.Run
-  alias Src.Interface.Ui.Options
+  alias Src.Execution.Options
   alias Src.Interface.Ui.Page
   alias Src.Interface.Ui.Session
 

@@ -126,7 +126,7 @@ defmodule Src.Enumeration.Iteration do
           model_logic: Keyword.get(opts, :model_logic, :sdl),
           relation: Keyword.get(opts, :relation, "R"),
           atoms: Keyword.get(opts, :atoms, []),
-          auto_atoms: Keyword.get(opts, :auto_atoms, false)
+          auto_atoms: Keyword.get(opts, :auto_atoms, true)
         )
       {:ok, model}
     rescue
@@ -144,55 +144,65 @@ defmodule Src.Enumeration.Iteration do
 
   defp write_countermodel_artifacts(model, base_theory_file, isabelle_run, output_dir, iteration, opts) do
     try do
-      graph_dot_file =
-        Path.join(output_dir, "model.dot")
+      {graph_dot_file, graph_svg_file, graph_tikz_file,
+       graph_pdf_file} =
+        if Keyword.get(opts, :render_graph, true) do
+          graph_dot_file =
+            Path.join(output_dir, "model.dot")
 
-      graph_svg_file =
-        Path.join(output_dir, "model.svg")
+          graph_svg_file =
+            Path.join(output_dir, "model.svg")
 
-      graph_tikz_file =
-        Path.join(output_dir, "model.tex")
+          graph_tikz_file =
+            Path.join(output_dir, "model.tex")
 
-      render_options = [
-        atoms: Keyword.get(opts, :render_atoms),
-        highlight: Keyword.get(opts, :highlight),
-        palette:
-          Keyword.get(
-            opts,
-            :palette,
-            Palette.default()
+          render_options = [
+            atoms: Keyword.get(opts, :render_atoms),
+            highlight: Keyword.get(opts, :highlight),
+            palette:
+              Keyword.get(
+                opts,
+                :palette,
+                Palette.default()
+              )
+          ]
+
+          Render.write_dot(
+            model,
+            graph_dot_file,
+            render_options
           )
-      ]
 
-      Render.write_dot(
-        model,
-        graph_dot_file,
-        render_options
-      )
+          Render.render_dot(
+            graph_dot_file,
+            fmt: "svg",
+            output_path: graph_svg_file
+          )
 
-      Render.render_dot(
-        graph_dot_file,
-        fmt: "svg",
-        output_path: graph_svg_file
-      )
+          Render.write_tikz(
+            model,
+            graph_tikz_file,
+            render_options
+          )
 
-      Render.write_tikz(
-        model,
-        graph_tikz_file,
-        render_options
-      )
+          graph_pdf_file =
+            case Keyword.get(opts, :graph_format, :svg) do
+              :tikz ->
+                Render.compile_tex(graph_tikz_file)
 
-      graph_pdf_file =
-        case Keyword.get(opts, :graph_format, :svg) do
-          :tikz ->
-            Render.compile_tex(graph_tikz_file)
+              _other ->
+                nil
+            end
 
-          "tikz" ->
-            Render.compile_tex(graph_tikz_file)
-
-          _other ->
-            nil
-        end
+        {
+          graph_dot_file,
+          graph_svg_file,
+          graph_tikz_file,
+          graph_pdf_file
+        }
+      else
+        {nil, nil, nil, nil}
+      end
 
       blocking_name =
         Keyword.get(
@@ -249,14 +259,19 @@ defmodule Src.Enumeration.Iteration do
           "artifacts" => %{
             "nitpick_output" =>
               Path.basename(isabelle_run.output_file),
-            "dot" => Path.basename(graph_dot_file),
+            "dot" => if is_binary(graph_dot_file) do
+              Path.basename(graph_dot_file)
+            end,
             "json" => Path.basename(model_json_file),
-            "svg" => Path.basename(graph_svg_file),
-            "tikz" => Path.basename(graph_tikz_file),
-            "pdf" =>
-              if graph_pdf_file do
-                Path.basename(graph_pdf_file)
-              end,
+            "svg" => if is_binary(graph_svg_file) do
+              Path.basename(graph_tikz_file)
+            end,
+            "tikz" => if is_binary(graph_tikz_file) do
+              Path.basename(graph_tikz_file)
+            end,
+            "pdf" => if is_binary(graph_pdf_file) do
+              Path.basename(graph_pdf_file)
+            end,
             "blocking_axiom" =>
               Path.basename(blocking_axiom_file)
           },

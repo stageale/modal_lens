@@ -10,7 +10,11 @@ from typing import Any
 from .factory import create_verbalizer
 from .pipeline import run_verbalization, write_verbalization_result
 
-VERBALIZATION_JOB_SCHEMA_VERSION = "1.0"
+VERBALIZATION_REQUEST_SCHEMA_VERSION = "1.0"
+VERBALIZATION_REQUEST_SCHEMA = "axiom-refiner/verbalization-request"
+
+ANALYSIS_REPORT_SCHEMA = "axiom-refiner/analysis-report"
+ANALYSIS_REPORT_SCHEMA_VERSION = "1.0"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -52,6 +56,8 @@ def launch_verbalization_job(config_path: str | Path) -> dict[str, Any]:
     output_directory = _resolve_path(job_path.parent, _require_string(job, "output_directory"))
         
     report = _load_json_object(report_path, label="Analysis report")
+    
+    _validate_analysis_report(report)
     
     seed = job.get("seed", 42)
     max_new_tokens = job.get("max_new_tokens", 768)
@@ -101,12 +107,12 @@ def _require_string(source: Mapping[str, Any], field: str) -> str:
     value = source.get(field)
     
     if not isinstance(value, str):
-        raise ValueError(f"Job field '{field}' must be a string.")
+        raise ValueError(f"Field '{field}' must be a string.")
     
     normalized = value.strip()
     
     if not normalized:
-        raise ValueError(f"Job field '{field}' must not be empty.")
+        raise ValueError(f"Field '{field}' must not be empty.")
     
     return normalized
 
@@ -127,11 +133,43 @@ def _backend_options(job: Mapping[str, Any]) -> dict[str, Any]:
     return dict(value)
 
 def _validate_job_schema(job: Mapping[str, Any]) -> None:
+    schema = _require_string(job, "schema")
     schema_version = _require_string(job, "schema_version")
+
+    if schema != VERBALIZATION_REQUEST_SCHEMA:
+        raise ValueError(
+            "Unsupported verbalization request schema: "
+            f"{schema!r}."
+        )
+
+    if schema_version != VERBALIZATION_REQUEST_SCHEMA_VERSION:
+        raise ValueError(
+            "Unsupported verbalization request schema version: "
+            f"{schema_version!r}."
+        )
+        
+def _validate_analysis_report(report: Mapping[str, Any]) -> None:
+    schema = _require_string(report, "schema")
+    schema_version = _require_string(report, "schema_version")
     
-    if schema_version != VERBALIZATION_JOB_SCHEMA_VERSION:
-        raise ValueError(f"Unsupported verbalization job schema version: {schema_version!r}.")
+    if schema != ANALYSIS_REPORT_SCHEMA:
+        raise ValueError(f"Unsupported analysis report schema: {schema!r}.")
     
+    if schema_version != ANALYSIS_REPORT_SCHEMA_VERSION:
+        raise ValueError(f"Unsupported analysis report schema version: {schema_version!r}")
+
+    analysis = report.get("analysis")
+    clusters = report.get("clusters")
+    highlights = report.get("highlights")
+    
+    if not isinstance(analysis, Mapping):
+        raise ValueError("Analysis report field 'analysis' must be a JSON object.")
+    
+    if not isinstance(clusters, list):
+        raise ValueError("Analysis report field 'clusters' must be a JSON array.")
+    
+    if not isinstance(highlights, list):
+        raise ValueError("Analysis report field 'highlights' must be a JSON array.")
 
 if __name__ == "__main__":
     raise SystemExit(main())

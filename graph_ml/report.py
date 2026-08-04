@@ -11,6 +11,11 @@ from typing import Any
 
 import networkx as nx 
 
+
+REPORT_SCHEMA = "axiom-refiner/analysis-report"
+REPORT_SCHEMA_VERSION = "1.0"
+
+
 def _json_value(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -167,6 +172,7 @@ def build_report(*,
                  graphs: Iterable[nx.DiGraph], 
                  cluster_labels: Iterable[int], 
                  cluster_pattern_results: Mapping[int, Sequence[Mapping[str, Any]],], 
+                 highlights: Iterable[Mapping[str, Any]],
                  max_patterns_per_cluster: int = 5) -> dict[str, Any]:
     """
     Build a report from a theory, clustered countermodels and mined patterns.
@@ -177,6 +183,8 @@ def build_report(*,
     graphs = list(graphs)
 
     cluster_labels = [int(label) for label in cluster_labels]
+
+    highlights = list(highlights)
 
     if len(graphs) != len(cluster_labels):
         raise ValueError("Number of graphs and cluster labels must match.")
@@ -233,7 +241,8 @@ def build_report(*,
     )
 
     return {
-        "schema_version": "1.0",
+        "schema": REPORT_SCHEMA,
+        "schema_version": REPORT_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "purpose": "normative_gap_analysis",
 

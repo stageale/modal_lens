@@ -2,18 +2,54 @@ import json
 import os 
 import tempfile 
 import networkx as nx
+
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+
+MODEL_SCHEMA = "axiom-refiner/model"
+MODEL_SCHEMA_VERSION = "1.0"
+
+
 def _read_model(file_path: Path) -> tuple[dict, dict]:
     with file_path.open("r", encoding="utf-8") as file:
-        data = json.load(file)
+        document = json.load(file)
 
-    return data["metadata"], data["model"]
+    if not isinstance(document, Mapping):
+        raise ValueError(
+            f"Model document must be a JSON object: {file_path}"
+        )
+
+    if document.get("schema") != MODEL_SCHEMA:
+        raise ValueError(
+            f"Unsupported model schema in {file_path}: "
+            f"{document.get('schema')!r}"
+        )
+
+    if document.get("schema_version") != MODEL_SCHEMA_VERSION:
+        raise ValueError(
+            f"Unsupported model schema version in {file_path}: "
+            f"{document.get('schema_version')!r}"
+        )
+
+    metadata = document.get("metadata")
+    model = document.get("model")
+
+    if not isinstance(metadata, dict):
+        raise ValueError(
+            f"Model metadata must be a JSON object: {file_path}"
+        )
+
+    if not isinstance(model, dict):
+        raise ValueError(
+            f"Model data must be a JSON object: {file_path}"
+        )
+
+    return metadata, model
 
 
-def _dict_to_nx_graph(model: dict) -> nx.DiGraph:
+def _dict_to_nx_graph(model: Mapping[str, Any]) -> nx.DiGraph:
     graph = nx.DiGraph()
 
     graph.add_nodes_from(range(model["cardinality"]))

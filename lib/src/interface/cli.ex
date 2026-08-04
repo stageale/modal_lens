@@ -11,6 +11,7 @@ defmodule Src.Interface.CLI do
     auto_atoms: :boolean,
     model_logic: :string,
     out_dir: :string,
+    render_graph: :boolean,
     graph_format: :string,
     palette: :string,
     verbalize: :boolean,
@@ -54,9 +55,6 @@ defmodule Src.Interface.CLI do
       ["axiom" | rest] ->
         cmd_axiom(rest)
 
-      ["rank" | rest] ->
-        cmd_rank(rest)
-
       ["demo" | rest] ->
         cmd_demo(rest)
 
@@ -72,18 +70,17 @@ defmodule Src.Interface.CLI do
   defp usage do
     IO.puts("""
     Usage:
-      axiom_refiner demo INPUT.thy [-o DIR] [--palette turbo] [--graph-format svg] [--verbalize]
+      axiom_refiner demo INPUT.thy [-o DIR] [--palette turbo] [--graph-format svg] [--no-render-graph] [--no-verbalize]
 
       Not supported yet:
-      axiom_refiner summary INPUTS... [--relation R] [--atoms go,tell] [--auto-atoms] [--json]
-      axiom_refiner axiom   INPUTS... [--relation R] [--atoms go,tell] [--auto-atoms] [-o DIR] [--no-atoms]
+      axiom_refiner summary INPUTS... [--relation R] [--atoms go,tell] [--no-auto-atoms] [--json]
+      axiom_refiner axiom   INPUTS... [--relation R] [--atoms go,tell] [--no-auto-atoms] [-o DIR] [--no-atoms]
       axiom_refiner enumerate INPUT.thy --mode MODE [options]
 
     Commands:
       enumerate   Enumerate countermodelsor satisfying finite models.
       summary     Print compact summaries of Nitpick outputs.
       axiom       Generate Isabelle/HOL blocking axiom fragments.
-      rank        Rank multiple Nitpick outputs by simple model features.
       demo        Generate a small demo bundle with all outputs outputs.
 
     Options:
@@ -93,6 +90,15 @@ defmodule Src.Interface.CLI do
       --mode MODE       countermodels,
                         satisfying-models,
                         consistency-check
+
+      --no-verbalize    Disable cluster verbalization.
+                        Verbalization is enabled by default.
+
+      --no-render-graph Do not generate DOT, SVG, TikZ, or PDF graph files.
+
+      --atoms LIST      Include the named atoms explicitly.
+      --no-auto-atoms   Do not detect additional unary predicates.
+                        Automatic detection is enabled by default.
     """)
 
     0
@@ -297,72 +303,53 @@ defmodule Src.Interface.CLI do
     end
   end
 
-  defp cmd_rank(_argv) do
-    IO.puts(
-      :stderr,
-      "[ERROR] The rank command belongs to the deprecated axiom-scoring pipeline."
-    )
-
-    1
-  end
-
   defp cmd_demo(argv) do
     {opts, inputs, invalid} =
       OptionParser.parse(argv, strict: @demo_switches, aliases: [o: :out_dir])
 
     case {invalid, inputs} do
       {[], [theory_path]} ->
-        model_logic =
-          case Keyword.get(opts, :model_logic, "sdl") do
-            "sdl" -> :sdl
-            "ddl" -> :ddl
-            value ->
-              IO.puts(:stderr, "[ERROR] Unsupported model logic: #{value}")
-              nil
+        option_set = [
+          model_logic: :model_logic,
+          relation: :relation,
+          atoms: :atoms,
+          auto_atoms: :auto_atoms?,
+          render_graph: :render_graph?,
+          graph_format: :graph_format,
+          palette: :palette,
+          verbalize: :verbalize?,
+          verbalization_model: :verbalization_model
+        ]
+        |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
+          case Keyword.fetch(opts, cli_key) do
+            {:ok, value} ->
+              Map.put(options, option_key, value)
+
+            :error ->
+              options
           end
+        end)
+        |> Map.update(:atoms, [], fn atoms ->
+          atoms
+          |> String.split(",", trim: true)
+          |> Enum.map(&String.trim/1)
+        end)
 
-        if model_logic do
-          option_set = %{
-            model_logic: model_logic,
-            relation: Keyword.get(opts, :relation, "R"),
-            atoms:
-              opts
-              |> Keyword.get(:atoms, "")
-              |> String.split(",", trim: true)
-              |> Enum.map(&String.trim/1),
-            auto_atoms?: Keyword.get(opts, :auto_atoms, true),
-            render_graph?: true,
-            graph_format:
-              opts
-              |> Keyword.get(:graph_format, "svg")
-              |> String.to_atom(),
-            palette:
-              opts
-              |> Keyword.get(:palette, "turbo")
-              |> String.to_atom(),
-            verbalize?: Keyword.get(opts, :verbalize, false),
-            verbalization_model:
-              Keyword.get(opts, :verbalization_model, "HuggingFaceTB/SmolLM3-3B")
-          }
+        output_dir = Keyword.get(opts, :out_dir, "out/demo")
 
-          output_dir = Keyword.get(opts, :out_dir, "out/demo")
+        case Ui.run(theory_path, output_dir, [option_set]) do
+          {:ok, _session, page_path} ->
+            IO.puts("Demo completed.")
+            IO.puts("HTML: #{page_path}")
+            0
 
-          case Ui.run(theory_path, output_dir, [option_set]) do
-            {:ok, _session, page_path} ->
-              IO.puts("Demo completed.")
-              IO.puts("HTML: #{page_path}")
-              0
+          {:error, reason} ->
+            IO.inspect(reason, label: "[ERROR] Demo failed")
+            1
 
-            {:error, reason} ->
-              IO.inspect(reason, label: "[ERROR] Demo failed")
-              1
-
-            {:error, reason, _run} ->
-              IO.inspect(reason, label: "[ERROR] Demo failed")
-              1
-          end
-        else
-          2
+          {:error, reason, _run} ->
+            IO.inspect(reason, label: "[ERROR] Demo failed")
+            1
         end
 
       {[], []} ->
