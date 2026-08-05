@@ -120,7 +120,7 @@ defmodule Src.Execution.Run do
           {:ok, value}
 
         :error ->
-          {:error, {:unkown_artifact, normalized_name}}
+          {:error, {:unknown_artifact, normalized_name}}
       end
     end
   end

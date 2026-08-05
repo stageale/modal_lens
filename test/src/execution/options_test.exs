@@ -1,0 +1,94 @@
+defmodule Src.Execution.OptionsTest do
+  use ExUnit.Case, async: true
+
+  alias Src.Execution.Options
+
+  test "creates canonical defaults" do
+    assert {:ok, options} = Options.new()
+
+    assert options.model_logic == :sdl
+    assert options.relation == "R"
+    assert options.atoms == []
+    assert options.auto_atoms?
+    assert options.render_graph?
+    assert options.graph_format == :svg
+    assert options.palette == :turbo
+    assert options.include_atoms?
+    assert options.include_designated_world?
+    assert options.verbalize?
+    assert options.verbalization_model == "HuggingFaceTB/SmolLM3-3B"
+  end
+
+  test "normalizes safe string enums without creating atoms" do
+    assert {:ok, options} =
+             Options.new(
+               model_logic: " DDL ",
+               graph_format: "TikZ",
+               palette: "Magma"
+             )
+
+    assert options.model_logic == :ddl
+    assert options.graph_format == :tikz
+    assert options.palette == :magma
+  end
+
+  test "updates an existing option set" do
+    assert {:ok, options} = Options.new()
+
+    assert {:ok, updated} =
+             Options.update(options,
+               relation: "S",
+               atoms: ["go", "tell"],
+               render_graph?: false,
+               verbalize?: false
+             )
+
+    assert updated.relation == "S"
+    assert updated.atoms == ["go", "tell"]
+    refute updated.render_graph?
+    refute updated.verbalize?
+  end
+
+  test "exports canonical run parameter names and atom values" do
+    assert {:ok, options} =
+             Options.new(
+               model_logic: "ddl",
+               graph_format: "tikz",
+               palette: "turbo",
+               auto_atoms?: false,
+               render_graph?: false,
+               include_atoms?: false,
+               include_designated_world?: false,
+               verbalize?: false
+             )
+
+    params = Options.to_run_params(options)
+
+    assert params.model_logic == :ddl
+    assert params.graph_format == :tikz
+    assert params.palette == :turbo
+    assert params.auto_atoms? == false
+    assert params.render_graph? == false
+    assert params.include_atoms? == false
+    assert params.include_designated_world? == false
+    assert params.verbalize? == false
+    refute Map.has_key?(params, :auto_atoms)
+  end
+
+  test "rejects invalid enums and malformed values" do
+    assert {:error, {:invalid_model_logic, "unknown"}} =
+             Options.new(model_logic: "unknown")
+
+    assert {:error, {:invalid_graph_format, "png"}} =
+             Options.new(graph_format: "png")
+
+    assert {:error, {:invalid_palette, "rainbow"}} =
+             Options.new(palette: "rainbow")
+
+    assert {:error, :invalid_relation} = Options.new(relation: " ")
+    assert {:error, :invalid_atoms} = Options.new(atoms: "go")
+    assert {:error, :invalid_boolean_option} = Options.new(verbalize?: :yes)
+    assert {:error, :invalid_verbalization_model} = Options.new(verbalization_model: "")
+    assert {:error, :invalid_options} = Options.new([:not_a_keyword])
+  end
+end

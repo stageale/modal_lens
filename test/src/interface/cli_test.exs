@@ -6,39 +6,50 @@ defmodule Src.Interface.CLITest do
   alias Src.Interface.CLI
 
   test "prints usage for an empty argument list" do
-    output =
-      capture_io(fn ->
-        assert CLI.main([]) == 0
-      end)
+    output = capture_io(fn -> assert CLI.main([]) == 0 end)
 
     assert output =~ "Usage:"
-    assert output =~ "axiom_refiner enumerate"
+    assert output =~ "axiom_refiner demo"
+    assert output =~ "--no-render-graph"
+    assert output =~ "--no-verbalize"
+    assert output =~ "--no-auto-atoms"
   end
 
-  test "reports commands that are intentionally unavailable" do
-    output =
+  test "reports removed and unknown commands uniformly" do
+    output = capture_io(:stderr, fn -> assert CLI.main(["rank"]) == 1 end)
+    assert output =~ "Unknown command: rank"
+  end
+
+  test "rejects missing and unknown enumeration modes before Isabelle" do
+    missing =
       capture_io(:stderr, fn ->
-        assert CLI.main(["rank"]) == 1
+        assert CLI.main(["enumerate"]) == 2
       end)
 
-    assert output =~ "deprecated axiom-scoring pipeline"
-  end
+    assert missing =~ "Missing --mode"
 
-  test "rejects an unknown enumeration mode before running Isabelle" do
-    output =
+    unknown =
       capture_io(:stderr, fn ->
         assert CLI.main(["enumerate", "--mode", "unknown"]) == 2
       end)
 
-    assert output =~ "Unknown mode"
+    assert unknown =~ "Unknown mode"
   end
 
-  test "requires inputs for the summary command" do
+  test "requires inputs for summary and exactly one theory for demo" do
+    summary = capture_io(:stderr, fn -> assert CLI.main(["summary"]) == 1 end)
+    assert summary =~ "No input files given"
+
+    demo = capture_io(:stderr, fn -> assert CLI.main(["demo"]) == 2 end)
+    assert demo =~ "requires one .thy file"
+  end
+
+  test "rejects invalid demo switches" do
     output =
       capture_io(:stderr, fn ->
-        assert CLI.main(["summary"]) == 1
+        assert CLI.main(["demo", "Example.thy", "--unknown"]) == 2
       end)
 
-    assert output =~ "No input files given"
+    assert output =~ "Invalid demo options"
   end
 end

@@ -172,7 +172,7 @@ def build_report(*,
                  graphs: Iterable[nx.DiGraph], 
                  cluster_labels: Iterable[int], 
                  cluster_pattern_results: Mapping[int, Sequence[Mapping[str, Any]],], 
-                 highlights: Iterable[Mapping[str, Any]],
+                 highlights: Iterable[Mapping[str, Any]] = (),
                  max_patterns_per_cluster: int = 5) -> dict[str, Any]:
     """
     Build a report from a theory, clustered countermodels and mined patterns.
@@ -265,7 +265,8 @@ def build_report(*,
             "reported_pattern_count": (reported_pattern_count),
         },
 
-        "clusters": cluster_reports
+        "clusters": cluster_reports,
+        "highlights": _json_value(highlights)
     }
     
     
@@ -279,8 +280,8 @@ def write_report_json(
         int,
         Sequence[Mapping[str, Any]],
     ],
-    max_patterns_per_cluster: int = 5,
-) -> dict[str, Any]:
+    highlights: Iterable[Mapping[str, Any]] = (),
+    max_patterns_per_cluster: int = 5) -> dict[str, Any]:
     """
     Build and write a normative-gap analysis report.
 
@@ -291,6 +292,7 @@ def write_report_json(
         graphs=graphs,
         cluster_labels=cluster_labels,
         cluster_pattern_results=(cluster_pattern_results),
+        highlights=highlights,
         max_patterns_per_cluster=(max_patterns_per_cluster)
     )
 

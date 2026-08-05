@@ -13,32 +13,32 @@ defmodule Src.Execution.Options do
   @type graph_format :: :svg | :tikz
 
   @type t :: %__MODULE__{
-    model_logic: model_logic(),
-    relation: String.t(),
-    atoms: [String.t()],
-    auto_atoms?: boolean(),
-    render_graph?: boolean(),
-    graph_format: graph_format(),
-    palette: Palette.palette(),
-    include_atoms?: boolean(),
-    include_designated_world?: boolean(),
-    verbalize?: boolean(),
-    verbalization_model: String.t()
-  }
+          model_logic: model_logic(),
+          relation: String.t(),
+          atoms: [String.t()],
+          auto_atoms?: boolean(),
+          max_models: pos_integer(),
+          render_graph?: boolean(),
+          graph_format: graph_format(),
+          palette: Palette.palette(),
+          include_atoms?: boolean(),
+          include_designated_world?: boolean(),
+          verbalize?: boolean(),
+          verbalization_model: String.t()
+        }
 
-  defstruct [
-    model_logic: :sdl,
-    relation: "R",
-    atoms: [],
-    auto_atoms?: true,
-    render_graph?: true,
-    graph_format: :svg,
-    palette: @default_palette,
-    include_atoms?: true,
-    include_designated_world?: true,
-    verbalize?: true,
-    verbalization_model: "HuggingFaceTB/SmolLM3-3B"
-  ]
+  defstruct model_logic: :sdl,
+            relation: "R",
+            atoms: [],
+            auto_atoms?: true,
+            max_models: 10,
+            render_graph?: true,
+            graph_format: :svg,
+            palette: @default_palette,
+            include_atoms?: true,
+            include_designated_world?: true,
+            verbalize?: true,
+            verbalization_model: "HuggingFaceTB/SmolLM3-3B"
 
   @doc """
   Creates a validated option set.
@@ -71,7 +71,8 @@ defmodule Src.Execution.Options do
       model_logic: options.model_logic,
       relation: options.relation,
       atoms: options.atoms,
-      auto_atoms: options.auto_atoms?,
+      auto_atoms?: options.auto_atoms?,
+      max_models: options.max_models,
       render_graph?: options.render_graph?,
       graph_format: options.graph_format,
       palette: options.palette,
@@ -93,6 +94,10 @@ defmodule Src.Execution.Options do
       not is_list(options.atoms) or not Enum.all?(options.atoms, &is_binary/1) ->
         {:error, :invalid_atoms}
 
+      not is_integer(options.max_models) or
+          options.max_models <= 0 ->
+        {:error, {:invalid_max_models, options.max_models}}
+
       options.graph_format not in @graph_formats ->
         {:error, {:invalid_graph_format, options.graph_format}}
 
@@ -105,18 +110,22 @@ defmodule Src.Execution.Options do
       not boolean_options_valid?(options) ->
         {:error, :invalid_boolean_option}
 
-      true -> {:ok, options}
+      true ->
+        {:ok, options}
     end
   end
 
   defp boolean_options_valid?(%__MODULE__{} = options) do
-    Enum.all?([
-      options.auto_atoms?,
-      options.render_graph?,
-      options.include_atoms?,
-      options.include_designated_world?,
-      options.verbalize?
-    ], &is_boolean/1)
+    Enum.all?(
+      [
+        options.auto_atoms?,
+        options.render_graph?,
+        options.include_atoms?,
+        options.include_designated_world?,
+        options.verbalize?
+      ],
+      &is_boolean/1
+    )
   end
 
   defp normalize_values(attrs) do
@@ -124,11 +133,10 @@ defmodule Src.Execution.Options do
          {:ok, graph_format} <- normalize_graph_format(Map.get(attrs, :graph_format, :svg)),
          {:ok, palette} <- normalize_palette(Map.get(attrs, :palette, @default_palette)) do
       {:ok,
-         attrs
-         |> Map.put(:model_logic, model_logic)
-         |> Map.put(:graph_format, graph_format)
-         |> Map.put(:palette, palette)
-      }
+       attrs
+       |> Map.put(:model_logic, model_logic)
+       |> Map.put(:graph_format, graph_format)
+       |> Map.put(:palette, palette)}
     end
   end
 
@@ -180,7 +188,6 @@ defmodule Src.Execution.Options do
 
     case Enum.find(Palette.names(), &(Atom.to_string(&1) == normalized)) do
       nil -> {:error, {:invalid_palette, value}}
-
       palette -> {:ok, palette}
     end
   end

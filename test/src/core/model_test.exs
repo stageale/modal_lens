@@ -4,7 +4,7 @@ defmodule Src.Core.ModelTest do
   alias Src.Core.Model
   alias Src.Core.Model.DDL
   alias Src.Core.Model.SDL
-  alias Src.Err.ParseWarning
+  alias Src.Core.ParseWarning
 
   defp sdl_model do
     %SDL{
@@ -108,37 +108,37 @@ defmodule Src.Core.ModelTest do
 
   test "builds a JSON-compatible export map" do
     assert Model.to_export_map(sdl_model()) == %{
-            "logic" => "sdl",
-            "kind" => "countermodel",
-            "cardinality" => 3,
-            "relation" => "R",
-            "designated_world" => %{"index" => 1, "name" => "i2", "role" => "initial_world"},
-            "edges" => [
-              {0, 0},
-              {0, 1},
-              {2, 2}
-            ],
-            "atoms" => ["go", "tell"],
-            "valuations" => %{
-              "go" => [true, false, true],
-              "tell" => [false, true, false]
-            },
-            "warnings" => ["example warning"],
-            "worlds" => [
-              %{
-                "index" => 0,
-                "name" => "i1"
-              },
-              %{
-                "index" => 1,
-                "name" => "i2"
-              },
-              %{
-                "index" => 2,
-                "name" => "i3"
-              }
-            ]
-          }
+             "logic" => "sdl",
+             "kind" => "countermodel",
+             "cardinality" => 3,
+             "relation" => "R",
+             "designated_world" => %{"index" => 1, "name" => "i2", "role" => "initial_world"},
+             "edges" => [
+               {0, 0},
+               {0, 1},
+               {2, 2}
+             ],
+             "atoms" => ["go", "tell"],
+             "valuations" => %{
+               "go" => [true, false, true],
+               "tell" => [false, true, false]
+             },
+             "warnings" => ["example warning"],
+             "worlds" => [
+               %{
+                 "index" => 0,
+                 "name" => "i1"
+               },
+               %{
+                 "index" => 1,
+                 "name" => "i2"
+               },
+               %{
+                 "index" => 2,
+                 "name" => "i3"
+               }
+             ]
+           }
   end
 
   test "exports the designated world for DDL models" do

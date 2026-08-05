@@ -141,8 +141,9 @@ defmodule Src.Execution.ArtifactStore do
     absolute_path = Path.expand(path, output_dir)
     relative_path = Path.relative_to(absolute_path, output_dir)
 
-    if relative_path == ".." or
-         String.starts_with?(relative_path, "../") do
+    if Path.type(relative_path) == :absolute or
+          relative_path == ".." or
+          String.starts_with?(relative_path, "../") do
       {:error, {:artifact_outside_output_directory, path}}
     else
       {:ok, absolute_path, relative_path}

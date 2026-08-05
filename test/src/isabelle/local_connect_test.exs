@@ -1,7 +1,7 @@
-defmodule Src.Interface.Isabelle.LocalConnectTest do
+defmodule Src.Isabelle.LocalConnectTest do
   use ExUnit.Case
 
-  alias Src.Interface.Isabelle.LocalConnect
+  alias Src.Isabelle.LocalConnect
 
   setup do
     previous = System.get_env("AXIOM_REFINER_ISABELLE_BIN")
@@ -17,36 +17,28 @@ defmodule Src.Interface.Isabelle.LocalConnectTest do
     :ok
   end
 
-  test "resolves the executable from options, environment, or the default" do
+  test "resolves the executable from options, environment, or default" do
     System.put_env("AXIOM_REFINER_ISABELLE_BIN", "/env/isabelle")
-
-    assert LocalConnect.configured_isabelle_bin(isabelle_bin: "/opt/isabelle") ==
-             "/opt/isabelle"
-
+    assert LocalConnect.configured_isabelle_bin(isabelle_bin: "/opt/isabelle") == "/opt/isabelle"
     assert LocalConnect.configured_isabelle_bin() == "/env/isabelle"
 
     System.delete_env("AXIOM_REFINER_ISABELLE_BIN")
     assert LocalConnect.configured_isabelle_bin() == "isabelle"
   end
 
-  test "runs the Isabelle version command" do
-    script = executable("success", "printf '%s\\n' \"$@\"\n")
+  test "runs version and returns command metadata for failures" do
+    success = executable("success", "printf '%s\\n' \"$@\"\n")
+    assert {:ok, "version\n"} = LocalConnect.version(isabelle_bin: success)
 
-    assert {:ok, "version\n"} = LocalConnect.version(isabelle_bin: script)
-  end
-
-  test "returns command metadata for non-zero exits" do
-    script = executable("failure", "echo failed\nexit 7\n")
-
-    assert {:error, error} = LocalConnect.version(isabelle_bin: script)
+    failure = executable("failure", "echo failed\nexit 7\n")
+    assert {:error, error} = LocalConnect.version(isabelle_bin: failure)
     assert error.status == 7
     assert error.output == "failed\n"
-    assert error.command == [script, "version"]
+    assert error.command == [failure, "version"]
   end
 
   test "reports executables that cannot be started" do
     missing = Path.join(tmp_dir(), "does-not-exist")
-
     assert {:error, error} = LocalConnect.version(isabelle_bin: missing)
     assert error.status == :failed_to_start
     assert error.output =~ "Could not start Isabelle executable"

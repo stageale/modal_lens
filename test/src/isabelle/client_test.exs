@@ -1,8 +1,8 @@
-defmodule Src.Interface.Isabelle.ClientTest do
+defmodule Src.Isabelle.ClientTest do
   use ExUnit.Case, async: true
 
-  alias Src.Interface.Isabelle.Client
-  alias Src.Interface.Isabelle.HOLEmbedding
+  alias Src.Isabelle.Client
+  alias Src.Isabelle.HOLEmbedding
 
   test "rejects missing and non-theory files" do
     missing = Path.join(tmp_dir(), "missing.thy")
@@ -36,7 +36,7 @@ defmodule Src.Interface.Isabelle.ClientTest do
     assert details.workdir == Path.expand(other_dir)
   end
 
-  test "generated theories reject unknown backends after writing their inputs" do
+  test "generated theories reject unknown backends after writing inputs" do
     workdir = tmp_dir()
     spec = HOLEmbedding.new(theory_name: "Generated_Test")
 

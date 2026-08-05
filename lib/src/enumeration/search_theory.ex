@@ -72,7 +72,7 @@ defmodule Src.Enumeration.SearchTheory do
     base_theory_import =
       base_theory_path
       |> Path.rootname()
-      |> Path.relative_to(theory_dir)
+      |> relative_path_from(theory_dir)
       |> String.replace("\\", "/")
       |> then(&~s("#{&1}"))
 
@@ -80,6 +80,37 @@ defmodule Src.Enumeration.SearchTheory do
     |> String.replace(@search_theory_placeholder, theory_name, global: false)
     |> String.replace(@input_theory_placeholder, base_theory_import, global: false)
     |> insert_blocking_axioms(blocking_axioms)
+  end
+
+  defp relative_path_from(path, directory) do
+    {path_parts, directory_parts} =
+      drop_common_prefix(
+        Path.split(Path.expand(path)),
+        Path.split(Path.expand(directory))
+      )
+
+    relative_parts =
+      List.duplicate("..", length(directory_parts)) ++
+        path_parts
+
+    case relative_parts do
+      [] -> "."
+      parts -> Path.join(parts)
+    end
+  end
+
+  defp drop_common_prefix(
+         [part | path_parts],
+         [part | directory_parts]
+       ) do
+    drop_common_prefix(
+      path_parts,
+      directory_parts
+    )
+  end
+
+  defp drop_common_prefix(path_parts, directory_parts) do
+    {path_parts, directory_parts}
   end
 
   defp insert_blocking_axioms(source, blocking_axioms) do

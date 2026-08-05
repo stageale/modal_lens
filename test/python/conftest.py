@@ -8,6 +8,7 @@ import pytest
 @pytest.fixture
 def sample_report() -> dict:
     return {
+        "schema": "axiom-refiner/analysis-report",
         "schema_version": "1.0",
         "generated_at": "2026-07-26T12:00:00+00:00",
         "purpose": "normative_gap_analysis",
@@ -60,12 +61,36 @@ def sample_report() -> dict:
                         {"id": 0, "valuations": {"p": True}},
                         {"id": 1, "valuations": {"p": False}},
                     ],
-                    "edges": [
-                        {"source": 0, "target": 1},
-                    ],
+                    "edges": [{"source": 0, "target": 1}],
                     "warnings": ["example warning"],
                 },
             }
+        ],
+        "highlights": [
+            {
+                "graph_index": 0,
+                "model_id": "model-0",
+                "cluster_id": 0,
+                "highlight": {
+                    "basis": "pattern",
+                    "scope": "cluster",
+                    "world_scores": [
+                        {"world": 0, "score": 1.0},
+                        {"world": 1, "score": 1.0},
+                    ],
+                    "edge_scores": [
+                        {"source": 0, "target": 1, "score": 1.0}
+                    ],
+                    "tags": ["strongest_characteristic_pattern"],
+                    "metadata": {"cluster_id": 0},
+                },
+            },
+            {
+                "graph_index": 1,
+                "model_id": "model-1",
+                "cluster_id": 0,
+                "highlight": None,
+            },
         ],
     }
 
@@ -78,6 +103,7 @@ def sample_summary() -> dict:
             {
                 "cluster_id": 0,
                 "summary": "Cluster 0 contains both analyzed countermodels.",
+                "notable_patterns": ["cluster-0-pattern-1"],
                 "evidence": [
                     "cluster.0.model_count",
                     "cluster.0.model_fraction",

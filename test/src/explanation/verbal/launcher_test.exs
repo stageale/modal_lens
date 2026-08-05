@@ -3,21 +3,12 @@ defmodule Src.Explanation.Verbal.LauncherTest do
 
   alias Src.Explanation.Verbal.Launcher
 
-  test "writes a request and returns the Python response" do
+  test "writes a request and returns the last valid Python response" do
     root = tmp_dir()
-    fake_uv = Path.join(root, "uv")
-
-    File.mkdir_p!(root)
-
-    File.write!(
-      fake_uv,
-      """
-      #!/bin/sh
-      echo '{"status":"completed","artifacts":{}}'
-      """
-    )
-
-    File.chmod!(fake_uv, 0o755)
+    fake_uv = executable(root, "uv", """
+    echo 'diagnostic output'
+    echo '{"status":"completed","artifacts":{}}'
+    """)
 
     assert {:ok, launch} =
              Launcher.launch(
@@ -32,12 +23,51 @@ defmodule Src.Explanation.Verbal.LauncherTest do
     assert launch.response["status"] == "completed"
     assert File.exists?(launch.request_path)
     assert launch.job.output_directory == Path.join(root, "test-model")
+
+    request = launch.request_path |> File.read!() |> Jason.decode!()
+    assert request["schema"] == "axiom-refiner/verbalization-request"
+  end
+
+  test "returns structured errors for failing and malformed launchers" do
+    root = tmp_dir()
+    failing = executable(root, "failing", "echo boom\nexit 4\n")
+
+    assert {:error, error} =
+             Launcher.run_request("request.json",
+               uv_executable: failing,
+               project_root: root
+             )
+
+    assert error.reason == :python_launcher_failed
+    assert error.exit_status == 4
+    assert error.output =~ "boom"
+
+    malformed = executable(root, "malformed", "echo not-json\n")
+
+    assert {:error, malformed_error} =
+             Launcher.run_request("request.json",
+               uv_executable: malformed,
+               project_root: root
+             )
+
+    assert malformed_error.reason == :invalid_python_response
+  end
+
+  defp executable(dir, name, body) do
+    path = Path.join(dir, name)
+    File.write!(path, "#!/bin/sh\n" <> body)
+    File.chmod!(path, 0o755)
+    path
   end
 
   defp tmp_dir do
-    Path.join(
-      System.tmp_dir!(),
-      "verbal_launcher_#{System.unique_integer([:positive])}"
-    )
+    dir =
+      Path.join(
+        System.tmp_dir!(),
+        "verbal_launcher_#{System.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(dir)
+    dir
   end
 end

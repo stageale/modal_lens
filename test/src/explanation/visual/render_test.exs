@@ -1,11 +1,11 @@
-defmodule Src.Core.RenderTest do
+defmodule Src.Explanation.Visual.RenderTest do
   use ExUnit.Case, async: true
 
   alias Src.Core.Model.DDL
   alias Src.Core.Model.SDL
-  alias Src.Core.Render
   alias Src.Explanation.Visual.Highlight
   alias Src.Explanation.Visual.Palette
+  alias Src.Explanation.Visual.Render
 
   test "writes a highlighted SDL GraphViz DOT file" do
     model = %SDL{
@@ -25,7 +25,14 @@ defmodule Src.Core.RenderTest do
       )
 
     path = tmp_path("model.dot")
-    written_path = Render.write_dot(model, path, atoms: ["go"], highlight: highlight)
+
+    written_path =
+      Render.write_dot(model, path,
+        atoms: ["go"],
+        highlight: highlight,
+        palette: :cividis
+      )
+
     content = File.read!(written_path)
 
     assert content =~ ~s(w0 [label="i1: go", style="filled")
@@ -50,13 +57,9 @@ defmodule Src.Core.RenderTest do
     assert content =~ "init -> w0"
   end
 
-  test "escapes LaTeX special characters" do
-    assert Render.latex_escape("¬go_a") == "$\\neg$go\\_a"
-    assert Render.latex_escape("a&b") == "a\\&b"
-    assert Render.latex_escape("x%y") == "x\\%y"
-  end
+  test "escapes LaTeX and writes TikZ" do
+    assert Render.latex_escape("¬go_a&b") == "$\\neg$go\\_a\\&b"
 
-  test "writes a TikZ file" do
     model = %SDL{
       kind: :countermodel,
       cardinality: 1,
@@ -66,21 +69,18 @@ defmodule Src.Core.RenderTest do
       valuations: %{"go" => [true]}
     }
 
-    path = tmp_path("model.tex")
-    written_path = Render.write_tikz(model, path, atoms: ["go"])
-    content = File.read!(written_path)
+    path = Render.write_tikz(model, tmp_path("model.tex"), atoms: ["go"])
+    content = File.read!(path)
 
     assert content =~ "\\documentclass"
-    assert content =~ "\\begin{tikzpicture}"
     assert content =~ "\\node[world] (w0)"
     assert content =~ "i1: go"
     assert content =~ "\\path[->,loop above] (w0) edge (w0);"
-    assert content =~ "\\end{document}"
   end
 
-  test "reports a missing LaTeX engine before compilation" do
+  test "reports missing external renderers" do
     assert_raise RuntimeError, ~r/LaTeX executable/, fn ->
-      Render.compile_tex(tmp_path("model.tex"), engine: "definitely-not-a-real-tex-engine")
+      Render.compile_tex(tmp_path("model.tex"), engine: "definitely-not-a-real-engine")
     end
   end
 

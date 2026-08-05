@@ -27,8 +27,13 @@ defmodule Src.NitpickOutput do
         model,
         name: Keyword.get(opts, :blocking_name),
         include_atoms: Keyword.get(opts, :include_atoms, true),
-        include_initial: Keyword.get(opts, :include_initial, false),
-        initial_world_constant: Keyword.get(opts, :initial_world_constant, "actual_world")
+        include_designated_world: Keyword.get(opts, :include_designated_world, false),
+        designated_world_constant:
+          Keyword.get(
+            opts,
+            :designated_world_constant,
+            Model.designated_world_constant(model)
+          )
       )
 
     %{

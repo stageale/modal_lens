@@ -2,18 +2,24 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
 from verbalization.base import GenerationRequest, GenerationResult, Verbalizer
-
-from verbalization.pipeline import _messages_sha256, _parse_summary, _render_summary_markdown, _sha256_text, run_verbalization, write_verbalization_result
+from verbalization.pipeline import (
+    _messages_sha256,
+    _render_summary_markdown,
+    _sha256_text,
+    run_verbalization,
+    write_verbalization_result,
+)
 
 
 class FakeVerbalizer(Verbalizer):
     def __init__(self, raw_text: str):
         self.raw_text = raw_text
-        self.last_request = None
+        self.last_request: GenerationRequest | None = None
 
     @property
     def backend(self) -> str:
@@ -23,10 +29,7 @@ class FakeVerbalizer(Verbalizer):
     def model_id(self) -> str:
         return "fake/model"
 
-    def generate(
-        self,
-        request: GenerationRequest,
-    ) -> GenerationResult:
+    def generate(self, request: GenerationRequest) -> GenerationResult:
         self.last_request = request
         return GenerationResult(
             backend=self.backend,
@@ -36,52 +39,22 @@ class FakeVerbalizer(Verbalizer):
         )
 
 
-def test_sha256_text_hashes_utf8_text():
+def test_sha256_text_hashes_utf8_text() -> None:
     assert _sha256_text("LoDEx") == hashlib.sha256(
         "LoDEx".encode("utf-8")
     ).hexdigest()
 
 
-def test_messages_sha256_is_independent_of_mapping_key_order():
-    first = (
-        {"role": "user", "content": "Example"},
-    )
-    second = (
-        {"content": "Example", "role": "user"},
-    )
-
+def test_messages_sha256_is_independent_of_mapping_key_order() -> None:
+    first = ({"role": "user", "content": "Example"},)
+    second = ({"content": "Example", "role": "user"},)
     assert _messages_sha256(first) == _messages_sha256(second)
 
 
-def test_parse_summary_accepts_required_top_level_fields(
-    sample_summary,
-):
-    raw_text = json.dumps(sample_summary)
-
-    assert _parse_summary(raw_text) == sample_summary
-
-
-@pytest.mark.parametrize(
-    ("raw_text", "message"),
-    [
-        ("not json", "not valid JSON"),
-        ("[]", "must be a JSON object"),
-        ('{"overview":"x"}', "missing fields"),
-    ],
-)
-def test_parse_summary_rejects_invalid_outputs(
-    raw_text,
-    message,
-):
-    with pytest.raises(ValueError, match=message):
-        _parse_summary(raw_text)
-
-
 def test_render_summary_markdown_contains_clusters_and_evidence(
-    sample_summary,
-):
+    sample_summary: dict,
+) -> None:
     markdown = _render_summary_markdown(sample_summary)
-
     assert markdown.startswith("# Analysis Summary")
     assert "### Cluster 0" in markdown
     assert "- `cluster.0.model_count`" in markdown
@@ -89,9 +62,9 @@ def test_render_summary_markdown_contains_clusters_and_evidence(
 
 
 def test_run_verbalization_connects_facts_prompt_and_backend(
-    sample_report,
-    sample_summary,
-):
+    sample_report: dict,
+    sample_summary: dict,
+) -> None:
     raw_text = json.dumps(sample_summary)
     verbalizer = FakeVerbalizer(raw_text)
 
@@ -108,34 +81,27 @@ def test_run_verbalization_connects_facts_prompt_and_backend(
     assert result["provenance"]["model_id"] == "fake/model"
     assert result["provenance"]["seed"] == 17
     assert result["provenance"]["max_new_tokens"] == 256
-    assert result["provenance"]["backend_metadata"] == {
-        "device": "test",
-    }
+    assert result["provenance"]["backend_metadata"] == {"device": "test"}
     assert len(result["provenance"]["messages_sha256"]) == 64
-    assert len(
-        result["provenance"]["verbalization_facts_sha256"]
-    ) == 64
-    assert result["provenance"]["raw_output_sha256"] == (
-        _sha256_text(raw_text)
-    )
+    assert len(result["provenance"]["verbalization_facts_sha256"]) == 64
+    assert result["provenance"]["raw_output_sha256"] == _sha256_text(raw_text)
+    assert verbalizer.last_request is not None
     assert verbalizer.last_request.seed == 17
     assert verbalizer.last_request.max_new_tokens == 256
     assert verbalizer.last_request.messages[0]["role"] == "system"
 
 
-def test_run_verbalization_preserves_invalid_raw_output(
-    sample_report,
-):
+def test_run_verbalization_rejects_invalid_model_output(sample_report: dict) -> None:
     verbalizer = FakeVerbalizer("not json")
 
     with pytest.raises(ValueError, match="not valid JSON"):
         run_verbalization(sample_report, verbalizer)
 
 
-def test_write_verbalization_result_creates_all_artifacts(
-    tmp_path,
-    sample_summary,
-):
+def test_write_verbalization_result_creates_versioned_artifacts(
+    tmp_path: Path,
+    sample_summary: dict,
+) -> None:
     result = {
         "summary": sample_summary,
         "raw_output": json.dumps(sample_summary),
@@ -145,10 +111,7 @@ def test_write_verbalization_result_creates_all_artifacts(
         },
     }
 
-    paths = write_verbalization_result(
-        result,
-        tmp_path / "verbalization",
-    )
+    paths = write_verbalization_result(result, tmp_path / "verbalization")
 
     assert set(paths) == {
         "raw_output",
@@ -156,15 +119,36 @@ def test_write_verbalization_result_creates_all_artifacts(
         "summary_markdown",
         "provenance",
     }
-    assert paths["raw_output"].read_text(
-        encoding="utf-8"
-    ) == result["raw_output"]
-    assert json.loads(
-        paths["summary_json"].read_text(encoding="utf-8")
-    ) == sample_summary
-    assert "# Analysis Summary" in paths[
-        "summary_markdown"
-    ].read_text(encoding="utf-8")
-    assert json.loads(
+    assert paths["raw_output"].read_text(encoding="utf-8") == result["raw_output"]
+
+    summary_document = json.loads(paths["summary_json"].read_text(encoding="utf-8"))
+    assert summary_document["schema"] == "axiom-refiner/verbalization-summary"
+    assert summary_document["schema_version"] == "1.0"
+    assert summary_document["overview"] == sample_summary["overview"]
+    assert summary_document["cluster_summaries"] == sample_summary["cluster_summaries"]
+
+    provenance_document = json.loads(
         paths["provenance"].read_text(encoding="utf-8")
-    ) == result["provenance"]
+    )
+    assert provenance_document["schema"] == "axiom-refiner/verbalization-provenance"
+    assert provenance_document["schema_version"] == "1.0"
+    assert provenance_document["backend"] == "fake"
+
+    assert "# Analysis Summary" in paths["summary_markdown"].read_text(
+        encoding="utf-8"
+    )
+
+
+def test_write_verbalization_result_rejects_non_mapping_provenance(
+    tmp_path: Path,
+    sample_summary: dict,
+) -> None:
+    with pytest.raises(ValueError, match="provenance must be a mapping"):
+        write_verbalization_result(
+            {
+                "summary": sample_summary,
+                "raw_output": "{}",
+                "provenance": [],
+            },
+            tmp_path,
+        )

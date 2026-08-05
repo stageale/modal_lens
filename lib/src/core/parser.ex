@@ -26,7 +26,7 @@ defmodule Src.Core.Parser do
   end
 
   # *
-  def parse_nitpick_text(text, opts) do
+  def parse_nitpick_text(text, opts \\ []) do
     text = isolate_last_nitpick_result(text)
 
     model_logic = Keyword.get(opts, :model_logic, :sdl)

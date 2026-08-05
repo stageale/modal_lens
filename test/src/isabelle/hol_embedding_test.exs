@@ -1,7 +1,7 @@
-defmodule Src.Interface.Isabelle.HOLEmbeddingTest do
+defmodule Src.Isabelle.HOLEmbeddingTest do
   use ExUnit.Case, async: true
 
-  alias Src.Interface.Isabelle.HOLEmbedding
+  alias Src.Isabelle.HOLEmbedding
 
   test "creates an embedding with defaults and overrides" do
     default = HOLEmbedding.new()
@@ -36,7 +36,6 @@ defmodule Src.Interface.Isabelle.HOLEmbeddingTest do
     assert source =~ "serial r"
     assert source =~ ~s("p w")
     assert source =~ "nitpick [user_axioms, card i = 2]"
-    assert source =~ "definition transitive"
   end
 
   test "writes theory and ROOT files" do

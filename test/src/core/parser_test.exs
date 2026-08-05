@@ -37,10 +37,12 @@ defmodule Src.Core.ParserTest do
     assert model.cardinality == 2
     assert model.initial_world == 1
     assert model.edges == MapSet.new([{0, 1}, {1, 1}])
+
     assert model.valuations == %{
              "go" => [true, false],
              "tell" => [false, true]
            }
+
     assert model.warnings == []
   end
 

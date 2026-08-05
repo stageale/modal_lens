@@ -1,5 +1,4 @@
 defmodule Src.Interface.CLI do
-
   alias Src.NitpickOutput
   alias Src.Core.BlockingAxiom
   alias Src.Enumeration
@@ -10,6 +9,7 @@ defmodule Src.Interface.CLI do
     atoms: :string,
     auto_atoms: :boolean,
     model_logic: :string,
+    max_models: :integer,
     out_dir: :string,
     render_graph: :boolean,
     graph_format: :string,
@@ -116,53 +116,55 @@ defmodule Src.Interface.CLI do
 
     with :ok <- reject_invalid_options(invalid),
          :ok <- reject_enumeration_positionals(positional_args),
-        {:ok, mode} <- parse_enumeration_mode(Keyword.get(opts, :mode)),
-        {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")) do
-          input_path =
-            Keyword.get(opts, :input)
+         {:ok, mode} <- parse_enumeration_mode(Keyword.get(opts, :mode)),
+         {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")) do
+      input_path =
+        Keyword.get(opts, :input)
 
-          enumeration_opts =
-            opts
-            |> Keyword.drop([:input, :out_dir])
-            |> Keyword.put(:mode, mode)
-            |> Keyword.put(:model_logic, model_logic)
-            |> maybe_put(:output_dir, Keyword.get(opts, :out_dir))
+      enumeration_opts =
+        opts
+        |> Keyword.drop([:input, :out_dir])
+        |> Keyword.put(:mode, mode)
+        |> Keyword.put(:model_logic, model_logic)
+        |> maybe_put(:output_dir, Keyword.get(opts, :out_dir))
 
-          enumeration_result =
-            case input_path do
-              nil -> Enumeration.enumerate(enumeration_opts)
-              path -> Enumeration.enumerate(path, enumeration_opts)
-            end
-
-          case enumeration_result do
-            {:ok, result} ->
-              IO.puts("Enumeration completed.")
-              IO.puts("Mode: #{mode}")
-              IO.puts("Input: #{result.base_theory_file}")
-              IO.puts("Status: #{inspect(result.status)}")
-              IO.puts("Models found: #{result.model_count}")
-              IO.puts("Output directory: #{result.output_dir}")
-
-              0
-
-            {:error, reason} ->
-              IO.puts(:stderr, "[ERROR] Enumerationfailed:")
-              IO.inspect(reason, pretty: true, limit: :infinity, printable_limit: :infinity)
-
-              1
-          end
-        else
-          {:error, message} ->
-            IO.puts(:stderr, "[ERROR] #{message}")
-
-            2
+      enumeration_result =
+        case input_path do
+          nil -> Enumeration.enumerate(enumeration_opts)
+          path -> Enumeration.enumerate(path, enumeration_opts)
         end
+
+      case enumeration_result do
+        {:ok, result} ->
+          IO.puts("Enumeration completed.")
+          IO.puts("Mode: #{mode}")
+          IO.puts("Input: #{result.base_theory_file}")
+          IO.puts("Status: #{inspect(result.status)}")
+          IO.puts("Models found: #{result.model_count}")
+          IO.puts("Output directory: #{result.output_dir}")
+
+          0
+
+        {:error, reason} ->
+          IO.puts(:stderr, "[ERROR] Enumerationfailed:")
+          IO.inspect(reason, pretty: true, limit: :infinity, printable_limit: :infinity)
+
+          1
+      end
+    else
+      {:error, message} ->
+        IO.puts(:stderr, "[ERROR] #{message}")
+
+        2
+    end
   end
 
   defp reject_enumeration_positionals([]), do: :ok
 
   defp reject_enumeration_positionals(positional_args) do
-    {:error, "Unexpected positional arguments: " <> Enum.join(positional_args, " ") <> ". Use --input PATH to select another theory."}
+    {:error,
+     "Unexpected positional arguments: " <>
+       Enum.join(positional_args, " ") <> ". Use --input PATH to select another theory."}
   end
 
   defp parse_enumeration_mode("countermodels") do
@@ -182,12 +184,15 @@ defmodule Src.Interface.CLI do
   end
 
   defp parse_enumeration_mode(mode) do
-    {:error, "Unknown mode #{inspect(mode)}. Use countermodels, satisfying-models, or consistency-check."}
+    {:error,
+     "Unknown mode #{inspect(mode)}. Use countermodels, satisfying-models, or consistency-check."}
   end
 
   defp parse_model_logic("sdl"), do: {:ok, :sdl}
   defp parse_model_logic("ddl"), do: {:ok, :ddl}
-  defp parse_model_logic(logic), do: {:error, "Unknown model logic #{inspect(logic)}. Use sdl or ddl."}
+
+  defp parse_model_logic(logic),
+    do: {:error, "Unknown model logic #{inspect(logic)}. Use sdl or ddl."}
 
   defp maybe_put(opts, _key, nil) do
     opts
@@ -203,9 +208,8 @@ defmodule Src.Interface.CLI do
 
     with :ok <- reject_invalid_options(invalid),
          :ok <- require_inputs(inputs),
-        {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")),
+         {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")),
          :ok <- ensure_json_available(opts) do
-
       opts = Keyword.put(opts, :model_logic, model_logic)
 
       inputs
@@ -238,14 +242,20 @@ defmodule Src.Interface.CLI do
   defp cmd_axiom(argv) do
     {opts, inputs, invalid} =
       OptionParser.parse(argv,
-        strict: @common_switches ++ [out_dir: :string, no_atoms: :boolean, include_designated_world: :boolean, designated_world_constant: :string],
+        strict:
+          @common_switches ++
+            [
+              out_dir: :string,
+              no_atoms: :boolean,
+              include_designated_world: :boolean,
+              designated_world_constant: :string
+            ],
         aliases: [o: :out_dir]
       )
 
     with :ok <- reject_invalid_options(invalid),
          :ok <- require_inputs(inputs),
-        {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")) do
-
+         {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")) do
       opts = Keyword.put(opts, :model_logic, model_logic)
 
       out_dir = Keyword.get(opts, :out_dir)
@@ -309,31 +319,33 @@ defmodule Src.Interface.CLI do
 
     case {invalid, inputs} do
       {[], [theory_path]} ->
-        option_set = [
-          model_logic: :model_logic,
-          relation: :relation,
-          atoms: :atoms,
-          auto_atoms: :auto_atoms?,
-          render_graph: :render_graph?,
-          graph_format: :graph_format,
-          palette: :palette,
-          verbalize: :verbalize?,
-          verbalization_model: :verbalization_model
-        ]
-        |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
-          case Keyword.fetch(opts, cli_key) do
-            {:ok, value} ->
-              Map.put(options, option_key, value)
+        option_set =
+          [
+            model_logic: :model_logic,
+            relation: :relation,
+            atoms: :atoms,
+            auto_atoms: :auto_atoms?,
+            max_models: :max_models,
+            render_graph: :render_graph?,
+            graph_format: :graph_format,
+            palette: :palette,
+            verbalize: :verbalize?,
+            verbalization_model: :verbalization_model
+          ]
+          |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
+            case Keyword.fetch(opts, cli_key) do
+              {:ok, value} ->
+                Map.put(options, option_key, value)
 
-            :error ->
-              options
-          end
-        end)
-        |> Map.update(:atoms, [], fn atoms ->
-          atoms
-          |> String.split(",", trim: true)
-          |> Enum.map(&String.trim/1)
-        end)
+              :error ->
+                options
+            end
+          end)
+          |> Map.update(:atoms, [], fn atoms ->
+            atoms
+            |> String.split(",", trim: true)
+            |> Enum.map(&String.trim/1)
+          end)
 
         output_dir = Keyword.get(opts, :out_dir, "out/demo")
 
