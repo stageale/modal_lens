@@ -1,182 +1,229 @@
-# Axiom Refiner
+# ModalLens:  
 
-**Countermodel-guided iterative axiom refinement for modal and higher-order logic experiments**
+## A Modal Semantics Explorer
 
-Axiom Refiner is a research prototype that combines:
+#
 
-* Isabelle/HOL and Nitpick for countermodel generation
-* Elixir for orchestration, enumeration, and artifact management
-* Python for graph analysis, clustering, and pattern extraction
-* Graphviz and TikZ for countermodel visualization
-* Small language models for optional verbal explanations
+ModalLens is a research prototype for enumerating, analysing, visualising, and explaining finite models and countermodels of modal logics.
 
-The prototype currently supports standard deontic logic (SDL) and dyadic deontic logic (DDL).
+It combines symbolic model generation in ATPs with graph-based structural analysis and optional language-model verbalization. The current prototype is developed in the context of the LogiKEy and LoDEx.
 
-## Requirements
+### Research scope
+
+ModalLens is designed to support the inspection of finite semantic structures produced in context of a modal logical theory. Its curent workflow focuses on:
+
+* enumerating distinct finite models or countermodels;
+* preserving each result as a versioned machine-readable artifact;
+* extracting graph features and recurring structural patterns;
+* grouping related models through clustering;
+* highlighting structural evidence in graph visualizations;
+* optionally verbalizing deterministic analysis facts with a small language model;
+* presenting the resulting evidence in an HTML review interface
+
+Graph patterns, clusters, highlights, and verbal summaries are diagnostic evidence intended to support human-guided analysis and later axiom refinement
+
+
+### Analysis pipeline
+
+1. Isabelle theory
+2. Isabelle/HOL and Nitpick
+3. finite models or countermodels
+4. versioned model JSON artifacts
+5. graph features, clustering, and pattern mining
+6. model-level highlights and analysis report
+7. optional seeded verbalization
+8. HTML review interface and run manifest
+
+The Elixir application owns orchestration, model enumeration, run state, and artifact management. Python components perform graph analysis and optional verbalization. Durable JSON files, rather than subprocess output, form the exchange boundary between the components.
+
+### Current capabilities
+
+#### Supported modal frames
+
+* Standard deontic logic (`sdl`)
+* Dyadic deontic logic (`ddl`)
+
+#### Supported world logics
+
+* propositional logic
+
+#### Enumeration modes
+
+* `countermodels`: enumerate finite countermodels to a named query;
+* `satisfying-models`: enumerate finite models satisfying the base theory;
+* `consistency-check`: search for at most one finite model in configured Nitpick scope.
+
+A failed finite consistency search is not a general proof of inconsistency.
+It only reports that no model was found within the selected finite scope.
+
+(But: For propositional modal logic satisfiability is equivalent to finite satisfiability, consider the guarded fragment for further explanation.)
+
+#### Generated explanations
+
+* Graphviz DOT and SVG output
+* TikZ source and optional PDF output
+* world- and edge-level structural highlights
+* cluster and characteristic-pattern reports
+* optional verbal summaries with provenance
+
+The verbalization stage consumes deterministic report data. Generated natural-language text is treated as an explanation of recorded evidence, not as an independent source of logical or normative claims.
+
+### Requirements
 
 The local development environment requires:
 
-* Elixir `~> 1.19`
-* Erlang/OTP compatible with the selected Elixir version
-* Python `3.12`
-* [`uv`](https://docs.astral.sh/uv/)
-* Isabelle/HOL
-* Graphviz
-* A LaTeX installation for TikZ and PDF artifacts
+* Elixir `1.19`;
+* an Erlang/OTP release compatible with the selected Elixir version;
+* Python `3.12`;
+* Isabelle/HOL with Nitpick;
+* Graphbiz for DOT/SVG rendering;
+* a LaTeX installation for TikZ/PDF rendering
 
-Docker can optionally be used for the Elixir and Python environment. Isabelle currently remains a host-side dependency.
+The optional transformers-based verbalization backend may require substantial memory and, depending on the selected model, GPU support. The symbolic and graph-analysis pipeline can be tested without verbalization.
 
-## Installation
+Docker can be used for the Elixir and Python environemnt. Isabelle currently remains a host-side dependency.
+
+### Installation
 
 Clone the repository and enter the project directory:
 
-```bash
-git clone <repository-url>
-cd axiom_refiner
-```
+`git clone <repository-url>`
+`cd modal-lens`
 
-Install the Elixir dependencies:
+Install the Elixir dependencies
 
-```bash
-mix deps.get
-```
+`mix deps.get`
 
-Install the Python environment and development dependencies:
+Install the locked Python environement and development dependencies:
 
-```bash
-uv sync --group dev
-```
+`uv sync --group dev`
 
 Prepare the Isabelle/HOL user heap:
 
-```bash
-./cmd/setup_isabelle.sh
-```
+`./cmd/setup_isabelle.sh`
 
 When Isabelle is not available through `PATH`, provide its executable explicitly:
 
-```bash
-AXIOM_REFINER_ISABELLE_BIN=/path/to/isabelle \
-  ./cmd/setup_isabelle.sh
+`MODALLENS_ISABELLE_BIN=/path/to/isabelle ./cmd/setup_isabelle.sh`
+
+Compile the application and build the local command-line executable:
+
+`mix compile`
+`mix escript.build`
+
+This creates:
+
+`./modal_lens`
+
+### Quick start
+
+The following command runs the SDL example, enumerates at most five countermodels, performs graph analysis, renders SVG artifacts, and generates the HTML interface. Verbalization is disabled for a lightweight first run.
+
 ```
-
-Compile the project:
-
-```bash
-mix compile
-```
-
-Build the command-line executable:
-
-```bash
-mix escript.build
-```
-
-This creates the local executable:
-
-```text
-./axiom_refiner
-```
-
-## Demo
-
-The bundled demo command supports SDL and DDL examples with either SVG or TikZ selected as the displayed graph format.
-
-### SDL with SVG
-
-```bash
-./cmd/demo.sh sdl no
-```
-
-### SDL with TikZ
-
-```bash
-./cmd/demo.sh sdl yes
-```
-
-### DDL with SVG
-
-```bash
-./cmd/demo.sh ddl no
-```
-
-### DDL with TikZ
-
-```bash
-./cmd/demo.sh ddl yes
-```
-
-Run all four configurations:
-
-```bash
-./cmd/demo.sh all
-```
-
-Additional command-line options are forwarded to the Axiom Refiner executable:
-
-```bash
-./cmd/demo.sh ddl yes --verbalize
-```
-
-```bash
-./cmd/demo.sh sdl no --palette viridis
-```
-
-The DDL example is defined in:
-
-```text
-examples/input/Dyadic_Chisholm.thy
-```
-
-It imports:
-
-```text
-examples/input/E.thy
-```
-
-The Isabelle integration resolves this import automatically. `E.thy` does not need to be passed separately to the demo command.
-
-## Direct CLI usage
-
-The same examples can be executed without the wrapper script.
-
-### SDL
-
-```bash
-./axiom_refiner demo \
-  examples/input/Chisholm.thy \
-  -o out/demo_sdl \
+./modal_lens demo examples/input/Chisholm.thy \ 
+  -o out/demo/sdl_svg \
   --model-logic sdl \
+  --max-models 5 \
+  --graph-format svg \
   --palette turbo \
-  --graph-format svg
+  --no-verbalize
 ```
 
-### DDL
+Open the generated interface:
+`xdg-open out/demo/sdl_svg/index.html`
 
-```bash
-./axiom_refiner demo \
-  examples/input/Dyadic_Chisholm.thy \
-  -o out/demo_ddl \
+#### DDL example
+
+```
+./modal_lens demo examples/input/Chisholm.thy \ 
+  -o out/demo/sdl_svg \
   --model-logic ddl \
+  --max-models 5 \
+  --graph-format svg \
   --palette turbo \
-  --graph-format svg
+  --no-verbalize
 ```
 
-Available command-line options can be inspected with:
+The DDL example import `examples/input/E.thy`.
+The Isabelle integration resolves the import from the base theory; `E.thy` is not supplied as a separate command-line input.
+
+#### Enable verbalization
+
+Verbalization is enabled by default in the demo workflow. Omit `--no-verbalize` and optionally select a model:
+
+```
+./modal_lens demo examples/input/Chisholm.thy \
+  -o out/demo/sdl_verbalized \
+  --model-logic sdl \
+  --max-models 5 \
+  --verbalization-model HuggingFaceTB/SmolLM3-3B
+```
+
+
+
+## Enumeration without the review interface
+
+The lower-level enumeration command exposes the three model-search modes directly.
 
 ```bash
-./axiom_refiner help
+./modal_lens enumerate \
+  --input examples/input/Chisholm.thy \
+  --mode countermodels \
+  --model-logic sdl \
+  --max-models 5 \
+  --out-dir out/enumeration/chisholm
 ```
 
-or:
+Valid values for `--mode` are:
+
+```text
+countermodels
+satisfying-models
+consistency-check
+```
+
+Inspect the complete command-line help with:
 
 ```bash
-./axiom_refiner demo --help
+./modal_lens help
 ```
+
+## Generated artifacts
+
+A completed run may contain:
+
+```text
+OUTPUT_DIR/
+├── index.html
+├── run.json
+├── report.json
+├── model-001/
+│   ├── nitpick-output.txt
+│   ├── model.json
+│   ├── blocking-axiom.thy
+│   ├── model.dot
+│   ├── model.svg
+│   ├── model.tex
+│   └── model.pdf
+├── model-002/
+│   └── ...
+└── verbalization/
+    └── cluster-N/
+        ├── request.json
+        ├── report.json
+        ├── raw_output.txt
+        ├── summary.json
+        ├── summary.md
+        └── provenance.json
+```
+
+The exact set depends on the selected options. For example, `--no-render-graph` suppresses DOT, SVG, TikZ, and PDF generation while retaining model enumeration, graph analysis, and highlight data.
+
+The durable exchange artifacts use explicit schema identifiers and schema versions. Generated output directories should not be committed to version control.
 
 ## Testing
 
-Run the complete Elixir and Python test suite with:
+Run the complete Elixir and Python test suite:
 
 ```bash
 mix test.all
@@ -188,12 +235,24 @@ This invokes:
 cmd/test_all.sh
 ```
 
-The suites can also be executed separately.
+Run the suites separately when diagnosing failures.
 
 ### Elixir
 
 ```bash
 MIX_ENV=test mix test
+```
+
+Compile with warnings treated as errors:
+
+```bash
+mix compile --warnings-as-errors
+```
+
+Check formatting:
+
+```bash
+mix format --check-formatted
 ```
 
 ### Python
@@ -202,10 +261,11 @@ MIX_ENV=test mix test
 uv run --locked python -m pytest -v
 ```
 
-Check Elixir formatting with:
+Format and statically compile the Python modules:
 
 ```bash
-mix format --check-formatted
+uv run ruff format graph_ml verbalization
+uv run python -m compileall graph_ml verbalization
 ```
 
 ## Docker
@@ -213,65 +273,67 @@ mix format --check-formatted
 Build the development image:
 
 ```bash
-docker build -t axiom-refiner .
+docker build -t modal-lens .
 ```
 
 Run the configured test command:
 
 ```bash
-docker run --rm axiom-refiner
+docker run --rm modal-lens
 ```
 
-The `.dockerignore` file excludes local build artifacts, dependency directories, generated output, caches, and runtime files from the Docker build context.
+The Docker image covers the Elixir and Python environments. Host-side Isabelle configuration is still required for full end-to-end model enumeration.
 
-## Project structure
+## Architecture
 
 ```text
-axiom_refiner/
-├── cmd/                  Project commands and setup scripts
-├── examples/             Isabelle theories and example inputs
-├── graph_ml/             Python graph-analysis implementation
-├── lib/                  Elixir source code
-├── priv/                 Project resources and static assets
-├── test/                 Elixir and Python tests
-├── Dockerfile
-├── mix.exs
-├── pyproject.toml
-└── uv.lock
+modal-lens/
+├── cmd/              setup, demo, and test commands
+├── examples/         Isabelle example theories
+├── graph_ml/         feature extraction, clustering, mining, and reports
+├── lib/src/core/     logical models, parsing, and blocking axioms
+├── lib/src/enumeration/
+│                     iterative model enumeration and search theories
+├── lib/src/execution/
+│                     canonical pipeline, options, runs, and artifacts
+├── lib/src/explanation/
+│                     visual highlighting and verbalisation launchers
+├── lib/src/interface/
+│                     CLI and HTML review interface
+├── lib/src/isabelle/
+│                     local and HPC Isabelle adapters
+├── verbalization/    facts, prompts, backends, and result artifacts
+└── test/             Elixir and Python tests
 ```
 
-The current Elixir implementation is divided broadly into:
+The canonical end-to-end workflow is owned by the execution pipeline. User interfaces construct validated run options and delegate execution rather than implementing separate analysis paths.
 
-```text
-Src.Core
-Src.Explanation
-Src.Interface
-Src.ModelEnumeration
-```
 
-This structure is being consolidated as part of the ongoing refactoring. The current executable entry point remains:
+### Reproducibility
 
-```elixir
-Src.Interface.CLI
-```
+ModalLens records run parameters, generated artifacts, provenance, and runtime measurements in `run.json`.
 
-## Generated artifacts
+The implementation separates deterministic and generative stages:
 
-Depending on the selected options, a run can generate:
+* parsing, model export, graph analysis, cluster reports, and prompt facts are machine-generated artifacts;
+* verbalization uses an explicit backend, model identifier, seed, and token limit;
+* raw model output and provenance are preserved beside the validated summary;
+* external model implementations and hardware may still affect exact generated wording
 
-* Parsed countermodel JSON
-* DOT graph descriptions
-* SVG visualizations
-* TikZ source
-* PDF visualizations
-* Blocking axioms
-* Enumeration metadata
-* Graph-analysis reports
-* Cluster and pattern information
-* Verbal summaries
+For evaluation runs; preserve the complete output directory together with the source revision, dependency lock files, Isabelle version, backend configuration, and selected model identifier.
 
-Generated files are written below the selected output directory and should not be committed to version control.
+### Limitations and development status
 
-## Project status
+ModalLens is an active research prototype. The following limitations are intentional and should be considered when interpreting its output:
 
-Axiom Refiner is an active research prototype. Its internal modules and exchange formats are still being refactored and should not yet be treated as a stable public API.
+* model search is bounded by the configured Nitpic scope;
+* current model parsers target the supported SDL and DDL representations;
+* graph clusters and mined patterns are diagnostic summaries, not logical proofs;
++ optional language-model summaries may require manual review;
+* automatic candidate-refinement synthesis is not yet part of the validated workflow;
+* the HPC adapter is experimental and the local execution path is the primary tested configuration;
+* internal APIs and artifact schemas may change before the first stable research release.
+
+### Project context
+
+ModalLens is developed as a research prototype within the LogiKEy and LoDEx environment. Its purpose is to make finite semantic structures inspectable and to support accountable, human-guided analysis of modal specifications.

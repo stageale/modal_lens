@@ -1,4 +1,4 @@
-defmodule AxiomRefiner do
+defmodule ModalLens do
   @moduledoc """
   Top-level namespace for the Axiom Refiner prototype.
 
