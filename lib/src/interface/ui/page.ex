@@ -17,7 +17,7 @@ defmodule Src.Interface.Ui.Page do
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>Axiom Refiner</title>
+      <title>ModalLens</title>
       <style>
         body {
           max-width: 1100px;
@@ -106,7 +106,7 @@ defmodule Src.Interface.Ui.Page do
     </head>
     <body>
       <header>
-        <h1>Axiom Refiner</h1>
+        <h1>ModalLens</h1>
 
         <label>
           Calculated configuration

@@ -6,13 +6,13 @@ defmodule Src.Execution.PipelineTest do
   alias Src.Execution.Run
 
   setup do
-    previous = System.get_env("AXIOM_REFINER_ISABELLE_BIN")
+    previous = System.get_env("MODAL_LENS_ISABELLE_BIN")
 
     on_exit(fn ->
       if previous do
-        System.put_env("AXIOM_REFINER_ISABELLE_BIN", previous)
+        System.put_env("MODAL_LENS_ISABELLE_BIN", previous)
       else
-        System.delete_env("AXIOM_REFINER_ISABELLE_BIN")
+        System.delete_env("MODAL_LENS_ISABELLE_BIN")
       end
     end)
 
@@ -27,7 +27,7 @@ defmodule Src.Execution.PipelineTest do
     isabelle = Path.join(root, "isabelle")
     File.write!(isabelle, "#!/bin/sh\necho 'Nitpick found no counterexample'\n")
     File.chmod!(isabelle, 0o755)
-    System.put_env("AXIOM_REFINER_ISABELLE_BIN", isabelle)
+    System.put_env("MODAL_LENS_ISABELLE_BIN", isabelle)
 
     output_dir = Path.join(root, "run")
 
@@ -64,7 +64,7 @@ defmodule Src.Execution.PipelineTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_pipeline_test_#{System.unique_integer([:positive])}"
+        "modal_lens_pipeline_test_#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)

@@ -3,7 +3,7 @@ defmodule Src.Explanation.Verbal.Job do
   Builds and writes Python verbalization job requests.
   """
 
-  @request_schema "axiom-refiner/verbalization-request"
+  @request_schema "modal-lens/verbalization-request"
   @request_schema_version "1.0"
   @default_seed 42
   @default_max_new_tokens 768
@@ -15,6 +15,16 @@ defmodule Src.Explanation.Verbal.Job do
     :output_directory
   ]
 
+  @type t :: %__MODULE__{
+    backend: String.t(),
+    model_id: String.t(),
+    report_path: String.t(),
+    output_directory: String.t(),
+    seed: non_neg_integer(),
+    max_new_tokens: pos_integer(),
+    backend_options: map()
+  }
+
   defstruct [
     :backend,
     :model_id,
@@ -25,6 +35,9 @@ defmodule Src.Explanation.Verbal.Job do
     backend_options: %{}
   ]
 
+  @doc "Creates and validates a verbalization job."
+  @spec new(String.t(), String.t(), String.t(), String.t()) :: {:ok, t()} | {:error, term()}
+  @spec new(String.t(), String.t(), String.t(), String.t(), keyword()) :: {:ok, t()} | {:error, term()}
   def new(backend, model_id, report_path, output_directory, opts \\ []) do
     seed = Keyword.get(opts, :seed, @default_seed)
 
@@ -53,6 +66,8 @@ defmodule Src.Explanation.Verbal.Job do
     end
   end
 
+  @doc "Converts a verbalization job into its serializable request map."
+  @spec to_map(t()) :: map()
   def to_map(%__MODULE__{} = job) do
     %{
       "schema" => @request_schema,
@@ -67,6 +82,8 @@ defmodule Src.Explanation.Verbal.Job do
     }
   end
 
+  @doc "Writes the verbalization request as JSON to `request_path`."
+  @spec write(t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   def write(%__MODULE__{} = job, request_path) do
     request_path = Path.expand(request_path)
 
@@ -79,6 +96,8 @@ defmodule Src.Explanation.Verbal.Job do
          end
   end
 
+  @doc "Returns the default request-file path within `output_directory`."
+  @spec build_request_path(String.t()) :: String.t()
   def build_request_path(output_directory) do
     Path.join(output_directory, "verbalization_request.json")
   end

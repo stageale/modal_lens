@@ -1,4 +1,10 @@
 defmodule Src.Interface.CLI do
+  @moduledoc """
+  Implements the ModalLens command-line interface.
+
+  The CLI dispatches model enumeration, Nitpick summaries, blocking-axiom
+  generation, and interactive demo generation.
+  """
   alias Src.NitpickOutput
   alias Src.Core.BlockingAxiom
   alias Src.Enumeration
@@ -38,6 +44,13 @@ defmodule Src.Interface.CLI do
     include_designated_world: :boolean
   ]
 
+  @doc """
+  Runs the command-line interface.
+
+  Uses `System.argv/0` when no argument list is supplied.
+  """
+  @spec main() :: non_neg_integer() | :ok
+  @spec main([String.t()]) :: non_neg_integer() | :ok
   def main(argv \\ System.argv()) do
     case argv do
       [] ->
@@ -70,18 +83,18 @@ defmodule Src.Interface.CLI do
   defp usage do
     IO.puts("""
     Usage:
-      axiom_refiner demo INPUT.thy [-o DIR] [--palette turbo] [--graph-format svg] [--no-render-graph] [--no-verbalize]
+      modal_lens demo INPUT.thy [-o DIR] [--palette turbo] [--graph-format svg] [--no-render-graph] [--no-verbalize]
 
       Not supported yet:
-      axiom_refiner summary INPUTS... [--relation R] [--atoms go,tell] [--no-auto-atoms] [--json]
-      axiom_refiner axiom   INPUTS... [--relation R] [--atoms go,tell] [--no-auto-atoms] [-o DIR] [--no-atoms]
-      axiom_refiner enumerate INPUT.thy --mode MODE [options]
+      modal_lens summary INPUTS... [--relation R] [--atoms go,tell] [--no-auto-atoms] [--json]
+      modal_lens axiom   INPUTS... [--relation R] [--atoms go,tell] [--no-auto-atoms] [-o DIR] [--no-atoms]
+      modal_lens enumerate INPUT.thy --mode MODE [options]
 
     Commands:
-      enumerate   Enumerate countermodelsor satisfying finite models.
+      enumerate   Enumerate countermodels or satisfying finite models.
       summary     Print compact summaries of Nitpick outputs.
       axiom       Generate Isabelle/HOL blocking axiom fragments.
-      demo        Generate a small demo bundle with all outputs outputs.
+      demo        Generate a small demo bundle with all outputs.
 
     Options:
       --input PATH      Isabelle input theory.

@@ -1,9 +1,10 @@
 defmodule Src.Execution.Pipeline do
   @moduledoc """
-  Executes the countermodel pipeline as a reproducible run.
+  Describes one reproducible ModalLens run.
 
-  The service manages the run lifecycle and connects model enumeration,
-  graph analysis, visualization, and optional verbalization.
+  A run stores its parameters, generated artifacts, provenance,
+  measurements, and current execution status. It does not execute
+  the analysis pipeline itself.
   """
 
   alias Src.Explanation.Verbal.Launcher, as: VerbalLauncher

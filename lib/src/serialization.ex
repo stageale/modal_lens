@@ -7,6 +7,13 @@ defmodule Src.Serialization do
   alias Src.Core.Model.DDL
   alias Src.Core.Model.SDL
 
+  @doc """
+  Recursively converts `value` into a serialization-friendly representation.
+
+  Model structs use their shared export representation, map sets are sorted,
+  struct metadata is removed, tuples become lists, and atom keys and values
+  become strings.
+  """
   @spec safe(term()) :: term()
   def safe(nil), do: nil
   def safe(value) when is_boolean(value), do: value

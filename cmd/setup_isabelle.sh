@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ISABELLE_BIN="${AXIOM_REFINER_ISABELLE_BIN:-}"
+ISABELLE_BIN="${MODAL_LENS_ISABELLE_BIN:-}"
 
 if [[ -z "$ISABELLE_BIN" ]]; then
   if ! ISABELLE_BIN="$(command -v isabelle)"; then
     echo "[ERROR] Isabelle was not found in PATH." >&2
-    echo "Set AXIOM_REFINER_ISABELLE_BIN to the Isabelle executable." >&2
+    echo "Set MODAL_LENS_ISABELLE_BIN to the Isabelle executable." >&2
     exit 1
   fi
 fi

@@ -13,6 +13,12 @@ defmodule Src.Enumeration do
   @default_input_theory "../data/Input.thy"
 
 
+  @doc """
+  Enumerates models using the bundled default input theory.
+
+  See `enumerate/2` for the supported options.
+  """
+  @spec enumerate(keyword()) :: {:ok, map()} | {:error, term()}
   def enumerate(opts) when is_list(opts) do
     enumerate(default_input_theory_path(), opts)
   end
@@ -27,6 +33,10 @@ defmodule Src.Enumeration do
 
   Options:
 
+    * `:mode`
+      Required enumeration mode. Supported values are `:countermodels`,
+      `:satisfying_models`, and `:consistency_check`.
+
     * `:max_models`
       Maximum number of countermodels. Defaults to `5`.
 
@@ -35,6 +45,7 @@ defmodule Src.Enumeration do
 
   All remaining options are forwarded to `run_iteration/2`.
   """
+  @spec enumerate(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
   def enumerate(base_theory_path, opts)
       when is_binary(base_theory_path) and is_list(opts) do
 

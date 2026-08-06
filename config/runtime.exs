@@ -16,6 +16,6 @@ hpc_runtime_options =
   ]
   |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
 
-config :axiom_refiner,
+config :modal_lens,
        Src.Interface.Isabelle.HPCConnect,
        hpc_runtime_options

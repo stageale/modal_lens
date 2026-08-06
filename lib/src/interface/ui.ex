@@ -1,6 +1,6 @@
 defmodule Src.Interface.Ui do
   @moduledoc """
-  Runs and exports one interactive Axiom Refiner example.
+  Runs and exports one interactive ModalLens example.
   """
 
   alias Src.Execution.Pipeline
@@ -9,7 +9,14 @@ defmodule Src.Interface.Ui do
   alias Src.Interface.Ui.Page
   alias Src.Interface.Ui.Session
 
+  @type run_result ::
+    {:ok, Session.t(), String.t()}
+    | {:error, term()}
+    | {:error, term(), Run.t()}
+
   @doc "Calculates the selected configurations and writes the HTML view."
+  @spec run(String.t(), String.t()) :: run_result()
+  @spec run(String.t(), String.t(), [map()]) :: run_result()
   def run(theory_path, output_dir, option_sets \\ [%{}])
 
   def run(theory_path, output_dir, option_sets)

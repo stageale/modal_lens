@@ -4,13 +4,13 @@ defmodule Src.Isabelle.LocalConnectTest do
   alias Src.Isabelle.LocalConnect
 
   setup do
-    previous = System.get_env("AXIOM_REFINER_ISABELLE_BIN")
+    previous = System.get_env("MODAL_LENS_ISABELLE_BIN")
 
     on_exit(fn ->
       if previous do
-        System.put_env("AXIOM_REFINER_ISABELLE_BIN", previous)
+        System.put_env("MODAL_LENS_ISABELLE_BIN", previous)
       else
-        System.delete_env("AXIOM_REFINER_ISABELLE_BIN")
+        System.delete_env("MODAL_LENS_ISABELLE_BIN")
       end
     end)
 
@@ -18,11 +18,11 @@ defmodule Src.Isabelle.LocalConnectTest do
   end
 
   test "resolves the executable from options, environment, or default" do
-    System.put_env("AXIOM_REFINER_ISABELLE_BIN", "/env/isabelle")
+    System.put_env("MODAL_LENS_ISABELLE_BIN", "/env/isabelle")
     assert LocalConnect.configured_isabelle_bin(isabelle_bin: "/opt/isabelle") == "/opt/isabelle"
     assert LocalConnect.configured_isabelle_bin() == "/env/isabelle"
 
-    System.delete_env("AXIOM_REFINER_ISABELLE_BIN")
+    System.delete_env("MODAL_LENS_ISABELLE_BIN")
     assert LocalConnect.configured_isabelle_bin() == "isabelle"
   end
 
@@ -84,7 +84,7 @@ defmodule Src.Isabelle.LocalConnectTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_local_test_#{System.unique_integer([:positive])}"
+        "modal_lens_local_test_#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)

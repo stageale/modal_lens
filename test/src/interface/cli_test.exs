@@ -9,7 +9,7 @@ defmodule Src.Interface.CLITest do
     output = capture_io(fn -> assert CLI.main([]) == 0 end)
 
     assert output =~ "Usage:"
-    assert output =~ "axiom_refiner demo"
+    assert output =~ "modal_lens demo"
     assert output =~ "--no-render-graph"
     assert output =~ "--no-verbalize"
     assert output =~ "--no-auto-atoms"

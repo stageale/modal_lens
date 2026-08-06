@@ -33,9 +33,11 @@ defmodule Src.Explanation.Visual.Highlight do
         scope: scope(),
         world_scores: %{optional(world()) => score()},
         edge_scores: %{optional(edge()) => score()},
+        tags: [atom() | String.t()],
         metadata: map()
       }
 
+  @doc "Returns an empty highlight."
   @spec empty() :: t()
   def empty do
     %__MODULE__{}
@@ -46,6 +48,7 @@ defmodule Src.Explanation.Visual.Highlight do
 
   Lists, MapSets and other enumerables are normalized to MapSets.
   """
+  @spec new() :: t()
   @spec new(keyword()) :: t()
   def new(attrs \\ []) when is_list(attrs) do
     %__MODULE__{
@@ -59,10 +62,9 @@ defmodule Src.Explanation.Visual.Highlight do
   end
 
   @doc """
-  Produces an empty highlight.
-
-  This is useful while no deterministic cause analysis is available yet.
+  Checks whether the highlight contains no world or edge scores.
   """
+  @spec empty?(t()) :: boolean()
   def empty?(%__MODULE__{} = heatmap) do
     map_size(heatmap.world_scores) == 0 and map_size(heatmap.edge_scores) == 0
   end
@@ -74,6 +76,7 @@ defmodule Src.Explanation.Visual.Highlight do
   This deliberately avoids a compile-time dependency on a specific
   explanation module.
   """
+  @spec from_map(map()) :: t()
   @spec from_map(map(), keyword()) :: t()
   def from_map(source, opts \\ []) when is_map(source) do
     source_metadata =
@@ -102,8 +105,7 @@ defmodule Src.Explanation.Visual.Highlight do
   @doc """
   Compatibility adapter for the former axiom-explanation pipeline.
 
-  The argument is intentionally only required to be a map. This keeps the
-  adapter usable without compiling the deprecated `AxiomExplanation` module.
+  The argument is intentionally only required to be a map.
   """
   @spec from_explanation(map()) :: t()
   def from_explanation(explanation) when is_map(explanation) do
@@ -116,16 +118,22 @@ defmodule Src.Explanation.Visual.Highlight do
     )
   end
 
+  @doc "Returns the score of `world`, or `default` when no score is stored."
+  @spec world_score(t(), world()) :: score()
   @spec world_score(t(), world(), score()) :: score()
   def world_score(%__MODULE__{} = heatmap, world, default \\ 0.0) do
     Map.get(heatmap.world_scores, world, default)
   end
 
+  @doc "Returns the score of `edge`, or `default` when no score is stored."
+  @spec edge_score(t(), edge()) :: score()
   @spec edge_score(t(), edge(), score()) :: score()
   def edge_score(%__MODULE__{} = heatmap, edge, default \\ 0.0) do
     Map.get(heatmap.edge_scores, edge, default)
   end
 
+  @doc "Stores the normalized score for `world`."
+  @spec put_world_score(t(), world(), number()) :: t()
   def put_world_score(%__MODULE__{} = heatmap, world, score) do
     validate_world!(world)
     score = validate_score!(score)
@@ -135,6 +143,7 @@ defmodule Src.Explanation.Visual.Highlight do
     }
   end
 
+  @doc "Stores the normalized score for `edge`."
   @spec put_edge_score(t(), edge(), number()) :: t()
   def put_edge_score(%__MODULE__{} = heatmap, {source, target} = edge, score) do
     validate_world!(source)

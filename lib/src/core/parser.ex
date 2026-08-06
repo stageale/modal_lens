@@ -1,7 +1,65 @@
 defmodule Src.Core.Parser do
+  @moduledoc """
+  Parsesf finite SDL and DDL models from Isabelle/Nitpick output.
+
+  The parser extracts:
+
+  * the Nitpick result kind and model cardinality,
+  * the designated world,
+  * the selected accessibility or preference relation,
+  * unary proposition valuations,
+  * and non-fatal parsing warnings.
+
+  Parsed worlds are represented internally by zero-based integer indices.
+  Nitpick world names such as `i1` and `i2` therefore become `0` and `1`.
+
+  Depending on the `:model_logic` option, parsing returns either an
+  `Src.Core.Model.SDL` or an `Src.Core.Model.DDL`
+  """
+
   alias Src.Core.Model.DDL, as: DDLModel
   alias Src.Core.Model.SDL, as: SDLModel
   alias Src.Core.ParseWarning
+
+  @typedoc "A model representation produced by the parser."
+  @type model :: %SDLModel{} | %DDLModel{}
+
+  @typedoc "A supported model logic."
+  @type model_logic :: :sdl | :ddl
+
+  @typedoc "The kind of finite structure reported by Nitpick."
+  @type result_kind :: :model | :countermodel
+
+  @typedoc "A zero-based world index."
+  @type world_index :: non_neg_integer()
+
+  @typedoc "A directed relation edge between two worlds."
+  @type edge :: {world_index(), world_index()}
+
+  @typedoc "A directed relation edge between two worlds."
+  @type valuation :: [boolean()]
+
+  @typedoc "A parser option accepted by `parse_nitpick_text/2`."
+  @type parse_option ::
+    {:model_logic, model_logic()}
+    | {:relation, String.t()}
+    | {:atoms, String.t()}
+    | {:auto_atoms, boolean()}
+    | {:source, String.t() | nil}
+
+  @typedoc "Options controlling Nitpick parsing."
+  @type parse_options :: [parse_option()]
+
+  @type model_attributes :: %{
+    required(:source) => String.t() | nil,
+    required(:kind) => result_kind(),
+    required(:cardinality) => non_neg_integer(),
+    required(:relation_name) => String.t(),
+    required(:edges) => MapSet.t(edge()),
+    required(:valuations) => %{String.t() => valuation()},
+    required(:warnings) => [ParseWarning.t()],
+    required(:raw_text) => String.t()
+  }
 
   @world ~S/i(?:⇩|\\<\^sub>)(\d+)/
   @world_pair "\\(#{@world}\\s*,\\s*#{@world}\\)\\s*:?=\\s*(True|False)"
@@ -17,15 +75,63 @@ defmodule Src.Core.Parser do
     )
   /x
 
+  @doc """
+  Returns the regular expression used to parse Boolean relation assignments.
+
+  The expression recognizes Nitpick entries such as:
+
+      (i⇩1, i⇩2) := True
+  """
+  @spec world_pair_regex() :: Regex.t()
   def world_pair_regex, do: Regex.compile!(@world_pair)
+
+  @doc """
+  Returns the regular expression used to parse Boolean world assignments.
+
+  The expression recognizes Nitpick entries such as:
+
+      i⇩2 := False
+  """
+  @spec bool_assign_regex() :: Regex.t()
   def bool_assign_regex, do: Regex.compile!(@bool_assign)
-  # *
+
+  @doc """
+  Reads and parses Nitpick output from `path`.
+
+  The file path is stored as the source of the resulting model. All remaining
+  options are forwarded to `parse_nitpick_text/2`.
+
+  See `parse_nitpick_text/2` for the available parser options.
+
+  Raises `File.Error` when the file cannot be read and `ArgumentError` when
+  the text does not contain a parseable finite Nitpick model.
+  """
+  @spec parse_nitpick_file(Path.t(), parse_options()) :: model()
   def parse_nitpick_file(path, opts \\ []) do
     text = File.read!(path)
     parse_nitpick_text(text, Keyword.put(opts, :source, path))
   end
 
-  # *
+  @doc """
+  Parses the last Nitpick result contained in `text`.
+
+  Supported options are:
+
+  * `:model_logic` — model logic to construct; defaults to `:sdl`.
+  * `:relation` — relation name to parse; defaults to `"R"`.
+  * `:atoms` — requested atoms as a list or comma-separated string.
+  * `:auto_atoms` — whether unary predicates should be detected automatically;
+    defaults to `true`.
+  * `:source` — optional source identifier stored in the model.
+
+  If Nitpick does not report a designated world, world `i1` is selected and a
+  warning is attached to the model. Missing relation edges and requested atoms
+  also produce non-fatal warnings.
+
+  Raises `ArgumentError` when no finite model or countermodel can be detected,
+  when the model logic is unsupported, or when `:atoms` has an invalid form.
+  """
+  @spec parse_nitpick_text(String.t(), parse_options()) :: model()
   def parse_nitpick_text(text, opts \\ []) do
     text = isolate_last_nitpick_result(text)
 
@@ -93,6 +199,7 @@ defmodule Src.Core.Parser do
     )
   end
 
+  @spec build_model(atom(), model_attributes(), world_index()) :: model()
   defp build_model(:sdl, attributes, designated_world) do
     struct!(
       SDLModel,
@@ -120,7 +227,8 @@ defmodule Src.Core.Parser do
           "unsupported model logic: #{inspect(model_logic)}"
   end
 
-  # *
+  @spec parse_kind_and_cardinality(String.t()) ::
+    {result_kind(), non_neg_integer()}
   defp parse_kind_and_cardinality(text) do
     cond do
       m = Regex.run(~r/Nitpick found a counterexample for card i\s*=\s*(\d+)/, text) ->
@@ -141,7 +249,7 @@ defmodule Src.Core.Parser do
     end
   end
 
-  # *
+  @spec parse_designated_world(String.t()) :: world_index() | nil
   defp parse_designated_world(text) do
     pattern = Regex.compile!("(?:^|\\n)\\s*(?:w|aw|actual_world|initial_world)\\s*=\\s*#{@world}")
 
@@ -151,16 +259,23 @@ defmodule Src.Core.Parser do
     end
   end
 
-  # *
+  @spec parse_relation_edges(
+          String.t(),
+          String.t(),
+          non_neg_integer()
+        ) :: MapSet.t(edge())
   defp parse_relation_edges(text, relation, cardinality) do
     parse_flat_relation_edges(text, relation, cardinality)
     |> MapSet.union(parse_nested_relation_edges(text, relation, cardinality))
   end
 
-  # *
+  @spec parse_flat_relation_edges(
+          String.t(),
+          String.t(),
+          non_neg_integer()
+        ) :: MapSet.t(edge())
   defp parse_flat_relation_edges(text, relation, cardinality) do
     case extract_assignment_block(text, relation, true) do
-      # * Prevent FunctionClauseError
       nil ->
         MapSet.new()
 
@@ -175,7 +290,11 @@ defmodule Src.Core.Parser do
     end
   end
 
-  # *
+  @spec parse_nested_relation_edges(
+          String.t(),
+          String.t(),
+          non_neg_integer()
+        ) :: MapSet.t(edge())
   defp parse_nested_relation_edges(text, relation, cardinality) do
     case extract_assignment_block(text, relation, true) do
       nil ->
@@ -196,7 +315,11 @@ defmodule Src.Core.Parser do
     end
   end
 
-  # *
+  @spec parse_unary_predicate(
+          String.t(),
+          String.t(),
+          non_neg_integer()
+        ) :: valuation() | nil
   defp parse_unary_predicate(text, atom, cardinality) do
     case extract_assignment_block(text, atom, true) do
       nil ->
@@ -219,7 +342,11 @@ defmodule Src.Core.Parser do
     end
   end
 
-  # *
+  @spec detect_unary_predicates(
+          String.t(),
+          non_neg_integer(),
+          MapSet.t(String.t())
+        ) :: %{String.t() => valuation()}
   defp detect_unary_predicates(text, cardinality, exclude) do
     pattern = Regex.compile!("(?:^|\\n)\\s*(#{@identifier})\\s*=\\s*\\(λx\\.\\s*_\\)")
 
@@ -232,12 +359,16 @@ defmodule Src.Core.Parser do
         do: {name, val}
   end
 
-  # *
-  defp extract_assignment_block(text, name, allow_paranthesized) do
+  @spec extract_assignment_block(
+          String.t(),
+          String.t(),
+          boolean()
+        ) :: String.t() | nil
+  defp extract_assignment_block(text, name, allow_parenthesized) do
     escaped = Regex.escape(name)
 
     lhs =
-      if allow_paranthesized do
+      if allow_parenthesized do
         "(?:\\(#{escaped}\\)|#{escaped})"
       else
         escaped
@@ -270,6 +401,8 @@ defmodule Src.Core.Parser do
     end
   end
 
+  @spec normalize_atoms(nil | String.t() | [String.t()]) ::
+        [String.t()]
   defp normalize_atoms(nil), do: []
   defp normalize_atoms(""), do: []
   defp normalize_atoms("-"), do: []
@@ -293,6 +426,7 @@ defmodule Src.Core.Parser do
             inspect(atoms)
   end
 
+  @spec isolate_last_nitpick_result(String.t()) :: String.t()
   defp isolate_last_nitpick_result(text) do
     case Regex.scan(@nitpick_result_header, text, return: :index) do
       [] -> text

@@ -26,7 +26,7 @@ defmodule Src.NitpickOutputTest do
       )
 
     assert %DDL{} = model
-    assert model.actual_world == 1
+    assert Src.Core.Model.designated_world(model) == 1
     assert model.valuations["go"] == [true, false]
   end
 
@@ -42,7 +42,7 @@ defmodule Src.NitpickOutputTest do
     assert summary.file == Path.expand(path)
     assert summary.source == path
     assert summary.model_logic == :ddl
-    assert summary.actual_world == "i2"
+    assert summary.designated_world == "i2"
     assert summary.worlds == [0, 1]
     assert summary.warning_count == 0
   end

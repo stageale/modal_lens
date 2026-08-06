@@ -1,9 +1,29 @@
 defmodule Src.Isabelle.LocalConnect do
+  @moduledoc """
+  Executes Isabelle commands on the local machine.
 
+  The executable can be supplied through `:isabelle_bin`, configured through
+  the environment, or resolved as `isabelle` from the system path.
+  """
+
+  @type command_error :: %{
+          required(:status) => non_neg_integer() | :failed_to_start,
+          required(:output) => String.t(),
+          optional(:command) => [String.t()]
+        }
+
+  @type result :: {:ok, String.t()} | {:error, command_error()}
+
+  @doc "Returns the installed Isabelle version."
+  @spec version() :: result()
+  @spec version(keyword()) :: result()
   def version(opts \\ []) do
     run(["version"], opts)
   end
 
+@doc "Builds the generated Isabelle session in `workdir`."
+  @spec build(Path.t(), %{required(:theory_name) => String.t()}) :: result()
+  @spec build(Path.t(), %{required(:theory_name) => String.t()}, keyword()) :: result()
   def build(workdir, spec, opts \\ []) do
     threads =
       Keyword.get(
@@ -30,6 +50,9 @@ defmodule Src.Isabelle.LocalConnect do
     run(args, opts)
   end
 
+  @doc "Reads the verbose build log for an Isabelle session."
+  @spec build_log(String.t()) :: result()
+  @spec build_log(String.t(), keyword()) :: result()
   def build_log(session_name, opts \\ []) do
     run(
       [
@@ -44,6 +67,9 @@ defmodule Src.Isabelle.LocalConnect do
     )
   end
 
+  @doc "Returns the configured Isabelle executable."
+  @spec configured_isabelle_bin() :: String.t()
+  @spec configured_isabelle_bin(keyword()) :: String.t()
   def configured_isabelle_bin(opts \\ []) do
     isabelle_bin(opts)
   end
@@ -87,24 +113,13 @@ defmodule Src.Isabelle.LocalConnect do
 
   defp isabelle_bin(opts) do
     Keyword.get(opts, :isabelle_bin) ||
-      System.get_env("AXIOM_REFINER_ISABELLE_BIN") ||
+      System.get_env("MODAL_LENS_ISABELLE_BIN") ||
       "isabelle"
   end
 
-  @spec process_theory(
-          binary()
-          | maybe_improper_list(
-              binary() | maybe_improper_list(any(), binary() | []) | char(),
-              binary() | []
-            )
-        ) ::
-          {:error,
-           %{
-             :output => any(),
-             :status => :failed_to_start | pos_integer(),
-             optional(:command) => [...]
-           }}
-          | {:ok, any()}
+  @doc "Processes multiple Isabelle theory files in one invocation."
+  @spec process_theories([Path.t()]) :: result()
+  @spec process_theories([Path.t()], keyword()) :: result()
   def process_theories(theory_paths, opts \\ []) when is_list(theory_paths) do
     logic = Keyword.get(opts, :logic, "HOL")
 

@@ -83,7 +83,7 @@ run_demo() {
   echo "Output:       $output_dir"
   echo
 
-  ./axiom_refiner demo "$theory" \
+  ./modal_lens demo "$theory" \
     --model-logic "$model_logic" \
     --graph-format "$graph_format" \
     --palette turbo \

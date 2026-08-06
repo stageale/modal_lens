@@ -19,6 +19,8 @@ defmodule Src.NitpickOutput do
 
   This keeps the older file-based workflow usable without invoking Isabelle.
   """
+  @spec analyse_file(Path.t()) :: map()
+  @spec analyse_file(Path.t(), keyword()) :: map()
   def analyse_file(path, opts \\ []) do
     model = parse_nitpick_file(path, opts)
 
@@ -53,6 +55,8 @@ defmodule Src.NitpickOutput do
   @doc """
   Returns a compact summary of one stored Nitpick output.
   """
+  @spec summary_file(Path.t()) :: map()
+  @spec summary_file(Path.t(), keyword()) :: map()
   def summary_file(path, opts \\ []) do
     model = parse_nitpick_file(path, opts)
 
@@ -68,6 +72,8 @@ defmodule Src.NitpickOutput do
   @doc """
   Parses a stored Isabelle/Nitpick output.
   """
+  @spec parse_nitpick_file(Path.t()) :: Model.model()
+  @spec parse_nitpick_file(Path.t(), keyword()) :: Model.model()
   def parse_nitpick_file(path, opts \\ []) do
     Parser.parse_nitpick_file(path,
       model_logic: Keyword.get(opts, :model_logic, :sdl),

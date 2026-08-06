@@ -87,7 +87,7 @@ defmodule Src.Core.ModelTest do
              model_logic: :sdl,
              cardinality: 3,
              relation: "R",
-             initial_world: "i2",
+             designated_world: "i2",
              edge_count: 3,
              atoms: ["go", "tell"],
              warnings: ["example warning"]
@@ -99,7 +99,7 @@ defmodule Src.Core.ModelTest do
              model_logic: :ddl,
              cardinality: 2,
              relation: "R",
-             actual_world: "i1",
+             designated_world: "i1",
              edge_count: 1,
              atoms: [],
              warnings: []

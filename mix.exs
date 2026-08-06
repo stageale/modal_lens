@@ -3,7 +3,7 @@ defmodule AxiomRefiner.MixProject do
 
   def project do
     [
-      app: :axiom_refiner,
+      app: :modal_lens,
       version: "0.2.0",
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
@@ -23,6 +23,7 @@ defmodule AxiomRefiner.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:hpc_connect, github: "penthooose/hpc_connect"},
       {:jason, "~> 1.4"}
     ]

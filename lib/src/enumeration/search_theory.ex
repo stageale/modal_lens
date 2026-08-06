@@ -2,8 +2,9 @@ defmodule Src.Enumeration.SearchTheory do
   @moduledoc """
   Generates Isabelle search theories for model enumeration.
 
-  A search theory imports the unchanged based theory, inserts all blocking
-  axioms found so far, and selects the Nitpick template for the enumeration mode.
+  A search theory imports the unchanged based theory, inserts the blocking
+  axioms generated so far, and selects the Nitpick template for the requested
+  enumeration mode.
   """
 
   @template_dir Path.expand("../../data/mod", __DIR__)
@@ -12,8 +13,10 @@ defmodule Src.Enumeration.SearchTheory do
   @search_theory_placeholder "AXIOM_REFINER_SEARCH"
   @input_theory_placeholder "AXIOM_REFINER_INPUT"
 
+  @type mode :: :countermodels | :satisfying_models | :consistency_check
+
   @type t :: %{
-    mode: atom(),
+    mode: mode(),
     theory_name: String.t(),
     theory_path: String.t(),
     template_path: String.t(),
@@ -24,9 +27,14 @@ defmodule Src.Enumeration.SearchTheory do
   }
 
   @doc """
-  Writes a search theory for the given base theory and blocking axioms.
+  Writes an Isabelle search theory for `base_theory_path`.
+
+  The supplied blocking axioms are inserted into the template selected by the
+  required `:mode` option. The optional `:search_theory_dir` determines where
+  the generated theory is written.
   """
-  @spec write(String.t(), [String.t()], keyword()) :: {:ok, t()} | {:error, term()}
+  @spec write(String.t(), [String.t()], keyword()) ::
+          {:ok, t()} | {:error, term()}
   def write(base_theory_path, blocking_axioms, opts) when is_binary(base_theory_path) and is_list(blocking_axioms) and is_list(opts) do
     base_theory_path = Path.expand(base_theory_path)
     mode = Keyword.fetch!(opts, :mode)

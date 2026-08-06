@@ -7,6 +7,10 @@ defmodule Src.Explanation.Verbal.Launcher do
 
   @python_module "verbalization.launcher"
 
+  @doc """
+  Creates a verbalization job, writes its request file, and runs the Python launcher.
+  """
+  @spec launch(String.t(), String.t(), String.t(), String.t()) :: {:ok, map}
   def launch(report_path, output_root, backend, model_id, opts \\ []) do
     output_name = Keyword.get_lazy(opts, :output_name, fn -> default_output_name(model_id) end)
     output_directory = Path.join(output_root, output_name)
@@ -26,10 +30,19 @@ defmodule Src.Explanation.Verbal.Launcher do
           end
   end
 
+  @doc "Starts `launch/5` in a separate task."
+  @spec launch_async(String.t(), String.t(), String.t(), String.t()) :: Task.t()
+  @spec launch_async(String.t(), String.t(), String.t(), String.t(), keyword()) ::
+          Task.t()
   def launch_async(report_path, output_root, backend, model_id, opts \\ []) do
     Task.async(fn -> launch(report_path, output_root, backend, model_id, opts) end)
   end
 
+  @doc """
+  Runs the Python verbalization launcher for an existing request file.
+  """
+  @spec run_request(String.t()) :: {:ok, map()} | {:error, map()}
+  @spec run_request(String.t(), keyword()) :: {:ok, map()} | {:error, map()}
   def run_request(request_path, opts \\ []) do
     project_root = Keyword.get_lazy(opts, :project_root, &File.cwd!/0)
     uv_executable = Keyword.get(opts, :uv_executable, "uv")

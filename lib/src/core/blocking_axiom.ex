@@ -2,28 +2,61 @@ defmodule Src.Core.BlockingAxiom do
   @moduledoc """
   Generates Isabelle/HOL blocking axioms for finite Nitpick models.
 
-  A blocking axiom excludes the isomorphism class of one parsed finite
-  countermodel. It is a technical search constraint for countermodel
-  enumeration and must not be interpreted as an additional deontic or
-  legal axiom.
+  A blocking axiom excludes finite structures matching a parsed Nitpick model
+  over the represented signature. It is a technical search constraint used
+  during countermodel enumeration and must not be interpreted as an additional
+  object-level deontic or legal axiom.
 
-  The generated model description contains:
+  The generated structure description contains:
 
     * existentially quantified world representatives,
     * pairwise distinctness of those representatives,
     * a domain-closure condition,
     * the complete truth table of the parsed binary relation,
     * optionally the complete valuations of parsed unary predicates,
-    * optionally the designated initial/actual world.
+    * optionally the designated initial or actual world.
 
-  Only structures represented by `Src.Core.Model` are blocked. Constants,
-  functions, relations, or predicates not parsed into the model are not part
-  of the blocking condition.
+  Omitting proposition valuations or the designated world produces a blocking
+  condition for the corresponding reduct of the model. Such a condition may
+  therefore exclude more than one fully interpreted pointed model.
+
+  Constants, functions, relations, and predicates that were not parsed into the
+  model are not included in the blocking condition.
   """
 
   alias Src.Core.Model
-  alias Src.Core.Model.SDL
   alias Src.Core.Model.DDL
+  alias Src.Core.Model.SDL
+
+  @typedoc "A finite model supported by blocking-axiom generation."
+  @type model :: SDL.t() | DDL.t()
+
+  @typedoc "An Isabelle/HOL formula fragment."
+  @type formula :: String.t()
+
+  @typedoc "An Isabelle-compatible identifier."
+  @type id :: String.t()
+
+  @typedoc "A generated variable representing one model world."
+  @type world_variable :: String.t()
+
+  @typedoc "An option controlling the generated structure formula."
+  @type structure_option ::
+          {:include_atoms, boolean()}
+          | {:include_designated_world, boolean()}
+          | {:designated_world_constant, id()}
+          | {:world_prefix, id()}
+
+  @typedoc "Options controlling the generated structure formula."
+  @type structure_options :: [structure_option()]
+
+  @typedoc "An option controlling the generated blocking axiom."
+  @type blocking_axiom_option ::
+          structure_option()
+          | {:name, String.t() | nil}
+
+  @typedoc "Options controlling the generated blocking axiom."
+  @type blocking_axiom_options :: [blocking_axiom_option()]
 
   @default_world_prefix "u"
 
@@ -36,6 +69,7 @@ defmodule Src.Core.BlockingAxiom do
   @doc """
   Sanitizes a generated Isabelle theorem name.
   """
+  @spec sanitize_name(String.t()) :: id()
   def sanitize_name(name) when is_binary(name) do
     stem =
       ~r/[^A-Za-z0-9_]+/
@@ -57,6 +91,7 @@ defmodule Src.Core.BlockingAxiom do
     end
   end
 
+  @spec source_stem(model()) :: String.t()
   def source_stem(%{source: nil}) do
     "nitpick_model"
   end
@@ -69,39 +104,34 @@ defmodule Src.Core.BlockingAxiom do
   end
 
   @doc """
-  Produces an existential HOL formula describing the complete parsed model.
+  Produces an existential Isabelle/HOL formula describing `model`.
 
-  Options:
+  The formula assigns a distinct bound variable to every model world, closes
+  the world domain over those variables, and specifies every positive and
+  negative edge of the parsed relation.
 
-    * `:include_atoms`
-      Include all parsed unary predicate valuations. Defaults to `true`.
+  Supported options are:
 
-    * `:include_designated_world`
-      Include the designated initial-world constant. Defaults to `false`.
+    * `:include_atoms` — includes the complete parsed proposition valuations.
+      Defaults to `true`.
 
-      This should only be enabled when the parser has reliably recovered the
-      designated world from Nitpick's output.
+    * `:include_designated_world` — equates the appropriate Isabelle constant
+      with the generated variable representing the model's designated world.
+      Defaults to `false`.
 
-    * `:designated_world_constant`
-      Isabelle constant denoting the designated world. Defaults to
-      `"actual_world"`.
+    * `:designated_world_constant` — overrides the Isabelle constant used for
+      the designated world. By default, the logic-specific value returned by
+      `Src.Core.Model.designated_world_constant/1` is used.
 
-    * `:world_prefix`
-      Prefix for generated bound variables. Defaults to `"u"`.
+    * `:world_prefix` — sets the prefix of generated world variables. Defaults
+      to `"u"`.
 
-  Example shape:
-
-      ∃u1 u2.
-        distinct [u1, u2] ∧
-        (∀x. x = u1 ∨ x = u2) ∧
-        ¬ R u1 u1 ∧
-        R u1 u2 ∧
-        ...
+  Raises `ArgumentError` when the model has an invalid cardinality, designated
+  world, relation name, proposition name, or valuation.
   """
-  def exact_structure_formula(
-        %{} = model,
-        opts \\ []
-      ) do
+  @spec exact_structure_formula(model()) :: formula()
+  @spec exact_structure_formula(model(), structure_options()) :: formula()
+  def exact_structure_formula( %{} = model, opts \\ []) do
     validate_model!(model)
 
     include_atoms =
@@ -173,12 +203,14 @@ defmodule Src.Core.BlockingAxiom do
   end
 
   @doc """
-  Produces the negation of the exact finite model description.
+  Produces the negation of the exact structure formula for `model`.
+
+  The returned formula can be embedded in a generated Isabelle axiom to
+  exclude matching finite structures from subsequent Nitpick searches.
   """
-  def blocking_formula(
-        %{} = model,
-        opts \\ []
-      ) do
+  @spec blocking_formula(model()) :: formula()
+  @spec blocking_formula(model(), structure_options()) :: formula()
+  def blocking_formula(%{} = model, opts \\ []) do
     model_formula =
       exact_structure_formula(model, opts)
 
@@ -191,14 +223,18 @@ defmodule Src.Core.BlockingAxiom do
   end
 
   @doc """
-  Wraps the blocking formula as a named Isabelle axiom.
+  Wraps the blocking formula for `model` in a named Isabelle axiomatization.
 
-  Existing callers using only `:name` and `:include_atoms` remain compatible.
+  In addition to the structure options accepted by
+  `exact_structure_formula/2`, the function accepts `:name`. The generated
+  Isabelle theorem is named `ax_<sanitized-name>`.
+
+  When `:name` is `nil` or absent, the name is derived from the model's source
+  path.
   """
-  def blocking_axiom(
-        model,
-        opts \\ []
-      ) do
+  @spec blocking_axiom(model()) :: String.t()
+  @spec blocking_axiom(model(), blocking_axiom_options()) :: String.t()
+  def blocking_axiom(model, opts \\ []) do
 
     requested_name = Keyword.get(opts, :name)
     axiom_name = sanitize_name(requested_name || source_stem(model))
@@ -215,19 +251,19 @@ defmodule Src.Core.BlockingAxiom do
     |> String.trim()
   end
 
-  defp world_variables(
-         cardinality,
-         prefix
-       ) do
+  @spec world_variables(pos_integer(), id()) :: [world_variable()]
+  defp world_variables(cardinality, prefix) do
     for index <- 1..cardinality do
       "#{prefix}#{index}"
     end
   end
 
+  @spec distinct_clause([world_variable()]) :: formula()
   defp distinct_clause(worlds) do
     "distinct [#{Enum.join(worlds, ", ")}]"
   end
 
+  @spec domain_closure_clause([world_variable()]) :: formula()
   defp domain_closure_clause(worlds) do
     alternatives =
       worlds
@@ -241,6 +277,7 @@ defmodule Src.Core.BlockingAxiom do
     "(#{@isabelle_forall}x. #{alternatives})"
   end
 
+  @spec relation_clauses(model(), [world_variable()]) :: [formula()]
   defp relation_clauses(%{} = model, worlds) do
     for source_index <-
           0..(model.cardinality - 1),
@@ -265,6 +302,7 @@ defmodule Src.Core.BlockingAxiom do
     end
   end
 
+  @spec relation_proposition(model(), world_variable(), world_variable()) :: formula()
   defp relation_proposition(%DDL{relation_name: relation_name}, source_world, target_world) do
     "((#{relation_name}) #{source_world} #{target_world})"
   end
@@ -273,19 +311,12 @@ defmodule Src.Core.BlockingAxiom do
     "(#{relation_name} #{source_world} #{target_world})"
   end
 
-  defp valuation_clauses(
-         _model,
-         _worlds,
-         false
-       ) do
+  @spec valuation_clauses(model(), [world_variable()], boolean()) :: [formula()]
+  defp valuation_clauses(_model, _worlds, false) do
     []
   end
 
-  defp valuation_clauses(
-         %{} = model,
-         worlds,
-         true
-       ) do
+  defp valuation_clauses(%{} = model, worlds, true) do
     model.valuations
     |> Enum.sort_by(fn {predicate, _values} ->
       predicate
@@ -305,15 +336,13 @@ defmodule Src.Core.BlockingAxiom do
     end)
   end
 
+  @spec valuation_clauses(model(), [world_variable()], boolean()) :: [formula()]
   defp designated_world_clauses(_model, _worlds, false, _constant) do
     []
   end
 
   defp designated_world_clauses(%{} = model, worlds, true, constant) do
-    validate_isabelle_identifier!(
-      constant,
-      :designated_world_constant
-    )
+    validate_isabelle_identifier!(constant, :designated_world_constant)
 
     designated_world =
       Enum.at(
@@ -324,6 +353,7 @@ defmodule Src.Core.BlockingAxiom do
     ["(#{constant} = " <> "#{designated_world})"]
   end
 
+  @spec literal(formula(), boolean()) :: formula()
   defp literal(proposition, true) do
     proposition
   end
@@ -332,10 +362,8 @@ defmodule Src.Core.BlockingAxiom do
     "#{@isabelle_not}#{proposition}"
   end
 
-  defp and_clauses(
-         clauses,
-         indentation
-       ) do
+  @spec literal(formula(), boolean()) :: formula()
+  defp and_clauses(clauses, indentation) do
     separator =
       " #{@isabelle_and}\n" <>
         String.duplicate(
@@ -346,10 +374,8 @@ defmodule Src.Core.BlockingAxiom do
     Enum.join(clauses, separator)
   end
 
-  defp indent(
-         text,
-         spaces
-       ) do
+  @spec indent(String.t(), non_neg_integer()) :: String.t()
+  defp indent(text, spaces) do
     prefix =
       String.duplicate(" ", spaces)
 
@@ -363,10 +389,8 @@ defmodule Src.Core.BlockingAxiom do
     )
   end
 
-  defp indent_continuation(
-         text,
-         spaces
-       ) do
+  @spec indent_continuation(String.t(), non_neg_integer()) :: String.t()
+  defp indent_continuation(text, spaces) do
     prefix =
       String.duplicate(" ", spaces)
 
@@ -380,6 +404,7 @@ defmodule Src.Core.BlockingAxiom do
     end
   end
 
+  @spec sanitize_variable_prefix(String.t()) :: id()
   defp sanitize_variable_prefix(prefix)
        when is_binary(prefix) do
     sanitized =
@@ -395,11 +420,8 @@ defmodule Src.Core.BlockingAxiom do
     sanitized
   end
 
-  defp validate_model!(
-         %{
-           cardinality: cardinality
-         } = model
-       )
+  @spec validate_model!(model()) :: :ok
+  defp validate_model!(%{cardinality: cardinality} = model)
        when is_integer(cardinality) and
               cardinality > 0 do
     validate_designated_world!(model)
@@ -415,6 +437,7 @@ defmodule Src.Core.BlockingAxiom do
             "got: #{inspect(model.cardinality)}"
   end
 
+  @spec validate_designated_world!(model()) :: :ok
   defp validate_designated_world!(model) do
     cardinality = model.cardinality
     designated_world = Model.designated_world(model)
@@ -430,14 +453,12 @@ defmodule Src.Core.BlockingAxiom do
     end
   end
 
+  @spec validate_valuations!(model()) :: :ok
   defp validate_valuations!(%{} = model) do
     Enum.each(
       model.valuations,
       fn {predicate, values} ->
-        validate_isabelle_identifier!(
-          predicate,
-          :predicate
-        )
+        validate_isabelle_identifier!(predicate, :predicate)
 
         unless is_list(values) and
                  length(values) ==
@@ -455,17 +476,13 @@ defmodule Src.Core.BlockingAxiom do
     )
   end
 
+  @spec validate_relation_name!(model()) :: :ok
   defp validate_relation_name!(%{relation_name: relation_name}) do
-    validate_isabelle_identifier!(
-      relation_name,
-      :relation
-    )
+    validate_isabelle_identifier!(relation_name, :relation)
   end
 
-  defp validate_isabelle_identifier!(
-         identifier,
-         kind
-       )
+  @spec validate_isabelle_identifier!(id(), atom()) :: :ok
+  defp validate_isabelle_identifier!(identifier, kind)
        when is_binary(identifier) do
     if Regex.match?(
          ~r/^[A-Za-z][A-Za-z0-9_'.?]*$/,

@@ -1,7 +1,17 @@
 defmodule Src.Explanation.Visual.Render do
+  @moduledoc """
+  Renders finite models as GraphViz DOT or TikZ diagrams.
+
+  The module can also invoke GraphViz and LaTeX to compile the generated
+  source files into image or PDF artifacts.
+  """
+
   alias Src.Core.Model
   alias Src.Explanation.Visual.Palette
 
+  @doc "Writes a model visualization as a GraphViz DOT file."
+  @spec write_dot(Model.model(), Path.t()) :: String.t()
+  @spec write_dot(Model.model(), Path.t(), keyword()) :: String.t()
   def write_dot(model, path, opts \\ []) do
     Model.assert_supported!(model)
 
@@ -33,6 +43,9 @@ defmodule Src.Explanation.Visual.Render do
     path
   end
 
+  @doc "Renders an existing DOT file using the GraphViz `dot` executable."
+  @spec render_dot(Path.t()) :: String.t()
+  @spec render_dot(Path.t(), keyword()) :: String.t()
   def render_dot(dot_path, opts \\ []) do
     fmt = Keyword.get(opts, :fmt, "png")
     output_path = Keyword.get(opts, :output_path)
@@ -55,6 +68,8 @@ defmodule Src.Explanation.Visual.Render do
     out
   end
 
+  @doc "Escapes text for use inside generated LaTeX content."
+  @spec latex_escape(String.t()) :: String.t()
   def latex_escape(string) do
     replacements = %{
       "\\" => "\\textbackslash{}",
@@ -74,6 +89,9 @@ defmodule Src.Explanation.Visual.Render do
     |> Enum.join()
   end
 
+  @doc "Writes a model visualization as a standalone TikZ document."
+  @spec write_tikz(Model.model(), Path.t()) :: String.t()
+  @spec write_tikz(Model.model(), Path.t(), keyword()) :: String.t()
   def write_tikz(model, path, opts \\ []) do
     Model.assert_supported!(model)
 
@@ -116,6 +134,9 @@ defmodule Src.Explanation.Visual.Render do
     path
   end
 
+  @doc "Compiles a generated TeX file and returns the resulting PDF path."
+  @spec compile_tex(Path.t()) :: String.t()
+  @spec compile_tex(Path.t(), keyword()) :: String.t()
   def compile_tex(tex_path, opts \\ []) do
     engine = Keyword.get(opts, :engine, "pdflatex")
 

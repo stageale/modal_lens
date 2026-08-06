@@ -67,7 +67,7 @@ defmodule Src.Isabelle.HPCConnectTest do
 
     assert {:error,
             {:hpc_connect_not_available,
-             missing_module}} =
+             ^missing_module}} =
              HPCConnect.run(
                workdir,
                %{theory_name: "Remote"},

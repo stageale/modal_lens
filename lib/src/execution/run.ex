@@ -46,6 +46,7 @@ defmodule Src.Execution.Run do
   Creates a planned run with explicit identity, output directory,
   and immutable execution parameters.
   """
+  @spec new(term(), term()) :: {:ok, t()} | {:error, term()}
   @spec new(term(), term(), term()) :: {:ok, t()} | {:error, term()}
   def new(id, output_dir, params \\ %{}) do
     with {:ok, id} <- normalize_non_empty_string(id, :id),

@@ -43,8 +43,9 @@ defmodule Src.Execution.Options do
   @doc """
   Creates a validated option set.
 
-  Enumerated options may be provided as atoms or string.
+  Enumerated options may be provided as atoms or strings.
   """
+  @spec new() :: {:ok, t()} | {:error, term()}
   @spec new(map() | keyword()) :: {:ok, t()} | {:error, term()}
   def new(attrs \\ %{}) do
     with {:ok, attrs} <- normalize_attrs(attrs),
@@ -66,6 +67,7 @@ defmodule Src.Execution.Options do
   end
 
   @doc "Returns the parameters stored for a user run."
+  @spec to_run_params(t()) :: map()
   def to_run_params(%__MODULE__{} = options) do
     %{
       model_logic: options.model_logic,

@@ -1,12 +1,12 @@
 import Config
 
-config :axiom_refiner,
+config :modal_lens,
        Src.Interface.Isabelle.HPCConnect,
   cluster: :aion,
   ssh_alias: "aion",
-  hpc_work_dir: "axiom_refiner_runtime",
-  vault_dir: "axiom_refiner_vault",
-  remote_base_dir: "axiom_refiner_runs",
+  hpc_work_dir: "modal_lens_runtime",
+  vault_dir: "modal_lens_vault",
+  remote_base_dir: "modal_lens_runs",
   isabelle_bin: "isabelle",
   threads: 8,
   connect_opts: []

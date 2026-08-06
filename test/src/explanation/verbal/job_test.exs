@@ -22,7 +22,7 @@ defmodule Src.Explanation.Verbal.JobTest do
 
     request = request_path |> File.read!() |> Jason.decode!()
 
-    assert request["schema"] == "axiom-refiner/verbalization-request"
+    assert request["schema"] == "modal-lens/verbalization-request"
     assert request["schema_version"] == "1.0"
     assert request["backend"] == "transformers"
     assert request["model_id"] == "test/model"

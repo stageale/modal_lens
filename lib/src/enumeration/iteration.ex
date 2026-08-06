@@ -14,6 +14,18 @@ defmodule Src.Enumeration.Iteration do
   alias Src.Serialization, as: Serial
   alias Src.Isabelle.Client
 
+  @type model :: SDLModel.t() | DDLModel.t()
+
+  @typep artifacts :: %{
+           required(:graph_dot_file) => String.t() | nil,
+           required(:graph_svg_file) => String.t() | nil,
+           required(:graph_tikz_file) => String.t() | nil,
+           required(:graph_pdf_file) => String.t() | nil,
+           required(:model_json_file) => String.t(),
+           required(:blocking_axiom) => String.t(),
+           required(:blocking_axiom_file) => String.t()
+         }
+
   @schema "axiom-refiner/model"
   @schema_version "1.0"
 
@@ -142,6 +154,21 @@ defmodule Src.Enumeration.Iteration do
     end
   end
 
+  @spec write_countermodel_artifacts(
+        Model.model(),
+        String.t(),
+        map(),
+        String.t(),
+        pos_integer(),
+        keyword()
+      ) ::
+        {:ok, artifacts()}
+        | {:error,
+           {:artifact_generation_failed,
+            %{
+              required(:output_dir) => String.t(),
+              required(:message) => String.t()
+            }}}
   defp write_countermodel_artifacts(model, base_theory_file, isabelle_run, output_dir, iteration, opts) do
     try do
       {graph_dot_file, graph_svg_file, graph_tikz_file,
@@ -304,6 +331,15 @@ defmodule Src.Enumeration.Iteration do
     end
   end
 
+  @spec model_result(
+        Model.model(),
+        artifacts(),
+        String.t(),
+        map(),
+        String.t(),
+        pos_integer(),
+        keyword()
+      ) :: map()
   defp model_result(
          model,
          artifacts,
@@ -321,7 +357,7 @@ defmodule Src.Enumeration.Iteration do
       opts
     )
     |> Map.merge(%{
-      status: model_status(model),
+      status: model_status(model.kind),
       model_kind: model.kind,
       model: model,
       model_summary: Model.as_summary(model),
@@ -385,16 +421,16 @@ defmodule Src.Enumeration.Iteration do
     }
   end
 
-  defp model_status(%{kind: :countermodel}),
+  defp model_status(:countermodel),
     do: :countermodel_found
 
-  defp model_status(%{kind: :model}),
+  defp model_status(:model),
     do: :model_found
 
   defp no_model_status(:countermodels),
     do: :no_countermodel
 
-  defp no_model_status(_mode),
+  defp no_model_status(:model),
     do: :no_model
 
   defp validate_iteration(iteration)

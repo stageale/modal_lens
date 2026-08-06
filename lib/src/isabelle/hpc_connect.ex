@@ -23,11 +23,12 @@ defmodule Src.Isabelle.HPCConnect do
   @doc """
   Executes an existing Isabelle session on the configured HPC system.
   """
+  @spec run(String.t(), hpc_spec()) :: {:ok, String.t()} | {:error, term()}
   @spec run(String.t(), hpc_spec(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def run(workdir, %{theory_name: theory_name}, opts \\ [])
       when is_binary(workdir) and is_binary(theory_name) do
     opts =
-      :axiom_refiner
+      :modal_lens
       |> Application.get_env(__MODULE__, [])
       |> Keyword.merge(opts)
 
@@ -106,7 +107,7 @@ defmodule Src.Isabelle.HPCConnect do
       _other ->
         base_directory =
           opts
-          |> Keyword.get(:remote_base_dir, "axiom_refiner_runs")
+          |> Keyword.get(:remote_base_dir, "modal_lens_runs")
           |> String.trim_trailing("/")
 
         run_id =
@@ -152,8 +153,8 @@ defmodule Src.Isabelle.HPCConnect do
             ssh_alias: Keyword.get(opts, :ssh_alias, cluster.ssh_alias),
             identity_file: identity_file,
             proxy_jump: Keyword.get(opts, :proxy_jump),
-            work_dir: Keyword.get(opts, :hpc_work_dir, "axiom_refiner_runtime"),
-            vault_dir: Keyword.get(opts, :vault_dir, "axiom_refiner_vault"),
+            work_dir: Keyword.get(opts, :hpc_work_dir, "modal_lens_runtime"),
+            vault_dir: Keyword.get(opts, :vault_dir, "modal_lens_vault"),
             port_range: Keyword.get(opts, :port_range),
             env_file: Keyword.get(opts, :env_file)
           ]

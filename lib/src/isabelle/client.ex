@@ -21,6 +21,10 @@ defmodule Src.Isabelle.Client do
 
   This preserves the existing API.
   """
+  @spec nitpick_countermodel(%HOLEmbedding{}) ::
+        {:ok, map()} | {:error, term()}
+  @spec nitpick_countermodel(%HOLEmbedding{}, keyword()) ::
+        {:ok, map()} | {:error, term()}
   def nitpick_countermodel(%HOLEmbedding{} = spec, opts \\ []) do
     reason_generated_theory(spec, opts)
   end
@@ -48,6 +52,12 @@ defmodule Src.Isabelle.Client do
     * `:write_root?` - whether a missing `ROOT` should be generated
     * all options understood by `LocalConnect`
   """
+  @spec nitpick_theory(Path.t()) ::
+        {:ok, map()} | {:error, term()}
+
+  @spec nitpick_theory(Path.t(), keyword()) ::
+        {:ok, map()} | {:error, term()}
+
   def nitpick_theory(theory_path, opts \\ []) when is_binary(theory_path) do
     theory_path = Path.expand(theory_path)
 

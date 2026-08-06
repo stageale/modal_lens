@@ -25,7 +25,7 @@ defmodule Src.Explanation.Verbal.LauncherTest do
     assert launch.job.output_directory == Path.join(root, "test-model")
 
     request = launch.request_path |> File.read!() |> Jason.decode!()
-    assert request["schema"] == "axiom-refiner/verbalization-request"
+    assert request["schema"] == "modal-lens/verbalization-request"
   end
 
   test "returns structured errors for failing and malformed launchers" do
