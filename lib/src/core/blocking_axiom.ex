@@ -239,9 +239,11 @@ defmodule Src.Core.BlockingAxiom do
     requested_name = Keyword.get(opts, :name)
     axiom_name = sanitize_name(requested_name || source_stem(model))
 
+    structure_opts = Keyword.delete(opts, :name)
+
     formula =
       model
-      |> blocking_formula(opts)
+      |> blocking_formula(structure_opts)
       |> indent_continuation(2)
 
     """
@@ -336,7 +338,7 @@ defmodule Src.Core.BlockingAxiom do
     end)
   end
 
-  @spec valuation_clauses(model(), [world_variable()], boolean()) :: [formula()]
+  @spec designated_world_clauses(model(), [world_variable()], boolean(), id()) :: [formula()]
   defp designated_world_clauses(_model, _worlds, false, _constant) do
     []
   end
@@ -362,7 +364,7 @@ defmodule Src.Core.BlockingAxiom do
     "#{@isabelle_not}#{proposition}"
   end
 
-  @spec literal(formula(), boolean()) :: formula()
+  @spec and_clauses([formula()], non_neg_integer()) :: formula()
   defp and_clauses(clauses, indentation) do
     separator =
       " #{@isabelle_and}\n" <>
@@ -422,8 +424,7 @@ defmodule Src.Core.BlockingAxiom do
 
   @spec validate_model!(model()) :: :ok
   defp validate_model!(%{cardinality: cardinality} = model)
-       when is_integer(cardinality) and
-              cardinality > 0 do
+       when cardinality > 0 do
     validate_designated_world!(model)
     validate_valuations!(model)
     validate_relation_name!(model)
@@ -442,9 +443,7 @@ defmodule Src.Core.BlockingAxiom do
     cardinality = model.cardinality
     designated_world = Model.designated_world(model)
 
-    if is_integer(designated_world) and
-      designated_world >= 0 and
-      designated_world < cardinality do
+    if designated_world < cardinality do
         :ok
     else
       raise ArgumentError,
@@ -460,13 +459,8 @@ defmodule Src.Core.BlockingAxiom do
       fn {predicate, values} ->
         validate_isabelle_identifier!(predicate, :predicate)
 
-        unless is_list(values) and
-                 length(values) ==
-                   model.cardinality and
-                 Enum.all?(
-                   values,
-                   &is_boolean/1
-                 ) do
+        unless length(values) == model.cardinality and
+                  Enum.all?(values, &is_boolean/1) do
           raise ArgumentError,
                 "valuation #{inspect(predicate)} must contain " <>
                   "exactly #{model.cardinality} Boolean values, " <>

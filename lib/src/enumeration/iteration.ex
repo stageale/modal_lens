@@ -14,7 +14,6 @@ defmodule Src.Enumeration.Iteration do
   alias Src.Serialization, as: Serial
   alias Src.Isabelle.Client
 
-  @type model :: SDLModel.t() | DDLModel.t()
 
   @typep artifacts :: %{
            required(:graph_dot_file) => String.t() | nil,
@@ -26,7 +25,7 @@ defmodule Src.Enumeration.Iteration do
            required(:blocking_axiom_file) => String.t()
          }
 
-  @schema "axiom-refiner/model"
+  @schema "modal-lens/model"
   @schema_version "1.0"
 
 
@@ -101,7 +100,7 @@ defmodule Src.Enumeration.Iteration do
   defp parse_nitpick_result(path, opts) do
     mode = Keyword.fetch!(opts, :mode)
 
-    case File.read(path, opts) do
+    case File.read(path) do
       {:ok, text} ->
         if no_nitpick_model?(text, mode) do
           {:ok, :no_result}
@@ -291,7 +290,7 @@ defmodule Src.Enumeration.Iteration do
             end,
             "json" => Path.basename(model_json_file),
             "svg" => if is_binary(graph_svg_file) do
-              Path.basename(graph_tikz_file)
+              Path.basename(graph_svg_file)
             end,
             "tikz" => if is_binary(graph_tikz_file) do
               Path.basename(graph_tikz_file)
@@ -430,7 +429,8 @@ defmodule Src.Enumeration.Iteration do
   defp no_model_status(:countermodels),
     do: :no_countermodel
 
-  defp no_model_status(:model),
+  defp no_model_status(mode)
+    when mode in [:satisfying_models, :consistency_check],
     do: :no_model
 
   defp validate_iteration(iteration)

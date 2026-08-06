@@ -22,7 +22,7 @@ defmodule Src.Core.Parser do
   alias Src.Core.ParseWarning
 
   @typedoc "A model representation produced by the parser."
-  @type model :: %SDLModel{} | %DDLModel{}
+  @type model :: SDLModel.t() | DDLModel.t()
 
   @typedoc "A supported model logic."
   @type model_logic :: :sdl | :ddl
@@ -43,7 +43,7 @@ defmodule Src.Core.Parser do
   @type parse_option ::
     {:model_logic, model_logic()}
     | {:relation, String.t()}
-    | {:atoms, String.t()}
+    | {:atoms, String.t() | [String.t()] | nil}
     | {:auto_atoms, boolean()}
     | {:source, String.t() | nil}
 
@@ -106,6 +106,7 @@ defmodule Src.Core.Parser do
   Raises `File.Error` when the file cannot be read and `ArgumentError` when
   the text does not contain a parseable finite Nitpick model.
   """
+  @spec parse_nitpick_file(Path.t()) :: model()
   @spec parse_nitpick_file(Path.t(), parse_options()) :: model()
   def parse_nitpick_file(path, opts \\ []) do
     text = File.read!(path)
@@ -131,7 +132,7 @@ defmodule Src.Core.Parser do
   Raises `ArgumentError` when no finite model or countermodel can be detected,
   when the model logic is unsupported, or when `:atoms` has an invalid form.
   """
-  @spec parse_nitpick_text(String.t(), parse_options()) :: model()
+  @spec parse_nitpick_text(String.t(), keyword()) :: model()
   def parse_nitpick_text(text, opts \\ []) do
     text = isolate_last_nitpick_result(text)
 

@@ -257,18 +257,6 @@ defmodule Src.Isabelle.Client do
     end
   end
 
-  defp write_log(output_file, value) do
-    {:error,
-      {:invalid_isabelle_log,
-        %{
-          output_file: output_file,
-          expected: :binary,
-          received: inspect(value, pretty: true)
-        }
-      }
-    }
-  end
-
   defp local_import_files(nil), do: []
 
   defp local_import_files(theory_path) do

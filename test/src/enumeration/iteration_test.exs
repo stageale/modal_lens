@@ -84,7 +84,7 @@ defmodule Src.Enumeration.IterationTest do
     assert result.graph_pdf_file == nil
 
     document = result.model_json_file |> File.read!() |> Jason.decode!()
-    assert document["schema"] == "axiom-refiner/model"
+    assert document["schema"] == "modal-lens/model"
     assert document["schema_version"] == "1.0"
     assert document["metadata"]["iteration"] == 1
     assert document["model"]["logic"] == "sdl"
@@ -112,7 +112,7 @@ defmodule Src.Enumeration.IterationTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_iteration_#{label}_#{System.unique_integer([:positive])}"
+        "modal_lens_iteration_#{label}_#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)

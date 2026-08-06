@@ -95,10 +95,13 @@ defmodule Src.Isabelle.HPCConnectTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_hpc_test_#{System.unique_integer([:positive])}"
+        "modal_lens_hpc_test_#{System.unique_integer([:positive, :monotonic])}"
       )
 
     File.mkdir_p!(dir)
+    on_exit(fn ->
+      File.rm_rf!(dir)
+    end)
     dir
   end
 end
