@@ -93,7 +93,7 @@ class OllamaVerbalizer(Verbalizer):
         return version if isinstance(version, str) else None
     
     def _installed_model_metadata(self) -> dict[str, Any]:
-        response = self._request_json("/api/tagse")
+        response = self._request_json("/api/tags")
         models = response.get("models")
         
         if not isinstance(models, list):

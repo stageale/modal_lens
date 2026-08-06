@@ -10,7 +10,7 @@ from graph_ml.io_schema import parse_model, write_report_json
 
 def _model_document() -> dict:
     return {
-        "schema": "axiom-refiner/model",
+        "schema": "modal-lens/model",
         "schema_version": "1.0",
         "metadata": {
             "iteration": 1,

@@ -19,7 +19,7 @@ def test_launch_analysis_writes_versioned_report_and_minimal_result(
     model_file.write_text(
         json.dumps(
             {
-                "schema": "axiom-refiner/model",
+                "schema": "modal-lens/model",
                 "schema_version": "1.0",
                 "metadata": {
                     "run_id": "variant-1",
@@ -54,7 +54,7 @@ def test_launch_analysis_writes_versioned_report_and_minimal_result(
     )
     report = json.loads(report_file.read_text(encoding="utf-8"))
 
-    assert result["schema"] == "axiom-refiner/graph-analysis-result"
+    assert result["schema"] == "modal-lens/graph-analysis-result"
     assert result["schema_version"] == "1.0"
     assert result["status"] == "completed"
     assert result["model_count"] == 1
@@ -62,7 +62,7 @@ def test_launch_analysis_writes_versioned_report_and_minimal_result(
     assert "highlight" not in result
     assert "highlights" not in result
 
-    assert report["schema"] == "axiom-refiner/analysis-report"
+    assert report["schema"] == "modal-lens/analysis-report"
     assert report["theory"]["name"] == "Example"
     assert report["highlights"][0]["graph_index"] == 0
     assert report["clusters"][0]["representative_model"]["model_id"] == "variant-1"

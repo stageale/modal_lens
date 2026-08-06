@@ -14,7 +14,7 @@ from .mining import cluster_patterns
 from .report import write_report_json
 
 
-RESULT_SCHEMA = "axiom-refiner/graph-analysis-result"
+RESULT_SCHEMA = "modallens/graph-analysis-result"
 RESULT_SCHEMA_VERSION = "1.0"
 
 

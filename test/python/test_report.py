@@ -52,7 +52,7 @@ def test_build_report_uses_versioned_envelope_and_durable_highlights() -> None:
         highlights=_highlights(),
     )
 
-    assert report["schema"] == "axiom-refiner/analysis-report"
+    assert report["schema"] == "modal-lens/analysis-report"
     assert report["schema_version"] == "1.0"
     assert report["highlights"] == _highlights()
     assert report["analysis"] == {
