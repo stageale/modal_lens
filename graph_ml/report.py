@@ -12,7 +12,7 @@ from typing import Any
 import networkx as nx 
 
 
-REPORT_SCHEMA = "modallensKürz/analysis-report"
+REPORT_SCHEMA = "modal-lens/analysis-report"
 REPORT_SCHEMA_VERSION = "1.0"
 
 

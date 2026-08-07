@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-MODEL_SCHEMA = "modallens/model"
+MODEL_SCHEMA = "modal-lens/model"
 MODEL_SCHEMA_VERSION = "1.0"
 
 
