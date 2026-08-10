@@ -12,6 +12,7 @@ from graph_ml.features import (
     wl_feature_vector,
     wl_features,
 )
+from graph_ml.mining import pattern_occurrences
 
 
 @pytest.fixture
@@ -307,7 +308,7 @@ def test_wl_features_process_multiple_graphs(
     ]
 
 
-# ============== Kripke-Teilstrukturen ==============
+# ============== Kripke substructures ===============
 
 
 def test_graphlet_counts_connected_kripke_structure(
@@ -485,18 +486,20 @@ def test_graphlet_features_process_multiple_graphs(
             size=3,
         )
     ]
+    
+def test_graphlet_feature_vector_accepts_occurrences(model_graph):
+    occurrences = pattern_occurrences(model_graph, size=3)
+    result = graphlet_feature_vector(model_graph, size=3, occurrences=occurrences)
+    expected = graphlet_feature_vector(model_graph, size=3)
+    
+    assert result == expected
 
 
 # ================= Combined Features =================
 
 
-def test_combined_feature_vector_contains_all_features(
-    model_graph,
-):
-    combined = feature_vector(
-        model_graph,
-        method="combined",
-    )
+def test_combined_feature_vector_contains_all_features(model_graph):
+    combined = feature_vector(model_graph, method="combined")
 
     raw = raw_feature_vector(model_graph)
     wl = wl_feature_vector(model_graph)
@@ -512,18 +515,12 @@ def test_combined_feature_vector_contains_all_features(
         assert combined[feature] == value
 
 
-def test_feature_vector_rejects_unknown_method(
-    model_graph,
-):
-    with pytest.raises(
-        ValueError,
-        match="Unknown feature method",
-    ):
-        feature_vector(
-            model_graph,
-            method="unknown",
-        )
-
+def test_feature_vector_rejects_unknown_method(model_graph):
+    with pytest.raises(ValueError, match="Unknown feature method"):
+        feature_vector(model_graph, method="unknown")
+    
+def test_feature_vector_respects_graphlet_size(model_graph):
+    assert feature_vector(model_graph, method="graphlet", graphlet_size=2) == graphlet_feature_vector(model_graph, size=2)
 
 # =================== Feature Matrix ===================
 

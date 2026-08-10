@@ -18,6 +18,7 @@ defmodule Src.Execution.Options do
           atoms: [String.t()],
           auto_atoms?: boolean(),
           max_models: pos_integer(),
+          max_parallel_renderers: pos_integer(),
           render_graph?: boolean(),
           graph_format: graph_format(),
           palette: Palette.palette(),
@@ -32,6 +33,7 @@ defmodule Src.Execution.Options do
             atoms: [],
             auto_atoms?: true,
             max_models: 10,
+            max_parallel_renderers: 1,
             render_graph?: true,
             graph_format: :svg,
             palette: @default_palette,
@@ -75,6 +77,7 @@ defmodule Src.Execution.Options do
       atoms: options.atoms,
       auto_atoms?: options.auto_atoms?,
       max_models: options.max_models,
+      max_parallel_renderers: options.max_parallel_renderers,
       render_graph?: options.render_graph?,
       graph_format: options.graph_format,
       palette: options.palette,
@@ -108,6 +111,9 @@ defmodule Src.Execution.Options do
 
       not is_binary(options.verbalization_model) or String.trim(options.verbalization_model) == "" ->
         {:error, :invalid_verbalization_model}
+
+      not is_integer(options.max_parallel_renderers) or options.max_parallel_renderers <= 0 ->
+        {:error, {:invalid_max_parallel_renderers, options.max_parallel_renderers}}
 
       not boolean_options_valid?(options) ->
         {:error, :invalid_boolean_option}

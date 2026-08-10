@@ -208,7 +208,7 @@ defmodule Src.Core.Model do
   Builds a display label for a world using all known proposition names.
 
   True propositions are emitted directly. False propositions are prefixed by
-  Isabelle's `\\<not>` symbol. Missing valuations are omitted from the label.
+  the Unicode negation symbol `¬`. Missing valuations are omitted from the label.
 
   Passing `nil` as `atoms` selects every proposition in alphabetical order.
   """
@@ -243,7 +243,7 @@ defmodule Src.Core.Model do
             if Enum.at(vals, index) do
               [atom]
             else
-              ["\\<not>#{atom}"]
+              ["¬#{atom}"]
             end
         end
       end)

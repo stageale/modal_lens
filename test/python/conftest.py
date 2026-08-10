@@ -8,7 +8,7 @@ import pytest
 @pytest.fixture
 def sample_report() -> dict:
     return {
-        "schema": "axiom-refiner/analysis-report",
+        "schema": "modal-lens/analysis-report",
         "schema_version": "1.0",
         "generated_at": "2026-07-26T12:00:00+00:00",
         "purpose": "normative_gap_analysis",

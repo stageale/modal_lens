@@ -122,7 +122,7 @@ def test_write_verbalization_result_creates_versioned_artifacts(
     assert paths["raw_output"].read_text(encoding="utf-8") == result["raw_output"]
 
     summary_document = json.loads(paths["summary_json"].read_text(encoding="utf-8"))
-    assert summary_document["schema"] == "axiom-refiner/verbalization-summary"
+    assert summary_document["schema"] == "modal-lens/verbalization-summary"
     assert summary_document["schema_version"] == "1.0"
     assert summary_document["overview"] == sample_summary["overview"]
     assert summary_document["cluster_summaries"] == sample_summary["cluster_summaries"]
@@ -130,7 +130,7 @@ def test_write_verbalization_result_creates_versioned_artifacts(
     provenance_document = json.loads(
         paths["provenance"].read_text(encoding="utf-8")
     )
-    assert provenance_document["schema"] == "axiom-refiner/verbalization-provenance"
+    assert provenance_document["schema"] == "modal-lens/verbalization-provenance"
     assert provenance_document["schema_version"] == "1.0"
     assert provenance_document["backend"] == "fake"
 

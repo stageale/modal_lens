@@ -17,10 +17,10 @@ defmodule Src.Execution.Pipeline do
 
 
   @graph_python_module "graph_ml.launcher"
-  @graph_analysis_schema "axiom-refiner/graph-analysis-result"
+  @graph_analysis_schema "modal-lens/graph-analysis-result"
   @graph_analysis_schema_version "1.0"
 
-  @report_schema "axiom-refiner/analysis-report"
+  @report_schema "modal-lens/analysis-report"
   @report_schema_version "1.0"
 
 
@@ -214,7 +214,7 @@ defmodule Src.Execution.Pipeline do
       |> Enum.reduce_while(
         {:ok, []},
         fn cluster, {:ok, cluster_verbs} ->
-          case verbalize_cluster(
+          case maybe_verbalize_cluster(
                  cluster,
                  report,
                  run,
@@ -245,7 +245,7 @@ defmodule Src.Execution.Pipeline do
     end
   end
 
-  defp verbalize_cluster(
+  defp maybe_verbalize_cluster(
          cluster,
          report,
          %Run{} = run,
@@ -456,11 +456,18 @@ end
     end
   end
 
-  defp apply_highlights(models, highlights, %Run{} = run) do
+  defp apply_highlights(models, highlights, %Run{} = run) when is_list(models) and is_list(highlights) do
     highlights_by_graph =
       Map.new(
         highlights,
         &{&1["graph_index"], &1}
+      )
+
+    max_parallel_renderers =
+      Map.get(
+        run.params,
+        :max_parallel_renderers,
+        1
       )
 
     render_graph? =
@@ -480,32 +487,53 @@ end
         )
     ]
 
-    try do
-      highlighted_models =
-        models
-        |> Enum.with_index()
-        |> Enum.map(fn {model_result, graph_index} ->
-          graph_highlight =
-            Map.get(
-              highlights_by_graph,
-              graph_index,
-              %{}
-            )
-
+    models
+    |> Enum.with_index()
+    |> Task.async_stream(
+      fn {model_result, graph_index} ->
+        graph_highlight =
+          Map.get(
+            highlights_by_graph,
+            graph_index,
+            %{}
+          )
+        try do
+          {:ok,
           apply_model_highlight(
             model_result,
             graph_highlight,
             render_options,
             render_graph?
-          )
-        end)
+          )}
+        rescue
+          error ->
+            {:error,
+              {:highlight_failed,
+                graph_index,
+                Exception.message(error)}}
+        end
+      end,
+      max_concurrency: max_parallel_renderers,
+      ordered: true,
+      timeout: :infinity
+    )
+    |> Enum.reduce_while({:ok, []}, fn
+      {:ok, {:ok, model}}, {:ok, acc} ->
+        {:cont, {:ok, [model | acc]}}
 
-      {:ok, highlighted_models}
-    rescue
-      error ->
-        {:error,
-         {:highlight_failed,
-          Exception.message(error)}}
+      {:ok, {:error, reason}}, _acc ->
+        {:halt, {:error, reason}}
+
+      {:exit, reason}, _acc ->
+        {:halt,
+          {:error, {:highlight_task_exit, reason}}}
+      end)
+    |> case do
+      {:ok, highlighted_models} ->
+        {:ok, Enum.reverse(highlighted_models)}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

@@ -278,3 +278,12 @@ def test_cluster_patterns_uses_pattern_as_canonical_tie_breaker(
         second_pattern,
         first_pattern,
     ]
+    
+def test_cluster_patterns_reuses_precomputed_occurrences():
+    graphs = [path3(), triangle3()]
+    labels = [0, 1]
+    occurrences = [mining.pattern_occurrences(graph, size=3) for graph in graphs]
+    expected = mining.cluster_patterns(graphs, labels, size=3)
+    result = mining.cluster_patterns(graphs, labels, size=3, occurrences_by_graph=occurrences)
+    
+    assert result == expected

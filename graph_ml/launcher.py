@@ -10,7 +10,7 @@ from typing import Any
 from .clustering import hierarchical_cluster
 from .features import feature_matrix, feature_vector
 from .io_schema import parse_model
-from .mining import cluster_patterns
+from .mining import cluster_patterns, pattern_occurrences
 from .report import write_report_json
 
 
@@ -76,10 +76,14 @@ def launch_analysis(
         graph.graph["graph_index"] = graph_index
         graphs.append(graph)
         
-    vectors = [feature_vector(graph, method=feature_method) for graph in graphs]
+    occurrences_by_graph = [pattern_occurrences(graph, size=graphlet_size) for graph in graphs]        
+    vectors = [
+        feature_vector(graph, method=feature_method, graphlet_size=graphlet_size, graphlet_occurrences=occurrences_by_graph[graph_index]) 
+        for graph_index, graph in enumerate(graphs)
+    ]
     matrix = feature_matrix(vectors)
     cluster_labels = hierarchical_cluster(matrix)
-    pattern_results = cluster_patterns(graphs, cluster_labels, size=graphlet_size)
+    pattern_results = cluster_patterns(graphs, cluster_labels, size=graphlet_size, occurrences_by_graph=occurrences_by_graph)
     highlights = _pattern_highlights(graphs, cluster_labels, pattern_results)
     theory = _theory_report(Path(theory_path).resolve())
     report_path = Path(output_path).resolve()

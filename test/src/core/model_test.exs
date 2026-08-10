@@ -70,8 +70,8 @@ defmodule Src.Core.ModelTest do
     assert Model.edge_count(model) == 3
     assert Model.self_loops(model) == MapSet.new([{0, 0}, {2, 2}])
     assert Model.proper_edges(model) == MapSet.new([{0, 1}])
-    assert Model.label_for_world(model, 0) == "i1: go, \\<not>tell"
-    assert Model.label_for_world(model, 1, ["go"]) == "i2: \\<not>go"
+    assert Model.label_for_world(model, 0) == "i1: go, ¬tell"
+    assert Model.label_for_world(model, 1, ["go"]) == "i2: ¬go"
 
     assert Model.relation_matrix(model) == [
              [true, true, false],

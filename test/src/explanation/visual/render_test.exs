@@ -88,7 +88,7 @@ defmodule Src.Explanation.Visual.RenderTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_render_test_#{System.unique_integer([:positive])}"
+        "modal_lens_render_test_#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)

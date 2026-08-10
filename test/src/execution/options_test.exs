@@ -11,6 +11,7 @@ defmodule Src.Execution.OptionsTest do
     assert options.atoms == []
     assert options.auto_atoms?
     assert options.render_graph?
+    assert options.max_parallel_renderers == 1
     assert options.graph_format == :svg
     assert options.palette == :turbo
     assert options.include_atoms?
@@ -24,6 +25,7 @@ defmodule Src.Execution.OptionsTest do
              Options.new(
                model_logic: " DDL ",
                graph_format: "TikZ",
+               max_parallel_renders: 2,
                palette: "Magma"
              )
 
@@ -57,6 +59,7 @@ defmodule Src.Execution.OptionsTest do
                palette: "turbo",
                auto_atoms?: false,
                render_graph?: false,
+               max_parallel_renderers: 2,
                include_atoms?: false,
                include_designated_world?: false,
                verbalize?: false
@@ -72,6 +75,10 @@ defmodule Src.Execution.OptionsTest do
     assert params.include_atoms? == false
     assert params.include_designated_world? == false
     assert params.verbalize? == false
+    assert {:error, {:invalid_max_parallel_renderers, 0}} =
+      Options.new(max_parallel_renderers: 0)
+    assert {:error, {:invalid_max_parallel_renderers, -1}} =
+      Options.new(max_parallel_renderers: -1)
     refute Map.has_key?(params, :auto_atoms)
   end
 

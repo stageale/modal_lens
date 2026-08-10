@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from verbalization.base import GenerationResult
-from verbalization.launcher import launch_verbalization_job
+from verbalization.launcher import launch_verbalization_job, launch_verbalization_jobs
 
 
 class FakeVerbalizer:
@@ -26,7 +26,7 @@ class FakeVerbalizer:
 
 def _request() -> dict:
     return {
-        "schema": "axiom-refiner/verbalization-request",
+        "schema": "modal-lens/verbalization-request",
         "schema_version": "1.0",
         "backend": "transformers",
         "model_id": "fake/model",
@@ -66,7 +66,7 @@ def test_launch_verbalization_job_validates_contract_and_writes_artifacts(
     summary = json.loads(
         Path(result["artifacts"]["summary_json"]).read_text(encoding="utf-8")
     )
-    assert summary["schema"] == "axiom-refiner/verbalization-summary"
+    assert summary["schema"] == "modal-lens/verbalization-summary"
 
 
 @pytest.mark.parametrize(
@@ -111,3 +111,55 @@ def test_launch_verbalization_job_rejects_invalid_report_contract(
 
     with pytest.raises(ValueError, match="Unsupported analysis report schema"):
         launch_verbalization_job(job_file)
+
+def test_batch_verbalization_reuses_verbalizer(
+    tmp_path,
+    monkeypatch,
+    sample_report,
+    sample_summary,
+):
+    create_calls = []
+
+    def create_fake(**options):
+        create_calls.append(options)
+        return FakeVerbalizer(sample_summary)
+
+    monkeypatch.setattr(
+        "verbalization.launcher.create_verbalizer",
+        create_fake,
+    )
+
+    requests = []
+
+    for cluster_id in range(2):
+        directory = tmp_path / f"cluster-{cluster_id}"
+        directory.mkdir()
+
+        report_path = directory / "report.json"
+        report_path.write_text(
+            json.dumps(sample_report),
+            encoding="utf-8",
+        )
+
+        request = _request()
+        request["report_path"] = "report.json"
+        request["output_directory"] = "output"
+
+        request_path = directory / "request.json"
+        request_path.write_text(
+            json.dumps(request),
+            encoding="utf-8",
+        )
+
+        requests.append(request_path)
+
+    result = launch_verbalization_jobs(requests)
+
+    assert len(create_calls) == 1
+    assert len(result["jobs"]) == 2
+
+    for job in result["jobs"]:
+        assert job["status"] == "completed"
+
+        for path in job["artifacts"].values():
+            assert Path(path).is_file()

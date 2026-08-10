@@ -12,9 +12,9 @@ from .prompt import build_verbalization_messages
 from .summary_schema import parse_and_validate_summary_json
 
 
-VERBALIZATION_SUMMARY_SCHEMA = "axiom-refiner/verbalization-summary"
+VERBALIZATION_SUMMARY_SCHEMA = "modal-lens/verbalization-summary"
 VERBALIZATION_SUMMARY_SCHEMA_VERSION = "1.0"
-VERBALIZATION_PROVENANCE_SCHEMA = "axiom-refiner/verbalization-provenance"
+VERBALIZATION_PROVENANCE_SCHEMA = "modal-lens/verbalization-provenance"
 VERBALIZATION_PROVENANCE_SCHEMA_VERSION = "1.0"
 
 

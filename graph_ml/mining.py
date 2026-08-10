@@ -30,14 +30,19 @@ def frequent_patterns(graphs, min_support=0.5, size=3):
         pattern_counts.update(graph_patterns(graph, size))        
     return {pattern: count / len(graphs) for pattern, count in pattern_counts.items() if count / len(graphs) >= min_support}
 
-def cluster_patterns(graphs, cluster_labels, min_support=0.5, min_contrast=0.2, size=3):
+def cluster_patterns(graphs, cluster_labels, min_support=0.5, min_contrast=0.2, size=3, occurrences_by_graph=None):
     graphs = list(graphs)
     cluster_labels = list(cluster_labels)
     
     if len(graphs) != len(cluster_labels):
         raise ValueError("Nummer of graphs and cluster labels must match.")
     
-    occurrences_by_graph = [pattern_occurrences(graph, size) for graph in graphs]
+    if occurrences_by_graph is None:
+        occurrences_by_graph = [pattern_occurrences(graph, size) for graph in graphs]
+    else:
+        occurrences_by_graph = list(occurrences_by_graph)
+        if len(occurrences_by_graph) != len(graphs):
+            raise ValueError("Number of graphs and graphlet occurrences must match.")
     
     patterns_by_graph = [set(occurrences) for occurrences in occurrences_by_graph]
     

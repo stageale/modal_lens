@@ -61,7 +61,7 @@ defmodule Src.Execution.ArtifactStoreTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_artifact_store_#{label}_#{System.unique_integer([:positive])}"
+        "modal_lens_artifact_store_#{label}_#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)
