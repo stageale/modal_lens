@@ -44,9 +44,29 @@ defmodule Src.Explanation.Verbal.Launcher do
   @spec run_request(String.t()) :: {:ok, map()} | {:error, map()}
   @spec run_request(String.t(), keyword()) :: {:ok, map()} | {:error, map()}
   def run_request(request_path, opts \\ []) do
-    project_root = Keyword.get_lazy(opts, :project_root, &File.cwd!/0)
+    run_requests([request_path], opts)
+  end
+
+  @doc """
+  Runs the Python verbalization launcher once for multiple request files.
+  """
+  @spec run_requests([String.t()]) :: {:ok, map()} | {:error, map()}
+  @spec run_requests([String.t()], keyword()) :: {:ok, map()} | {:error, map()}
+  def run_requests(request_paths, opts \\ [])
+
+  def run_requests([], _opts) do
+    {:error, %{reason: :no_verbalization_requests}}
+  end
+
+  def run_requests(request_paths, opts) when is_list(request_paths) do
+    project_root = Keyword.get_lazy(opts, :project_root, &File.cmd!/0)
     uv_executable = Keyword.get(opts, :uv_executable, "uv")
-    arguments = ["run", "python", "-m", @python_module, Path.expand(request_path)]
+    arguments = [
+      "run",
+      "python",
+      "-m",
+      @python_module
+    ] ++ Enum.map(request_paths, &Path.expand/1)
 
     case System.cmd(
       uv_executable,
@@ -54,7 +74,9 @@ defmodule Src.Explanation.Verbal.Launcher do
       cd: project_root,
       stderr_to_stdout: true
     ) do
-      {output, 0} -> decode_response(output)
+      {output, 0} ->
+        decode_response(output)
+
       {output, exit_status} ->
         {:error,
           %{
@@ -63,7 +85,7 @@ defmodule Src.Explanation.Verbal.Launcher do
             output: output
           }
         }
-    end
+      end
     rescue
       error in ErlangError ->
         {:error,
@@ -73,6 +95,7 @@ defmodule Src.Explanation.Verbal.Launcher do
           }
         }
   end
+
 
   defp decode_response(output) do
     response =
