@@ -59,7 +59,7 @@ defmodule Src.Explanation.Verbal.Launcher do
   end
 
   def run_requests(request_paths, opts) when is_list(request_paths) do
-    project_root = Keyword.get_lazy(opts, :project_root, &File.cmd!/0)
+    project_root = Keyword.get_lazy(opts, :project_root, &File.cwd!/0)
     uv_executable = Keyword.get(opts, :uv_executable, "uv")
     arguments = [
       "run",
