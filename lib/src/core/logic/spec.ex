@@ -39,6 +39,8 @@ defmodule Src.Core.Logic.Spec do
     end
   end
 
+  def new(_name), do: {:error, :invalid_name}
+
   @doc """
   Adds a semantic layer without replacing existing layers.
   """
