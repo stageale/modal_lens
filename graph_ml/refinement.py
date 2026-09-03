@@ -114,7 +114,7 @@ def _decode_graphlet(pattern: Any, *, atoms: tuple[str, ...], relation: str) -> 
         if len(set(labels)) != len(labels):
             raise ValueError(f"Graphlet world {world_index} contains duplicate labels.")
 
-        unknown_atoms = set(labels) - atoms
+        unknown_atoms = set(labels) - atom_set
 
         if unknown_atoms:
             raise ValueError("Graphlet contains propositions outside the supplied signature: "
@@ -146,7 +146,7 @@ def _decode_graphlet(pattern: Any, *, atoms: tuple[str, ...], relation: str) -> 
 
         if state == 1 and label != relation:
             raise ValueError(
-                "The graphlet is not compatible with the supplied " \
+                "The graphlet is not compatible with the supplied " 
                 f"single relation {relation!r}."
             )
 
