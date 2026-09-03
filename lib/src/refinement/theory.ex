@@ -35,7 +35,7 @@ defmodule Src.Refinement.Theory do
   }
 
   @typedoc "An error encountered while generating a refined theory."
-  @typed write_error :: {:invalid_options, term()}
+  @type write_error :: {:invalid_options, term()}
                       | {:invalid_candidate, term()}
                       | {:base_theory_not_found, String.t()}
                       | {:invalid_base_theory_extension, String.t()}
