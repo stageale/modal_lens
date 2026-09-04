@@ -46,75 +46,114 @@ defmodule Src.Refinement.Theory do
                       | {:cannot_create_refinement_directory, map()}
                       | {:cannot_write_refinement_theory, map()}
 
-  @option_keys [
-    :refinement_theory_dir,
-    :theory_name,
-    :axiom_name
-  ]
 
   @doc """
   Writes a refined Isabelle theory importing `base_theory_path`.
 
-  The generated theory contains exactly one structural refinement axiom. Its
-  directory default to the directory of the base theory and can be overridden
-  with `:refinement_theory_dir`.
-  The optional `:theory_name` and `:axiom_name` values override the generated
-  Isabelle identifiers.
+  The generated theory contains exactly one structural refinement axiom.
   """
   @spec write(String.t(), candidate()) :: {:ok, t()} | {:error, write_error()}
   @spec write(String.t(), candidate(), options()) :: {:ok, t()} | {:error, write_error()}
-  def write(base_theory_path, candidate, opts \\ [])
-  def write(base_theory_path, candidate, opts) when is_binary(base_theory_path) and is_map(candidate) and is_list(opts) do
+  def write(base_theory_path, candidate, opts \\ []) do
     base_theory_path = Path.expand(base_theory_path)
 
-    with :ok <- validate_options(opts),
-        {:ok, base_theory_name} <- validate_base_theory(base_theory_path),
-        {:ok, candidate_id} <- fetch_candidate_id(candidate),
-        {:ok, theory_name} <- resolve_theory_name(
-          base_theory_name,
-          candidate_id,
-          opts
-        ),
-        {:ok, refinement_axiom} <- render_axiom(candidate, opts),
-        theory_dir =
-          refinement_theory_dir(
-            base_theory_path,
-            opts
-          ),
-        :ok <- create_directory(theory_dir),
-        theory_path =
-          Path.join(theory_dir, "#{theory_name}.thy"),
-          source =
-            generate_source(
-              theory_name,
-              base_theory_path,
-              theory_dir,
-              refinement_axiom
-            ),
-          :ok <- write_theory(theory_path, source) do
-            {:ok,
-              %{
-                theory_name: theory_name,
-                theory_path: theory_path,
-                base_theory_name: base_theory_name,
-                base_theory_path: base_theory_path,
-                candidate_id: candidate_id,
-                refinement_axiom: refinement_axiom
+    if File.regular?(base_theory_path) do
+      candidate_id = Map.fetch!(candidate, "candidate_id")
+      base_theory_name = Path.basename(base_theory_path, ".thy")
+
+      default_theory_name =
+        "#{base_theory_name}_Refined_#{candidate_id}"
+        |> String.replace(~r/[^A-Za-z0-9_]+/, "_")
+
+      theory_name =
+        Keyword.get(opts, :theory_name, default_theory_name)
+
+      theory_dir =
+        opts
+        |> Keyword.get(:refinement_theory_dir, Path.dirname(base_theory_path))
+        |> Path.expand()
+
+      axiom_opts =
+        case Keyword.fetch(opts, :axiom_name) do
+          {:ok, name} -> [name: name]
+          :error -> []
+        end
+
+      refinement_axiom =
+        Axiom.refinement_axiom(candidate, axiom_opts)
+
+      theory_path =
+        Path.join(theory_dir, "#{theory_name}.thy")
+
+      base_import =
+        relative_import(base_theory_path, theory_dir)
+
+      source =
+        """
+        theory #{theory_name}
+          imports "#{base_import}"
+        begin
+
+        #{refinement_axiom}
+
+        end
+        """
+      case File.mkdir_p(theory_dir) do
+        :ok ->
+          case File.write(theory_path, source) do
+            :ok ->
+              {:ok,
+                %{
+                  theory_name: theory_name,
+                  theory_path: theory_path,
+                  base_theory_name: base_theory_name,
+                  base_theory_path: base_theory_path,
+                  candidate_id: candidate_id,
+                  refinement_axiom: refinement_axiom
+                }
               }
-            }
+            {:error, reason} ->
+              {:error,
+                {:cannot_write_refinement_theory,
+                  %{path: theory_path, reason: reason}
+                }
+              }
           end
+
+        {:error, reason} ->
+          {:error, {:cannot_create_refinement_directory, %{path: theory_dir, reason: reason}}}
+      end
+    else
+      {:error, {:base_theory_not_found, base_theory_path}}
+    end
   end
 
-  def write(base_theory_path, candidate, opts) do
-    {:error,
-      {:invalid_options,
-        %{
-          base_theory_path: base_theory_path,
-          candidate: candidate,
-          options: opts
-        }
-      }
-    }
+  @spec relative_import(String.t(), String.t()) :: String.t()
+  defp relative_import(base_theory_path, theory_dir) do
+    path_parts =
+      base_theory_path
+      |> Path.rootname()
+      |> Path.split()
+
+    directory_parts =
+      theory_dir
+      |> Path.expand()
+      |> Path.split()
+
+    common_length =
+      path_parts
+      |> Enum.zip(directory_parts)
+      |> Enum.take_while(fn {left, right} -> left == right end)
+      |> length()
+
+    relative_parts =
+      List.duplicate(
+        "..",
+        length(directory_parts) - common_length
+      ) ++ Enum.drop(path_parts, common_length)
+
+    relative_parts
+    |> Path.join()
+    |> String.replace("\\", "/")
   end
-  #TODO: Implement helpers
 end

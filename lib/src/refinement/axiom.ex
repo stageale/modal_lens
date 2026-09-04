@@ -203,7 +203,7 @@ defmodule Src.Refinement.Axiom do
   defp normalize_world!(
     %{
       "id" => world_id,
-      "valuation" => valuations
+      "valuations" => valuations
     }
   )
   when is_binary(world_id) and is_map(valuations) do

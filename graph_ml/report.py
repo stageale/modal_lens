@@ -224,16 +224,34 @@ def build_report(*,
         cluster_indices[cluster_label].append(graph_index)
 
     cluster_reports = []
+    refinement_candidates = []
 
     for cluster_label in sorted(cluster_indices):
         indices = cluster_indices[cluster_label]
 
         raw_patterns = list(cluster_pattern_results.get(cluster_label, ()))
 
-        selected_patterns = raw_patterns[:max_patterns_per_cluster]
+        all_pattern_reports = [
+            _pattern_report(
+                pattern_data,
+                cluster_label=cluster_label,
+                rank=rank,
+                graphs=graphs,
+                atoms=atoms,
+                relation=relation
+            )
+            for rank, pattern_data in enumerate(
+                raw_patterns, start=1
+            )
+        ]
 
-        patterns = [_pattern_report(pattern_data, cluster_label=cluster_label, rank=rank, graphs=graphs, atoms=atoms, relation=relation) 
-                    for rank, pattern_data in enumerate(selected_patterns, start=1)]
+        patterns = all_pattern_reports[:max_patterns_per_cluster]
+
+        refinement_candidates.extend(
+            pattern["refinement_candidate"]
+            for pattern in all_pattern_reports
+            if pattern["refinement_candidate"] is not None
+        )
 
         # Vorerst nehmen wir das erste Modell des Clusters.
         representative_index = indices[0]
@@ -266,13 +284,6 @@ def build_report(*,
         len(cluster["characteristic_patterns"])
         for cluster in cluster_reports
     )
-
-    refinement_candidates = [
-        pattern["refinement_candidate"]
-        for cluster in cluster_reports
-        for pattern in cluster["characteristic_patterns"]
-        if pattern["refinement_candidate"] is not None
-    ]
 
     return {
         "schema": REPORT_SCHEMA,

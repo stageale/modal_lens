@@ -8,6 +8,7 @@ defmodule Src.Execution.Options do
   @model_logics [:sdl, :ddl]
   @graph_formats [:svg, :tikz]
   @default_palette Palette.default()
+  @verbalization_backends ["transformers", "ollama"]
 
   @type model_logic :: :sdl | :ddl
   @type graph_format :: :svg | :tikz
@@ -25,6 +26,8 @@ defmodule Src.Execution.Options do
           include_atoms?: boolean(),
           include_designated_world?: boolean(),
           verbalize?: boolean(),
+          verbalization_backend: String.t(),
+          verbalization_backend_options: map(),
           verbalization_model: String.t()
         }
 
@@ -40,6 +43,8 @@ defmodule Src.Execution.Options do
             include_atoms?: true,
             include_designated_world?: true,
             verbalize?: true,
+            verbalization_backend: "transformers",
+            verbalization_backend_options: %{},
             verbalization_model: "HuggingFaceTB/SmolLM3-3B"
 
   @doc """
@@ -84,6 +89,8 @@ defmodule Src.Execution.Options do
       include_atoms?: options.include_atoms?,
       include_designated_world?: options.include_designated_world?,
       verbalize?: options.verbalize?,
+      verbalization_backend: options.verbalization_backend,
+      verbalization_backend_options: options.verbalization_backend_options,
       verbalization_model: options.verbalization_model
     }
   end
@@ -108,6 +115,12 @@ defmodule Src.Execution.Options do
 
       not Palette.valid?(options.palette) ->
         {:error, {:invalid_palette, options.palette}}
+
+      options.verbalization_backend not in @verbalization_backends ->
+        {:error, :invalid_verbalization_backend, options.verbalization_backend}
+
+      not is_map(options.verbalization_backend_options) ->
+        {:error, :invalid_verbalization_backend_options}
 
       not is_binary(options.verbalization_model) or String.trim(options.verbalization_model) == "" ->
         {:error, :invalid_verbalization_model}
@@ -139,12 +152,14 @@ defmodule Src.Execution.Options do
   defp normalize_values(attrs) do
     with {:ok, model_logic} <- normalize_model_logic(Map.get(attrs, :model_logic, :sdl)),
          {:ok, graph_format} <- normalize_graph_format(Map.get(attrs, :graph_format, :svg)),
-         {:ok, palette} <- normalize_palette(Map.get(attrs, :palette, @default_palette)) do
+         {:ok, palette} <- normalize_palette(Map.get(attrs, :palette, @default_palette)),
+         {:ok, verbalization_backend} <- normalize_verbalization_backend(Map.get(attrs, :verbalization_backend, "transformers")) do
       {:ok,
        attrs
        |> Map.put(:model_logic, model_logic)
        |> Map.put(:graph_format, graph_format)
-       |> Map.put(:palette, palette)}
+       |> Map.put(:palette, palette)
+       |> Map.put(:verbalization_backend, verbalization_backend)}
     end
   end
 
@@ -213,4 +228,26 @@ defmodule Src.Execution.Options do
   end
 
   defp normalize_attrs(_attrs), do: {:error, :invalid_options}
+
+  @spec normalize_verbalization_backend(term()) :: {:ok, String.t()} | {:error, term()}
+  defp normalize_verbalization_backend(backend) when backend in [:transformers, :ollama] do
+    {:ok, Atom.to_string(backend)}
+  end
+
+  defp normalize_verbalization_backend(backend) when is_binary(backend) do
+    normalized =
+      backend
+      |> String.trim()
+      |> String.downcase()
+
+    if normalized in @verbalization_backends do
+      {:ok, normalized}
+    else
+      {:error, {:invalid_verbalization_backend, backend}}
+    end
+  end
+
+  defp normalize_verbalization_backend(backend) do
+    {:error, {:invalid_verbalization_backend, backend}}
+  end
 end

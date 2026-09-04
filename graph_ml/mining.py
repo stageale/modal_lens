@@ -89,7 +89,7 @@ def cluster_patterns(graphs, cluster_labels, min_support=0.5, min_contrast=0.2, 
                         "occurrences": occurrences
                     })
                     
-        patterns.sort(key=lambda item: (-item["contrast"], -item["cluster_support"], repr(item["pattern"])))
+        patterns.sort(key=lambda item: (-item["cluster_support"], item["outside_support"], repr(item["pattern"])))
         
         results[cluster_label] = patterns
         

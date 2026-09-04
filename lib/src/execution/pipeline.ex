@@ -1,10 +1,13 @@
 defmodule Src.Execution.Pipeline do
   @moduledoc """
-  Describes one reproducible ModalLens run.
+  Executes one reproducible ModalLens analysis run.
 
-  A run stores its parameters, generated artifacts, provenance,
-  measurements, and current execution status. It does not execute
-  the analysis pipeline itself.
+  A pipeline run enumerates models for an Isabelle theory, performs
+  structural graph analysis on the modal frame, reads the generated
+  analysis report, prepares visual explanations, and optionally invokes
+  the verbalizer.
+
+  The resulting refinement candidates are reported but never applied by this module.
   """
 
   alias Src.Explanation.Verbal.Launcher, as: VerbalLauncher
@@ -14,6 +17,8 @@ defmodule Src.Execution.Pipeline do
   alias Src.Execution.ArtifactStore
   alias Src.Execution.Run
   alias Src.Enumeration
+  alias Src.Refinement.Axiom, as: RefinementAxiom
+  alias Src.Refinement.Selection
 
 
   @graph_python_module "graph_ml.launcher"
@@ -21,8 +26,13 @@ defmodule Src.Execution.Pipeline do
   @graph_analysis_schema_version "1.0"
 
   @report_schema "modal-lens/analysis-report"
-  @report_schema_version "1.0"
+  @report_schema_version "1.1"
 
+  @typedoc "The automatically selected structural refinement."
+  @type selected_refinement :: %{
+    candidate: map() | nil,
+    axiom: String.t() | nil
+  }
 
   @type result :: {:ok, Run.t(), map()} | {:error, term(), Run.t()}
 
@@ -53,6 +63,46 @@ defmodule Src.Execution.Pipeline do
 
       {:error, reason} ->
         {:error, reason, run}
+    end
+  end
+
+  @spec select_refinement([map()]) :: {:ok, selected_refinement()} | {:error, term()}
+  defp select_refinement([]) do
+    {:ok,
+      %{
+        candidate: nil,
+        axiom: nil
+      }
+    }
+  end
+
+  defp select_refinement(candidates) do
+    with {:ok, candidate} <- Selection.select(candidates),
+        {:ok, axiom} <- render_refinement_axiom(candidate) do
+          {:ok,
+            %{
+              candidate: candidate,
+              axiom: axiom
+            }
+          }
+        else
+          {:error, reason} -> {:error, {:refinement_selection_failed, reason}}
+        end
+  end
+
+  @spec render_refinement_axiom(map()) :: {:ok, String.t()} | {:error, term()}
+  defp render_refinement_axiom(candidate) do
+    try do
+      {:ok,
+        RefinementAxiom.refinement_axiom(candidate)
+      }
+    rescue
+      error in ArgumentError ->
+        {:error,
+          {:refinement_axiom_rendering_failed,
+            Exception.message(error)
+          }
+        }
     end
   end
 
@@ -143,11 +193,15 @@ defmodule Src.Execution.Pipeline do
            clusters: [],
            cluster_verbs: [],
            highlights: [],
+           refinement_candidates: [],
+           selected_refinement_candidate: nil,
+           selected_refinement_axiom: nil,
            report_file: nil,
            graph_analysis: %{
-           report_file: nil,
+             report_file: nil,
              model_count: 0,
-             cluster_count: 0
+             cluster_count: 0,
+             refinement_candidate_count: 0
            }
          })}
 
@@ -155,6 +209,8 @@ defmodule Src.Execution.Pipeline do
         with {:ok, graph_analysis} <- launch_graph_analysis(run, theory_path, model_json_files),
              {:ok, report} <- read_graph_report(graph_analysis.report_path),
               highlights = report["highlights"],
+              refinement_candidates = report["refinement_candidates"],
+             {:ok, selected_refinement} <- select_refinement(refinement_candidates),
              {:ok, models} <- apply_highlights(enumeration_result.models, highlights, run),
               clusters = build_clusters(report["clusters"], models),
              {:ok, cluster_verbs} <- maybe_verbalize_clusters(clusters, report, run) do
@@ -163,8 +219,11 @@ defmodule Src.Execution.Pipeline do
               models: models,
               clusters: clusters,
               cluster_verbs: cluster_verbs,
-              report_file: graph_analysis.report_path,
               highlights: highlights,
+              refinement_candidates: refinement_candidates,
+              selected_refinement_candidate: selected_refinement.candidate,
+              selected_refinement_axiom: selected_refinement.axiom,
+              report_file: graph_analysis.report_path,
               graph_analysis: graph_analysis.metadata
            })}
         end
@@ -331,28 +390,30 @@ defmodule Src.Execution.Pipeline do
   end
 
   defp build_cluster_report(report, report_cluster) do
-  report
-  |> Map.put("clusters", [report_cluster])
-  |> put_in(
-    ["analysis", "model_count"],
-    report_cluster["model_count"]
-  )
-  |> put_in(["analysis", "cluster_count"], 1)
-  |> put_in(
-    ["analysis", "reported_pattern_count"],
-    length(
-      report_cluster["characteristic_patterns"] || []
+    report
+    |> Map.put("clusters", [report_cluster])
+    |> put_in(
+      ["analysis", "model_count"],
+      report_cluster["model_count"]
     )
-  )
-end
+    |> put_in(["analysis", "cluster_count"], 1)
+    |> put_in(
+      ["analysis", "reported_pattern_count"],
+      length(
+        report_cluster["characteristic_patterns"] || []
+      )
+    )
+  end
 
+  @spec read_graph_report(String.t()) :: {:ok, map()} | {:error, term()}
   defp read_graph_report(report_path) do
     with {:ok, source} <- File.read(report_path),
          {:ok, report} <- Jason.decode(source),
          schema when schema == @report_schema <- report["schema"],
          version when version == @report_schema_version <- report["schema_version"],
          clusters when is_list(clusters) <- report["clusters"],
-         highlights when is_list(highlights)  <- report["highlights"] do
+         highlights when is_list(highlights)  <- report["highlights"],
+         candidates when is_list(candidates) <- report["refinement_candidates"] do
       {:ok, report}
     else
       {:error, reason} ->
