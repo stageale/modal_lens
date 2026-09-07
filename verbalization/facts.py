@@ -8,6 +8,8 @@ from typing import Any
 
 VERBALIZATION_FACTS_SCHEMA_VERSION = "1.0"
 SUPPORTED_REPORT_SCHEMA_VERSION = "1.1"
+REFINEMENT_REPORT_SCHEMA = "modal-lens/refinement-report"
+SUPPORTED_REFINEMENT_REPORT_SCHEMA_VERSION = "1.0"
 
 
 def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
@@ -17,14 +19,17 @@ def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
     and unrestricted theory text.
 
     Args:
-        report (Mapping[str, Any]): JSON-like data object
+        report (Mapping[str, Any]): Analysis or refinement report.
 
     Returns:
-        dict[str, Any]: analysis report for language model
+        dict[str, Any]: Facts with evidence identifiers and report source paths.
     """
     if not isinstance(report, Mapping):
         raise TypeError("Report must be a mapping.")
-    
+
+    if report.get("schema") == REFINEMENT_REPORT_SCHEMA:
+        return _build_refinement_verbalization_facts(report)
+     
     report_schema_version = _require_field(report, "schema_version", path="")
     
     if report_schema_version != SUPPORTED_REPORT_SCHEMA_VERSION:
@@ -99,6 +104,119 @@ def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": VERBALIZATION_FACTS_SCHEMA_VERSION,
         "source": {
+            "report_schema_version": report_schema_version
+        },
+        "facts": facts
+    }
+
+def _build_refinement_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Project the applied rounds of a refinement report onto evidence facts.
+    
+    The report stores its round list under the singular key ``iteration``.
+    Evidence IDs use each recorded round number so recurring candidate, 
+    pattern, and cluster IDs cannot collide across rounds. Candidate records
+    and written axioms are copied unchanged; application is not proof.
+    
+    Enumeration status and model count remain separate observations.
+    Both fields must be present: no model-count delta, missing status, or global
+    validity or consistency conclusion is inferred from bounded searches."""
+
+    report_schema_version = _require_field(report, "schema_version", path="")
+
+    if report_schema_version != SUPPORTED_REFINEMENT_REPORT_SCHEMA_VERSION:
+        raise ValueError(f"Unsupported refinement report schema version: {report_schema_version!r}.")
+
+    iterations = _require_sequence(_require_field(report, "iteration", path=""), path="iteration")
+    facts: list[dict[str, Any]] = []
+    known_fact_ids: set[str] = set()
+
+    _add_fields(
+        facts, 
+        known_fact_ids, 
+        source=report, 
+        fields=("status", "stop_reason", "applied_refinement_count"),
+        fact_prefix="refinement",
+        source_prefix=""
+    )
+
+    for state_name in ("initial", "final"):
+        state = _require_mapping(
+            _require_field(report, state_name, path=""),
+            path=state_name
+        )
+        _add_fields(
+            facts,
+            known_fact_ids,
+            source=state,
+            fields=("theory_path", "run_id", "output_dir"),
+            fact_prefix=state_name,
+            source_prefix=state_name
+        )
+
+        enumeration_path = f"{state_name}.enumeration"
+        enumeration = _require_mapping(_require_field(state, "enumeration", path=state_name), path=enumeration_path)
+        _add_fields(
+            facts,
+            known_fact_ids,
+            source=enumeration,
+            fields=("status", "model_count"),
+            fact_prefix=enumeration_path,
+            source_prefix=enumeration_path
+        )
+
+    for iteration_index, iteration_value in enumerate(iterations):
+        source_path = f"iteration[{iteration_index}]"
+        iteration = _require_mapping(iteration_value, path=source_path)
+        round_number = _require_field(iteration, "round", path=source_path)
+
+        if (
+            not isinstance(round_number, int)
+            or isinstance(round_number, bool)
+            or round_number < 1
+        ):
+            raise ValueError(f"Report field '{source_path}.round' must be a positive integer.")
+
+        fact_prefix = f"round.{round_number}"
+        _add_fields(
+            facts,
+            known_fact_ids,
+            source=iteration,
+            fields=(
+                "round",
+                "input_theory_path",
+                "refined_theory_path",
+                "run_id",
+                "output_dir",
+                "candidate",
+                "candidate_id",
+                "pattern_id",
+                "cluster_id",
+                "cluster_support",
+                "outside_support",
+                "graphlet_size",
+                "refinement_axiom"
+            ),
+            fact_prefix=fact_prefix,
+            source_prefix=source_path
+        )
+        for field in ("enumeration_before", "enumeration_after"):
+            enumeration_path = f"{source_path}.{field}"
+            enumeration = _require_mapping(_require_field(iteration, field, path=source_path), path=enumeration_path)
+            _add_fields(
+                facts, 
+                known_fact_ids, 
+                source=enumeration, 
+                fields=("status", "model_count"), 
+                fact_prefix=f"{fact_prefix}.{field}",
+                source_prefix=enumeration_path
+            )
+
+    facts.sort(key=lambda fact: fact["id"])
+
+    return {
+        "schema_version": VERBALIZATION_FACTS_SCHEMA_VERSION,
+        "source": {
+            "report_schema": REFINEMENT_REPORT_SCHEMA,
             "report_schema_version": report_schema_version
         },
         "facts": facts

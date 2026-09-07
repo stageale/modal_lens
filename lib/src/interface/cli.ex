@@ -5,12 +5,14 @@ defmodule Src.Interface.CLI do
   The CLI dispatches model enumeration, Nitpick summaries, blocking-axiom
   generation, and interactive demo generation.
   """
-  alias Src.NitpickOutput
   alias Src.Core.BlockingAxiom
   alias Src.Enumeration
   alias Src.Execution.Options
   alias Src.Execution.Run
+  alias Src.Explanation.Verbal.Launcher, as: VerbalLauncher
   alias Src.Interface.Ui
+  alias Src.NitpickOutput
+  alias Src.Refinement.Axiom
   alias Src.Refinement.Loop
   alias Src.Refinement.Report
 
@@ -48,7 +50,7 @@ defmodule Src.Interface.CLI do
     include_designated_world: :boolean
   ]
 
-  @refinement_switches @demo_switches ++ [max_refinement_rounds: :integer, auto_refine: :boolean]
+  @refinement_switches @demo_switches ++ [max_refinement_rounds: :integer, auto_refine: :boolean, verbalization_backend: :string]
 
   @doc """
   Runs the command-line interface.
@@ -78,7 +80,7 @@ defmodule Src.Interface.CLI do
         cmd_demo(rest)
 
       ["refine" | rest] ->
-        cmd_refine(rest)
+        cmd_refine(rest) || 0
 
       [unknown | _] ->
         IO.puts(:stderr, "[ERROR] Unknown command: #{unknown}")
@@ -111,7 +113,7 @@ defmodule Src.Interface.CLI do
                         satisfying-models,
                         consistency-check
 
-      --no-verbalize    Disable cluster verbalization.
+      --no-verbalize    Disable cluster and refinement verbalization.
                         Verbalization is enabled by default.
 
       --no-render-graph Do not generate DOT, SVG, TikZ, or PDF graph files.
@@ -156,7 +158,7 @@ defmodule Src.Interface.CLI do
           |> Enum.map(&String.trim/1)
         end)
 
-        output_dir = Keyword.get(opts, :output_dir, "out/refinement")
+        output_dir = Keyword.get(opts, :out_dir, "out/refinement")
         max_rounds = Keyword.get(opts, :max_refinement_rounds, 1)
         decision =
           if Keyword.get(opts, :auto_refine, false) do
@@ -169,12 +171,13 @@ defmodule Src.Interface.CLI do
             {:ok, result} <- Loop.run(run, theory_path, max_rounds: max_rounds, decision: decision),
             {:ok, report_path} <- Report.write(result) do
               IO.puts("Refinement completed")
-              IO.puts("Iterations: #{length(result.iterations)}")
+              IO.puts("Applied refinements: #{length(result.iterations)}")
               IO.puts("Stop reason: #{result.stop_reason}")
               IO.puts("Final theory: #{result.final_theory_path}")
-              IO.puts("Output directory: #{result.final_run.output_dir}")
+              IO.puts("Final run directory: #{result.final_run.output_dir}")
+              IO.puts("Refinement report: #{report_path}")
 
-              0
+              maybe_verbalize_refinement(report_path, result.initial_run)
             else
               {:error, reason} ->
                 IO.inspect(reason, label: "[ERROR] Refinement failed")
@@ -198,6 +201,52 @@ defmodule Src.Interface.CLI do
           {_invalid, _inputs} ->
             IO.puts(:stderr, "[ERROR] Invalid refinement options.")
             2
+    end
+  end
+
+  @spec maybe_verbalize_refinement(String.t(), Run.t()) :: non_neg_integer()
+  defp maybe_verbalize_refinement(report_path, %Run{} = run) do
+    if Map.get(run.params, :verbalize?, false) do
+      launcher_options = [
+        output_name: ".",
+        project_root: Map.get(run.params, :project_root, File.cwd!()),
+        uv_executable: Map.get(run.params, :uv_executable, "uv"),
+        seed: Map.get(run.params, :verbalization, 42),
+        max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 768),
+        backend_options: Map.get(run.params, :verbalization_backend_options, %{})
+      ]
+
+      case VerbalLauncher.launch(
+        report_path,
+        Path.join(run.output_dir, "verbalization/refinement"),
+        Map.fetch!(run.params, :verbalization_backend),
+        Map.fetch!(run.params, :verbalization_model),
+        launcher_options
+      ) do
+        {:ok,
+          %{
+            request_path: request_path,
+            response: %{"artifacts" => artifacts}
+        }}
+
+        when is_map(artifacts) ->
+          IO.puts("Refinement verbalization completed.")
+          IO.puts("Request: #{request_path}")
+
+          Enum.each(Enum.sort(artifacts), fn {name, path} ->
+            IO.puts("#{name}: #{path}")
+          end)
+
+          0
+        {:error, reason} ->
+          IO.inspect(reason, label: "[ERROR] Refinement verbalization failed")
+
+          1
+        {:ok, unexpected} ->
+          IO.inspect(unexpected, label: "[ERROR] Invalid refinement verbalization response")
+
+          1
+      end
     end
   end
 

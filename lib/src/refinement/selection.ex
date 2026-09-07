@@ -29,7 +29,15 @@ defmodule Src.Refinement.Selection do
   """
   @spec select([candidate()]) :: {:ok, candidate()} | {:error, selection_error()}
   def select(candidates) when is_list(candidates) do
-    case Enum.find(candidates, &(not valid_candidate?(&1))) do
+    invalid_candidate =
+      Enum.reduce_while(candidates, nil, fn candidate, _acc ->
+        if valid_candidate?(candidate) do
+          {:cont, nil}
+        else
+          {:halt, {:invalid_candidate, candidate}}
+        end
+      end)
+    case invalid_candidate do
       nil ->
         candidates
         |> Enum.sort_by(&ranking_key/1)
@@ -37,7 +45,9 @@ defmodule Src.Refinement.Selection do
           [] -> {:error, :no_refinement_candidate}
           [selected | _remaining] -> {:ok, selected}
         end
-      invalid_candidate -> {:error, {:invalid_candidate, invalid_candidate}}
+
+      {:invalid_candidate, candidate} ->
+        {:error, {:invalid_candidate, candidate}}
     end
   end
 
