@@ -8,7 +8,11 @@ defmodule Src.Interface.CLI do
   alias Src.NitpickOutput
   alias Src.Core.BlockingAxiom
   alias Src.Enumeration
+  alias Src.Execution.Options
+  alias Src.Execution.Run
   alias Src.Interface.Ui
+  alias Src.Refinement.Loop
+  alias Src.Refinement.Report
 
   @demo_switches [
     relation: :string,
@@ -44,6 +48,8 @@ defmodule Src.Interface.CLI do
     include_designated_world: :boolean
   ]
 
+  @refinement_switches @demo_switches ++ [max_refinement_rounds: :integer, auto_refine: :boolean]
+
   @doc """
   Runs the command-line interface.
 
@@ -71,8 +77,9 @@ defmodule Src.Interface.CLI do
       ["demo" | rest] ->
         cmd_demo(rest)
 
-      # ["graphviz" | _rest] ->
-      #  not_implemented("tikz")
+      ["refine" | rest] ->
+        cmd_refine(rest)
+
       [unknown | _] ->
         IO.puts(:stderr, "[ERROR] Unknown command: #{unknown}")
         usage()
@@ -115,6 +122,106 @@ defmodule Src.Interface.CLI do
     """)
 
     0
+  end
+
+  @spec cmd_refine([String.t()]) :: non_neg_integer()
+  defp cmd_refine(argv) do
+    {opts, inputs, invalid} =
+      OptionParser.parse(argv, strict: @refinement_switches, aliases: [o: :out_dir])
+
+    case {invalid, inputs} do
+      {[], [theory_path]} ->
+        option_set = [
+          model_logic: :model_logic,
+          relation: :relation,
+          atoms: :atoms,
+          auto_atoms: :auto_atoms?,
+          max_models: :max_models,
+          render_graph: :render_graph?,
+          graph_format: :graph_format,
+          palette: :palette,
+          verbalize: :verbalize?,
+          verbalization_backend: :verbalization_backend,
+          verbalization_model: :verbalization_model
+        ]
+        |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
+          case Keyword.fetch(opts, cli_key) do
+            {:ok, value} -> Map.put(options, option_key, value)
+            :error -> options
+          end
+        end)
+        |> Map.update(:atoms, [], fn atoms ->
+          atoms
+          |> String.split(",", trim: true)
+          |> Enum.map(&String.trim/1)
+        end)
+
+        output_dir = Keyword.get(opts, :output_dir, "out/refinement")
+        max_rounds = Keyword.get(opts, :max_refinement_rounds, 1)
+        decision =
+          if Keyword.get(opts, :auto_refine, false) do
+            :automatic
+          else
+            &confirm_refinement/3
+          end
+        with {:ok, options} <- Options.new(option_set),
+            {:ok, run} <- Run.new("refinement", output_dir, Options.to_run_params(options)),
+            {:ok, result} <- Loop.run(run, theory_path, max_rounds: max_rounds, decision: decision),
+            {:ok, report_path} <- Report.write(result) do
+              IO.puts("Refinement completed")
+              IO.puts("Iterations: #{length(result.iterations)}")
+              IO.puts("Stop reason: #{result.stop_reason}")
+              IO.puts("Final theory: #{result.final_theory_path}")
+              IO.puts("Output directory: #{result.final_run.output_dir}")
+
+              0
+            else
+              {:error, reason} ->
+                IO.inspect(reason, label: "[ERROR] Refinement failed")
+
+                1
+
+              {:error, reason, _run} ->
+                IO.inspect(reason, label: "[ERROR] Refinement failed")
+
+                1
+            end
+
+          {[], []} ->
+            IO.puts(:stderr, "[ERROR] Refine requires one .thy file.")
+            2
+
+          {[], _inputs} ->
+            IO.puts(:stderr, "[ERROR] Refine accepts exactly one .thy file.")
+            2
+
+          {_invalid, _inputs} ->
+            IO.puts(:stderr, "[ERROR] Invalid refinement options.")
+            2
+    end
+  end
+
+  @spec confirm_refinement(pos_integer(), Axiom.candidate(), map()) :: :apply | :stop
+  defp confirm_refinement(round, candidate, _pipeline_result) do
+    origin = candidate["origin"]
+
+    IO.puts("\nRefinement candidate for round #{round}:")
+    IO.puts("Candidate: #{candidate["candidate_id"]}")
+    IO.puts("Cluster support: #{origin["cluster_support"]}")
+    IO.puts("Outside support: #{origin["outside_support"]}")
+    IO.puts("")
+    IO.puts(Axiom.refinement_axiom(candidate))
+
+    case IO.gets("\nApply this refinement axiom? [y/N] ") do
+      answer when is_binary(answer) ->
+        if String.downcase(String.trim(answer)) in ["y","yes"] do
+          :apply
+        else
+          :stop
+        end
+      _answer ->
+        :stop
+    end
   end
 
   defp cmd_enumerate(argv) do

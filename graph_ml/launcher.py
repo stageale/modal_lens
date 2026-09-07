@@ -24,7 +24,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--theory", required=True, help="Isabelle theory file")
     parser.add_argument("--output", required=True, help="Target report.json")
     parser.add_argument("--feature-method", default="combined", choices=("raw", "wl", "graphlet", "combined"))
-    parser.add_argument("--graphlet-size", type=int, default=3)
+    parser.add_argument("--graphlet-size", type=int, default=2)
     arguments = parser.parse_args(argv)
 
     try:
@@ -57,7 +57,7 @@ def launch_analysis(
     theory_path: str | Path,
     output_path: str | Path,
     feature_method: str = "combined",
-    graphlet_size: int = 3
+    graphlet_size: int = 2
 ) -> dict[str, Any]:
     if not model_paths:
         raise ValueError("At least one model JSON file is required.")

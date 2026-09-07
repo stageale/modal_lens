@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from .factory import create_verbalizer
+from .facts import REFINEMENT_REPORT_SCHEMA, SUPPORTED_REFINEMENT_REPORT_SCHEMA_VERSION
 from .pipeline import run_verbalization, write_verbalization_result
 
 VERBALIZATION_REQUEST_SCHEMA_VERSION = "1.0"
 VERBALIZATION_REQUEST_SCHEMA = "modal-lens/verbalization-request"
 
 ANALYSIS_REPORT_SCHEMA = "modal-lens/analysis-report"
-ANALYSIS_REPORT_SCHEMA_VERSION = "1.0"
+ANALYSIS_REPORT_SCHEMA_VERSION = "1.1"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -28,7 +29,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if len(arguments.config) == 1:
             response = launch_verbalization_job(arguments.config[0])
         else:
-            response = launch_verbalization_job(arguments.config)
+            response = launch_verbalization_jobs(arguments.config)
         
     except Exception as error:
         print(json.dumps({
@@ -90,9 +91,9 @@ def _prepare_job(config_path: str | Path) -> dict[str, Any]:
     
     output_directory = _resolve_path(job_path.parent, _require_string(job, "output_directory"))
     
-    report = _load_json_object(report_path, label="Analysis report")
+    report = _load_json_object(report_path, label="Report")
     
-    _validate_analysis_report(report)
+    _validate_report(report)
     
     return {
         "request_path": job_path,
@@ -104,6 +105,22 @@ def _prepare_job(config_path: str | Path) -> dict[str, Any]:
         "seed": job.get("seed", 42),
         "max_new_tokens": job.get("max_new_tokens", 768)
     }
+    
+def _validate_report(report: Mapping[str, Any]) -> None:
+    """Validate the report type and version, retaining analysis checks."""
+    schema = _require_string(report, "schema")
+    
+    if schema == ANALYSIS_REPORT_SCHEMA:
+        _validate_analysis_report(report)
+        return
+    
+    if schema != REFINEMENT_REPORT_SCHEMA:
+        raise ValueError(f"Unsupported report schema: {schema!r}.")
+    
+    schema_version = _require_string(report, "schema_version")
+    
+    if schema_version != SUPPORTED_REFINEMENT_REPORT_SCHEMA_VERSION:
+        raise ValueError(f"Unsupported refinement report schema version: {schema_version!r}.")
     
 def _run_prepared_job(job: Mapping[str, Any], verbalizer) -> dict[str, Any]:
     result = run_verbalization(job["report"], verbalizer, seed=job["seed"], max_new_tokens=job["max_new_tokens"])

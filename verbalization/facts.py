@@ -7,7 +7,7 @@ from copy import deepcopy
 from typing import Any 
 
 VERBALIZATION_FACTS_SCHEMA_VERSION = "1.0"
-SUPPORTED_REPORT_SCHEMA_VERSION = "1.0"
+SUPPORTED_REPORT_SCHEMA_VERSION = "1.1"
 
 
 def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
@@ -57,6 +57,7 @@ def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
             "goal",
             "creates_new_norms",
             "refinement_role",
+            "application_decision"
         ),
         fact_prefix="scope",
         source_prefix="scope"
@@ -69,7 +70,8 @@ def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
         fields=(
             "model_count",
             "cluster_count",
-            "reported_pattern_count"
+            "reported_pattern_count",
+            "refinement_candidate_count"
         ),
         fact_prefix="analysis",
         source_prefix="analysis"
@@ -220,7 +222,8 @@ def _add_pattern_facts(facts: list[dict[str, Any]], known_fact_ids: set[str], *,
             "outside_support",
             "contrast",
             "occurring_model_count",
-            "representative_occurrence"
+            "representative_occurrence",
+            "refinement_candidate"
         ),
         fact_prefix=fact_prefix,
         source_prefix=source_path

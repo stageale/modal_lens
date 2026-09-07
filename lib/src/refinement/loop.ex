@@ -164,7 +164,8 @@ defmodule Src.Refinement.Loop do
   end
 
   @spec decide(decision(), pos_integer(), candidate(), map()) :: :apply | :stop | {:error, loop_error()}
-  defp decide(decision, round, candidate, pipeline_result) do
+  defp decide(:automatic, _round, _candidate, _pipeline_result), do: :apply
+  defp decide(decision, round, candidate, pipeline_result) when is_function(decision, 3) do
     case decision.(round, candidate, pipeline_result) do
       :apply -> :apply
       :stop -> :stop
