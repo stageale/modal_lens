@@ -109,68 +109,30 @@ defmodule Src.Execution.Pipeline do
   defp enumeration_options(%Run{} = run) do
     [
       mode: :countermodels,
+      backend:
+        Map.get(run.params, :backend, :local),
       max_models:
-        Map.get(
-          run.params,
-          :max_models,
-          10
-        ),
+        Map.get(run.params, :max_models, 10),
       output_dir: run.output_dir,
       model_logic:
-        Map.get(
-          run.params,
-          :model_logic,
-          :sdl
-        ),
+        Map.get(run.params, :model_logic, :sdl),
       relation:
-        Map.get(
-          run.params,
-          :relation,
-          "R"
-        ),
+        Map.get(run.params, :relation, "R"),
       atoms:
-        Map.get(
-          run.params,
-          :atoms,
-          []
-        ),
+        Map.get(run.params, :atoms, []),
       auto_atoms:
-        Map.get(
-          run.params,
-          :auto_atoms?,
-          true
-        ),
+        Map.get(run.params, :auto_atoms?, true),
       render_atoms: render_atoms(run),
       render_graph:
-        Map.get(
-          run.params,
-          :render_graph?,
-          true
-        ),
+        Map.get(run.params, :render_graph?, true),
       graph_format:
-        Map.get(
-          run.params,
-          :graph_format,
-          :svg
-        ),
+        Map.get(run.params, :graph_format, :svg),
       palette:
-        Map.get(
-          run.params,
-          :palette,
-          Palette.default()
-        ),
+        Map.get(run.params, :palette, Palette.default()),
       include_atoms:
-        Map.get(
-          run.params,
-          :include_atoms?,
-          true
-        ),
+        Map.get(run.params, :include_atoms?, true),
       include_designated_world:
-        Map.get(
-          run.params,
-          :include_designated_world?,
-          true
-        )
+        Map.get(run.params, :include_designated_world?, true)
     ]
   end
 

@@ -21,6 +21,7 @@ defmodule Src.Interface.CLI do
     atoms: :string,
     auto_atoms: :boolean,
     model_logic: :string,
+    backend: :string,
     max_models: :integer,
     out_dir: :string,
     render_graph: :boolean,
@@ -41,6 +42,7 @@ defmodule Src.Interface.CLI do
   @enumeration_switches [
     input: :string,
     mode: :string,
+    backend: :string,
     max_models: :integer,
     out_dir: :string,
     search_theory_dir: :string,
@@ -106,21 +108,24 @@ defmodule Src.Interface.CLI do
       demo        Generate a small demo bundle with all outputs.
 
     Options:
-      --input PATH      Isabelle input theory.
-                        Default: lib/data/Input.thy
+      --input PATH        Isabelle input theory.
+                          Default: lib/data/Input.thy
 
-      --mode MODE       countermodels,
-                        satisfying-models,
-                        consistency-check
+      --mode MODE         countermodels,
+                          satisfying-models,
+                          consistency-check
 
-      --no-verbalize    Disable cluster and refinement verbalization.
-                        Verbalization is enabled by default.
+      --no-verbalize      Disable cluster and refinement verbalization.
+                          Verbalization is enabled by default.
 
-      --no-render-graph Do not generate DOT, SVG, TikZ, or PDF graph files.
+      --no-render-graph   Do not generate DOT, SVG, TikZ, or PDF graph files.
 
-      --atoms LIST      Include the named atoms explicitly.
-      --no-auto-atoms   Do not detect additional unary predicates.
-                        Automatic detection is enabled by default.
+      --atoms LIST        Include the named atoms explicitly.
+      --no-auto-atoms     Do not detect additional unary predicates.
+                          Automatic detection is enabled by default.
+      --backend BACKEND   Isabelle execution backend:
+                          local or hpc_connect.
+                          Default: local.
     """)
 
     0
@@ -135,6 +140,7 @@ defmodule Src.Interface.CLI do
       {[], [theory_path]} ->
         option_set = [
           model_logic: :model_logic,
+          backend: :backend,
           relation: :relation,
           atoms: :atoms,
           auto_atoms: :auto_atoms?,
@@ -288,7 +294,8 @@ defmodule Src.Interface.CLI do
     with :ok <- reject_invalid_options(invalid),
          :ok <- reject_enumeration_positionals(positional_args),
          {:ok, mode} <- parse_enumeration_mode(Keyword.get(opts, :mode)),
-         {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")) do
+         {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")),
+         {:ok, backend} <- parse_backend(Keyword.get(opts, :backend, "local")) do
       input_path =
         Keyword.get(opts, :input)
 
@@ -297,6 +304,7 @@ defmodule Src.Interface.CLI do
         |> Keyword.drop([:input, :out_dir])
         |> Keyword.put(:mode, mode)
         |> Keyword.put(:model_logic, model_logic)
+        |> Keyword.put(:backend, backend)
         |> maybe_put(:output_dir, Keyword.get(opts, :out_dir))
 
       enumeration_result =
@@ -336,6 +344,15 @@ defmodule Src.Interface.CLI do
     {:error,
      "Unexpected positional arguments: " <>
        Enum.join(positional_args, " ") <> ". Use --input PATH to select another theory."}
+  end
+
+  defp parse_backend("local"), do: {:ok, :local}
+  defp parse_backend("hpc_connect"), do: {:ok, :hpc_connect}
+  defp parse_backend("hpc-connect"), do: {:ok, :hpc_connect}
+
+  defp parse_backend(backend) do
+    {:error,
+      "Unknown backend #{inspect(backend)}. Use local or hpc_connect."}
   end
 
   defp parse_enumeration_mode("countermodels") do
@@ -493,6 +510,7 @@ defmodule Src.Interface.CLI do
         option_set =
           [
             model_logic: :model_logic,
+            backend: :backend,
             relation: :relation,
             atoms: :atoms,
             auto_atoms: :auto_atoms?,

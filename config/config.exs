@@ -1,7 +1,7 @@
 import Config
 
 config :modal_lens,
-       Src.Interface.Isabelle.HPCConnect,
+       Src.Isabelle.HPCConnect,
   cluster: :aion,
   ssh_alias: "aion",
   hpc_work_dir: "modal_lens_runtime",

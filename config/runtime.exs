@@ -17,5 +17,5 @@ hpc_runtime_options =
   |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
 
 config :modal_lens,
-       Src.Interface.Isabelle.HPCConnect,
+       Src.Isabelle.HPCConnect,
        hpc_runtime_options

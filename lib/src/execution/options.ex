@@ -7,14 +7,17 @@ defmodule Src.Execution.Options do
 
   @model_logics [:sdl, :ddl]
   @graph_formats [:svg, :tikz]
+  @backends [:local, :hpc_connect]
   @default_palette Palette.default()
   @verbalization_backends ["transformers", "ollama"]
 
   @type model_logic :: :sdl | :ddl
   @type graph_format :: :svg | :tikz
+  @type backend :: :local | :hpc_connect
 
   @type t :: %__MODULE__{
           model_logic: model_logic(),
+          backend: backend(),
           relation: String.t(),
           atoms: [String.t()],
           auto_atoms?: boolean(),
@@ -32,6 +35,7 @@ defmodule Src.Execution.Options do
         }
 
   defstruct model_logic: :sdl,
+            backend: :local,
             relation: "R",
             atoms: [],
             auto_atoms?: true,
@@ -78,6 +82,7 @@ defmodule Src.Execution.Options do
   def to_run_params(%__MODULE__{} = options) do
     %{
       model_logic: options.model_logic,
+      backend: options.backend,
       relation: options.relation,
       atoms: options.atoms,
       auto_atoms?: options.auto_atoms?,
@@ -99,6 +104,9 @@ defmodule Src.Execution.Options do
     cond do
       options.model_logic not in @model_logics ->
         {:error, {:invalid_model_logic, options.model_logic}}
+
+      options.backend not in @backends ->
+        {:error, {:invalid_backend, options.backend}}
 
       not is_binary(options.relation) or String.trim(options.relation) == "" ->
         {:error, :invalid_relation}
@@ -151,12 +159,14 @@ defmodule Src.Execution.Options do
 
   defp normalize_values(attrs) do
     with {:ok, model_logic} <- normalize_model_logic(Map.get(attrs, :model_logic, :sdl)),
+         {:ok, backend} <- normalize_backend(Map.get(attrs, :model_logic, :sdl)),
          {:ok, graph_format} <- normalize_graph_format(Map.get(attrs, :graph_format, :svg)),
          {:ok, palette} <- normalize_palette(Map.get(attrs, :palette, @default_palette)),
          {:ok, verbalization_backend} <- normalize_verbalization_backend(Map.get(attrs, :verbalization_backend, "transformers")) do
       {:ok,
        attrs
        |> Map.put(:model_logic, model_logic)
+       |> Map.put(:backend, backend)
        |> Map.put(:graph_format, graph_format)
        |> Map.put(:palette, palette)
        |> Map.put(:verbalization_backend, verbalization_backend)}
@@ -177,6 +187,23 @@ defmodule Src.Execution.Options do
 
   defp normalize_model_logic(value) do
     {:error, {:invalid_model_logic, value}}
+  end
+
+  defp normalize_backend(value) when value in @backends do
+    {:ok, value}
+  end
+
+  defp normalize_backend(value) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      "local" -> {:ok, :local}
+      "hpc_connect" -> {:ok, :hpc_connect}
+      "hpc-connect" -> {:ok, :hpc_connect}
+      _other -> {:error, {:invalid_backend, value}}
+    end
+  end
+
+  defp normalize_backend(value) do
+    {:error, {:invalid_backend, value}}
   end
 
   defp normalize_graph_format(value) when value in @graph_formats do
