@@ -159,7 +159,7 @@ defmodule Src.Execution.Options do
 
   defp normalize_values(attrs) do
     with {:ok, model_logic} <- normalize_model_logic(Map.get(attrs, :model_logic, :sdl)),
-         {:ok, backend} <- normalize_backend(Map.get(attrs, :model_logic, :sdl)),
+         {:ok, backend} <- normalize_backend(Map.get(attrs, :model_logic, :local)),
          {:ok, graph_format} <- normalize_graph_format(Map.get(attrs, :graph_format, :svg)),
          {:ok, palette} <- normalize_palette(Map.get(attrs, :palette, @default_palette)),
          {:ok, verbalization_backend} <- normalize_verbalization_backend(Map.get(attrs, :verbalization_backend, "transformers")) do

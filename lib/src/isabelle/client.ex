@@ -9,6 +9,9 @@ defmodule Src.Isabelle.Client do
 
   In both cases, the Isabelle build log is written to a text file that can
   subsequently be consumed by the existing Nitpick parser.
+
+  Results from the HPC backend additionally contain SLURM provenance under
+  `:provenance`. Local runs use an empty provenance map.
   """
 
   alias Src.Isabelle.HOLEmbedding
@@ -22,9 +25,9 @@ defmodule Src.Isabelle.Client do
   This preserves the existing API.
   """
   @spec nitpick_countermodel(%HOLEmbedding{}) ::
-        {:ok, map()} | {:error, term()}
+          {:ok, map()} | {:error, term()}
   @spec nitpick_countermodel(%HOLEmbedding{}, keyword()) ::
-        {:ok, map()} | {:error, term()}
+          {:ok, map()} | {:error, term()}
   def nitpick_countermodel(%HOLEmbedding{} = spec, opts \\ []) do
     reason_generated_theory(spec, opts)
   end
@@ -51,12 +54,15 @@ defmodule Src.Isabelle.Client do
     * `:output_file` - path for the captured Isabelle log
     * `:write_root?` - whether a missing `ROOT` should be generated
     * all options understood by `LocalConnect`
+
+  HPC-specific options are forwarded to `HPCConnect` when `:backend` is
+  `:hpc_connect`.
   """
   @spec nitpick_theory(Path.t()) ::
-        {:ok, map()} | {:error, term()}
+          {:ok, map()} | {:error, term()}
 
   @spec nitpick_theory(Path.t(), keyword()) ::
-        {:ok, map()} | {:error, term()}
+          {:ok, map()} | {:error, term()}
 
   def nitpick_theory(theory_path, opts \\ []) when is_binary(theory_path) do
     theory_path = Path.expand(theory_path)
@@ -83,10 +89,10 @@ defmodule Src.Isabelle.Client do
       backend_opts =
         Keyword.put(opts, :theory_path, theory_path)
 
-      with  :ok <- ensure_theory_in_workdir(theory_path, workdir),
-            :ok <- ensure_root(workdir, theory_name, session_name, logic, opts),
+      with :ok <- ensure_theory_in_workdir(theory_path, workdir),
+           :ok <- ensure_root(workdir, theory_name, session_name, logic, opts),
            {:ok, result} <- run_backend(workdir, theory_name, backend_opts),
-            :ok <- write_log(output_file, result.log) do
+           :ok <- write_log(output_file, result.log) do
         {:ok,
          %{
            theory_name: theory_name,
@@ -97,6 +103,7 @@ defmodule Src.Isabelle.Client do
            output_file: output_file,
            build_output: result.build_output,
            log: result.log,
+           provenance: Map.get(result, :provenance, %{}),
            backend: Keyword.get(opts, :backend, :local)
          }}
       end
@@ -128,40 +135,50 @@ defmodule Src.Isabelle.Client do
          workdir: workdir,
          build_output: result.build_output,
          log: result.log,
+         provenance: Map.get(result, :provenance, %{}),
          backend: backend
        }}
     end
   end
 
   defp run_backend(workdir, theory_name, opts) do
-    #session_name = Keyword.get(opts, :session_name, theory_name)
+    # session_name = Keyword.get(opts, :session_name, theory_name)
     case Keyword.get(opts, :backend, :local) do
       :local ->
         base_theory_path =
           Keyword.get(opts, :base_theory_file)
 
         theory_paths =
-          local_import_files(base_theory_path) ++ [Keyword.get(opts, :base_theory_file), Keyword.fetch!(opts, :theory_path)]
+          (local_import_files(base_theory_path) ++
+             [Keyword.get(opts, :base_theory_file), Keyword.fetch!(opts, :theory_path)])
           |> Enum.reject(&is_nil/1)
           |> Enum.map(&Path.expand/1)
           |> Enum.uniq()
 
         with {:ok, log} <- LocalConnect.process_theories(theory_paths, opts) do
-                {:ok,
-                  %{
-                    build_output: nil,
-                    log: log
-                  }}
-               end
+          {:ok,
+           %{
+             build_output: nil,
+             log: log,
+             provenance: %{}
+           }}
+        end
 
       :hpc_connect ->
-        with {:ok, log} <- HPCConnect.run(workdir, %{theory_name: theory_name}, opts) do
+        hpc_opts = Keyword.put(opts, :return_metadata?, true)
+
+        with {:ok, %{log: log, provenance: provenance}} <-
+               HPCConnect.run(
+                 workdir,
+                 %{theory_name: theory_name},
+                 hpc_opts
+               ) do
           {:ok,
-            %{
-              build_output: nil,
-              log: log
-            }
-          }
+           %{
+             build_output: nil,
+             log: log,
+             provenance: provenance
+           }}
         end
 
       other ->
@@ -171,27 +188,89 @@ defmodule Src.Isabelle.Client do
 
   defp ensure_root(workdir, theory_name, session_name, logic, opts) do
     root_path = Path.join(workdir, "ROOT")
+    directories_source = root_directories_source(workdir, opts)
 
     session_source = """
     session #{session_name} = #{logic} +
-      theories
+    #{directories_source}  theories
         #{theory_name}
     """
 
     cond do
       File.regular?(root_path) ->
         with {:ok, source} <- File.read(root_path) do
-          session_pattern = ~r/!\s*session\s+#{Regex.escape(session_name)}\s*=/m
+          session_pattern =
+            ~r/^\s*session\s+#{Regex.escape(session_name)}\s*=/m
 
           if Regex.match?(session_pattern, source) do
             :ok
           else
-            File.write(root_path, String.trim_trailing(source) <> "\n\n" <> session_source)
+            File.write(
+              root_path,
+              String.trim_trailing(source) <> "\n\n" <> session_source
+            )
           end
         end
-      Keyword.get(opts, :write_root?, true) -> File.write(root_path, session_source)
-      true -> {:error, {:missing_root, root_path}}
+
+      Keyword.get(opts, :write_root?, true) ->
+        File.write(root_path, session_source)
+
+      true ->
+        {:error, {:missing_root, root_path}}
     end
+  end
+
+  defp root_directories_source(workdir, opts) do
+    case Keyword.get(opts, :base_theory_file) do
+      base_theory_file
+      when is_binary(base_theory_file) and base_theory_file != "" ->
+        base_theory_dir =
+          base_theory_file
+          |> Path.expand()
+          |> Path.dirname()
+
+        if base_theory_dir == Path.expand(workdir) do
+          ""
+        else
+          relative_dir =
+            base_theory_dir
+            |> relative_path_from(workdir)
+            |> String.replace("\\", "/")
+            |> String.replace("\"", "\\\"")
+
+          "  directories\n    \"#{relative_dir}\"\n"
+        end
+
+      _other ->
+        ""
+    end
+  end
+
+  defp relative_path_from(path, directory) do
+    {path_parts, directory_parts} =
+      drop_common_prefix(
+        Path.split(Path.expand(path)),
+        Path.split(Path.expand(directory))
+      )
+
+    relative_parts =
+      List.duplicate("..", length(directory_parts)) ++ path_parts
+
+    case relative_parts do
+      [] -> "."
+      parts -> Path.join(parts)
+    end
+  end
+
+  defp drop_common_prefix(
+         [part | path_parts],
+         [part | directory_parts]
+       ) do
+    drop_common_prefix(path_parts, directory_parts)
+  end
+
+  defp drop_common_prefix(path_parts, directory_parts) do
+    {path_parts, directory_parts}
   end
 
   defp validate_theory_file(path) do
@@ -261,24 +340,25 @@ defmodule Src.Isabelle.Client do
 
   defp local_import_files(theory_path) do
     with {:ok, source} <- File.read(theory_path),
-        [imports] <- Regex.run(~r/\bimports\s+(.*?)\bbegin\b/s, source, capture: :all_but_first) do
-          imports
-          |> String.replace(~r/\(\*.*?\*\)/s, " ")
-          |> String.replace("\"", "")
-          |> String.split()
-          |> Enum.map(fn import_name ->
-            filename =
-              if Path.extname(import_name) == ".thy" do
-                import_name
-              else
-                import_name <> ".thy"
-              end
-            Path.expand(filename, Path.dirname(theory_path))
-          end)
-          |> Enum.filter(&File.regular?/1)
-        else
-          _ -> []
-        end
+         [imports] <- Regex.run(~r/\bimports\s+(.*?)\bbegin\b/s, source, capture: :all_but_first) do
+      imports
+      |> String.replace(~r/\(\*.*?\*\)/s, " ")
+      |> String.replace("\"", "")
+      |> String.split()
+      |> Enum.map(fn import_name ->
+        filename =
+          if Path.extname(import_name) == ".thy" do
+            import_name
+          else
+            import_name <> ".thy"
+          end
+
+        Path.expand(filename, Path.dirname(theory_path))
+      end)
+      |> Enum.filter(&File.regular?/1)
+    else
+      _ -> []
+    end
   end
 
   defp default_workdir do

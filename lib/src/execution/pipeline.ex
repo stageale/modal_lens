@@ -609,13 +609,74 @@ defmodule Src.Execution.Pipeline do
 
     with {:ok, run} <- register_artifacts(run, experiment_result),
          {:ok, run} <- Run.put_provenance(run, :backend, backend),
+         {:ok, run} <-
+           put_isabelle_hpc_provenance(run, experiment_result),
          {:ok, run} <- Run.put_metric(run, :runtime_ms, runtime_ms),
          {:ok, completed_run} <- Run.complete(run),
          {:ok, _manifest_path} <- ArtifactStore.persist(completed_run) do
       {:ok, completed_run, experiment_result}
     else
-      {:error, reason} -> finish_failure(run, reason, started_at)
+      {:error, reason} ->
+        finish_failure(run, reason, started_at)
     end
+  end
+
+  @spec put_isabelle_hpc_provenance(Run.t(), map()) ::
+          {:ok, Run.t()} | {:error, term()}
+  defp put_isabelle_hpc_provenance(
+         %Run{} = run,
+         experiment_result
+       ) do
+    jobs = isabelle_hpc_jobs(experiment_result)
+
+    case jobs do
+      [] ->
+        {:ok, run}
+
+      jobs ->
+        Run.put_provenance(
+          run,
+          :isabelle_hpc_jobs,
+          jobs
+        )
+    end
+  end
+
+  @spec isabelle_hpc_jobs(map()) :: [map()]
+  defp isabelle_hpc_jobs(experiment_result) do
+    terminal_iterations =
+      case Map.get(experiment_result, :terminal_iteration) do
+        %{} = terminal_iteration ->
+          [terminal_iteration]
+
+        _other ->
+          []
+      end
+
+    experiment_result
+    |> Map.get(:models, [])
+    |> Kernel.++(terminal_iterations)
+    |> Enum.flat_map(fn iteration_result ->
+      provenance =
+        iteration_result
+        |> Map.get(:isabelle_run, %{})
+        |> Map.get(:provenance, %{})
+
+      case provenance do
+        %{role: :isabelle, scheduler: :slurm} =
+            hpc_provenance ->
+          [
+            Map.put_new(
+              hpc_provenance,
+              :iteration,
+              Map.get(iteration_result, :iteration)
+            )
+          ]
+
+        _other ->
+          []
+      end
+    end)
   end
 
   defp finish_failure(%Run{} = run, reason, started_at) do
