@@ -156,7 +156,7 @@ def test_refinement_prompt_requires_rounds_and_limits_claims() -> None:
     assert "round.1." in message
     assert "round.2." in message
     assert "applied" in REFINEMENT_SYSTEM_MESSAGE
-    assert "proved" in REFINEMENT_SYSTEM_MESSAGE
+    assert "constitute a proof" in REFINEMENT_SYSTEM_MESSAGE
     assert "global validity" in REFINEMENT_SYSTEM_MESSAGE
     assert build_verbalization_messages(facts)[0]["content"] == REFINEMENT_SYSTEM_MESSAGE
 
@@ -182,13 +182,12 @@ def test_refinement_summary_validation_requires_existing_round_scoped_evidence()
 
     wrong_scope = deepcopy(valid)
     wrong_scope["round_summaries"][0]["evidence"] = ["round.2.refinement_axiom"]
-    with pytest.raises(SummarySchemaError, match="round 1"):
+    with pytest.raises(SummarySchemaError, match=r"round\.1\."):
         parse_and_validate_summary_json(json.dumps(wrong_scope), verbalization_facts=facts)
 
 
 def test_pipeline_validates_refinement_summary_and_writes_refinement_markdown(tmp_path: Path) -> None:
     report = refinement_report()
-    facts = _facts(report)
     summary = {
         "overview": "Two structural refinement rounds were applied.",
         "overview_evidence": ["refinement.applied_refinement_count"],

@@ -80,7 +80,7 @@ defmodule Src.Interface.CLI do
         cmd_demo(rest)
 
       ["refine" | rest] ->
-        cmd_refine(rest) || 0
+        cmd_refine(rest)
 
       [unknown | _] ->
         IO.puts(:stderr, "[ERROR] Unknown command: #{unknown}")
@@ -247,6 +247,8 @@ defmodule Src.Interface.CLI do
 
           1
       end
+    else
+      0
     end
   end
 

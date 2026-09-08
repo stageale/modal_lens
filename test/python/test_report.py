@@ -53,7 +53,7 @@ def test_build_report_uses_versioned_envelope_and_durable_highlights() -> None:
     )
 
     assert report["schema"] == "modal-lens/analysis-report"
-    assert report["schema_version"] == "1.0"
+    assert report["schema_version"] == "1.1"
     assert report["highlights"] == _highlights()
     assert report["analysis"] == {
         "model_count": 1,

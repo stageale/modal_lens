@@ -109,7 +109,7 @@ def test_launch_verbalization_job_rejects_invalid_report_contract(
     job_file = tmp_path / "request.json"
     job_file.write_text(json.dumps(_request()), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="Unsupported analysis report schema"):
+    with pytest.raises(ValueError, match="Unsupported report schema"):
         launch_verbalization_job(job_file)
 
 def test_batch_verbalization_reuses_verbalizer(

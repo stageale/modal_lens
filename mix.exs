@@ -1,4 +1,4 @@
-defmodule AxiomRefiner.MixProject do
+defmodule ModalLens.MixProject do
   use Mix.Project
 
   def project do
@@ -9,6 +9,7 @@ defmodule AxiomRefiner.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       escript: [main_module: Src.Interface.CLI],
+      test_ignore_filters: ["test/support/refinement_helpers.exs"],
       aliases: aliases()
     ]
   end

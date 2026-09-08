@@ -141,6 +141,9 @@ def summary_json_schema(*, verbalization_facts: Mapping[str, Any] | None = None)
         and verbalization_facts["source"].get("report_schema") == REFINEMENT_REPORT_SCHEMA
     ):
         schema = REFINEMENT_SUMMARY_JSON_SCHEMA
+    else:
+        schema = SUMMARY_JSON_SCHEMA
+        
     return deepcopy(schema)
 
 def validate_summary_schema(summary: Mapping[str, Any], *, verbalization_facts: Mapping[str, Any] | None = None) -> tuple[str, ...]:
