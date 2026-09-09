@@ -3,13 +3,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+import verbalization.transformers as transformers_module
+from verbalization.base import GenerationRequest
+from verbalization.transformers import TransformersError, TransformersVerbalizer
 
 torch = pytest.importorskip("torch")
 pytest.importorskip("transformers")
 
-import verbalization.transformers as transformers_module
-from verbalization.base import GenerationRequest
-from verbalization.transformers import TransformersError, TransformersVerbalizer
 
 
 MESSAGES = (

@@ -26,7 +26,7 @@ def test_build_verbalization_facts_extracts_report_evidence(
 
     assert result["schema_version"] == "1.0"
     assert result["source"] == {
-        "report_schema_version": "1.0",
+        "report_schema_version": "1.1",
     }
     assert facts["analysis.model_count"]["value"] == 2
     assert facts["cluster.0.model_count"]["value"] == 2

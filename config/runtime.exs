@@ -1,21 +1,25 @@
 import Config
 
-hpc_runtime_options =
+# SSH authentication is managed externally by OpenSSH and ssh-agent.
+# Scheduler and job defaults are defined per role in config/config.exs.
+
+isabelle_hpc_runtime_options =
   [
-    cluster: System.get_env("HPC_CONNECT_CLUSTER"),
-    username: System.get_env("HPC_CONNECT_USERNAME"),
-    key_path: System.get_env("HPC_CONNECT_KEY_PATH"),
-    env_file: System.get_env("HPC_CONNECT_ENV_FILE"),
-    ssh_alias: System.get_env("HPC_CONNECT_SSH_ALIAS"),
-    proxy_jump: System.get_env("HPC_CONNECT_PROXY_JUMP"),
-    hpc_work_dir: System.get_env("HPC_CONNECT_WORK_DIR"),
-    vault_dir: System.get_env("HPC_CONNECT_VAULT_DIR"),
-    remote_base_dir: System.get_env("AXIOM_REFINER_HPC_REMOTE_BASE_DIR"),
-    isabelle_bin: System.get_env("AXIOM_REFINER_HPC_ISABELLE_BIN"),
-    remote_preamble: System.get_env("AXIOM_REFINER_HPC_PREAMBLE")
+    ssh_alias: System.get_env("MODAL_LENS_ISABELLE_HPC_SSH_ALIAS"),
+    remote_base_dir: System.get_env("MODAL_LENS_ISABELLE_HPC_REMOTE_BASE_DIR"),
+    isabelle_bin: System.get_env("MODAL_LENS_ISABELLE_HPC_ISABELLE_BIN"),
+    remote_preamble: System.get_env("MODAL_LENS_ISABELLE_HPC_PREAMBLE")
   ]
   |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
 
-config :modal_lens,
-       Src.Interface.Isabelle.HPCConnect,
-       hpc_runtime_options
+verbalization_hpc_runtime_options =
+  [
+    ssh_alias: System.get_env("MODAL_LENS_VERBALIZATION_HPC_SSH_ALIAS"),
+    remote_base_dir: System.get_env("MODAL_LENS_VERBALIZATION_HPC_REMOTE_BASE_DIR"),
+    remote_preamble: System.get_env("MODAL_LENS_VERBALIZATION_HPC_PREAMBLE")
+  ]
+  |> Enum.reject(fn {_key, value} -> value in [nil, ""] end)
+
+config :modal_lens, :isabelle_hpc, isabelle_hpc_runtime_options
+
+config :modal_lens, :verbalization_hpc, verbalization_hpc_runtime_options

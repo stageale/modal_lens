@@ -8,24 +8,28 @@ from pathlib import Path
 from typing import Any
 
 from .factory import create_verbalizer
+from .facts import REFINEMENT_REPORT_SCHEMA, SUPPORTED_REFINEMENT_REPORT_SCHEMA_VERSION
 from .pipeline import run_verbalization, write_verbalization_result
 
 VERBALIZATION_REQUEST_SCHEMA_VERSION = "1.0"
-VERBALIZATION_REQUEST_SCHEMA = "axiom-refiner/verbalization-request"
+VERBALIZATION_REQUEST_SCHEMA = "modal-lens/verbalization-request"
 
-ANALYSIS_REPORT_SCHEMA = "axiom-refiner/analysis-report"
-ANALYSIS_REPORT_SCHEMA_VERSION = "1.0"
+ANALYSIS_REPORT_SCHEMA = "modal-lens/analysis-report"
+ANALYSIS_REPORT_SCHEMA_VERSION = "1.1"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Launch an Axiom Refiner verbalization job.")
     
-    parser.add_argument("config", help="Path to verbalization_request.json")
+    parser.add_argument("config", nargs="+", help="Path to verbalization_request.json")
     
     arguments = parser.parse_args(argv)
     
     try:
-        response = launch_verbalization_job(arguments.config)
+        if len(arguments.config) == 1:
+            response = launch_verbalization_job(arguments.config[0])
+        else:
+            response = launch_verbalization_jobs(arguments.config)
         
     except Exception as error:
         print(json.dumps({
@@ -40,7 +44,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     return 0
 
+def launch_verbalization_jobs(config_paths: Sequence[str | Path]) -> dict[str, Any]:
+    jobs = [
+        _prepare_job(config_path)
+        for config_path in config_paths
+    ]
+    
+    if not jobs:
+        raise ValueError("At least one verbalization job is required.")
+    
+    first = jobs[0]
+    
+    for job in jobs[1:]:
+        if job["backend"] != first["backend"] or job["model_id"] != first["model_id"] or job["backend_options"] != first["backend_options"]:
+            raise ValueError("Batched verbalization jobs must use the same backend and model configuration.")
+        
+    verbalizer = create_verbalizer(backend=first["backend"], model_id=first["model_id"], **first["backend_options"])
+    
+    results = [
+        _run_prepared_job(job, verbalizer)
+        for job in jobs
+    ]
+    
+    return {
+        "status": "completed",
+        "backend": verbalizer.backend,
+        "model_id": verbalizer.model_id,
+        "jobs": results
+    }
+
 def launch_verbalization_job(config_path: str | Path) -> dict[str, Any]:
+    return launch_verbalization_jobs([config_path])["jobs"][0]
+    
+
+def _prepare_job(config_path: str | Path) -> dict[str, Any]:
     job_path = Path(config_path).resolve()
     
     job = _load_json_object(job_path, label="Verbalization job")
@@ -48,42 +85,57 @@ def launch_verbalization_job(config_path: str | Path) -> dict[str, Any]:
     _validate_job_schema(job)
     
     backend = _require_string(job, "backend")
-    
     model_id = _require_string(job, "model_id")
     
     report_path = _resolve_path(job_path.parent, _require_string(job, "report_path"))
     
     output_directory = _resolve_path(job_path.parent, _require_string(job, "output_directory"))
-        
-    report = _load_json_object(report_path, label="Analysis report")
     
-    _validate_analysis_report(report)
+    report = _load_json_object(report_path, label="Report")
     
-    seed = job.get("seed", 42)
-    max_new_tokens = job.get("max_new_tokens", 768)
+    _validate_report(report)
     
-    verbalizer = create_verbalizer(
-        backend=backend,
-        model_id=model_id,
-        **_backend_options(job)
-    )
+    return {
+        "request_path": job_path,
+        "backend": backend,
+        "model_id": model_id,
+        "backend_options": _backend_options(job),
+        "report": report,
+        "output_directory": output_directory,
+        "seed": job.get("seed", 42),
+        "max_new_tokens": job.get("max_new_tokens", 768)
+    }
     
-    result = run_verbalization(
-        report,
-        verbalizer,
-        seed=seed,
-        max_new_tokens=max_new_tokens
-    )
+def _validate_report(report: Mapping[str, Any]) -> None:
+    """Validate the report type and version, retaining analysis checks."""
+    schema = _require_string(report, "schema")
     
-    artifact_paths = write_verbalization_result(result, output_directory)
+    if schema == ANALYSIS_REPORT_SCHEMA:
+        _validate_analysis_report(report)
+        return
+    
+    if schema != REFINEMENT_REPORT_SCHEMA:
+        raise ValueError(f"Unsupported report schema: {schema!r}.")
+    
+    schema_version = _require_string(report, "schema_version")
+    
+    if schema_version != SUPPORTED_REFINEMENT_REPORT_SCHEMA_VERSION:
+        raise ValueError(f"Unsupported refinement report schema version: {schema_version!r}.")
+    
+def _run_prepared_job(job: Mapping[str, Any], verbalizer) -> dict[str, Any]:
+    result = run_verbalization(job["report"], verbalizer, seed=job["seed"], max_new_tokens=job["max_new_tokens"])
+    artifact_paths = write_verbalization_result(result, job["output_directory"])
     
     return {
         "status": "completed",
+        "request_path": str(job["request_path"]),
         "backend": verbalizer.backend,
         "model_id": verbalizer.model_id,
-        "artifacts": {name: str(path.resolve()) for name, path in artifact_paths.items()}
+        "artifacts": {
+            name: str(path.resolve())
+            for name, path in artifact_paths.items()
+        }
     }
-
 
 def _load_json_object(path: str | Path, *, label: str) -> dict[str, Any]:
     json_path = Path(path)

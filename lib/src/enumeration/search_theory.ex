@@ -9,9 +9,9 @@ defmodule Src.Enumeration.SearchTheory do
 
   @template_dir Path.expand("../../data/mod", __DIR__)
 
-  @blocking_marker "(* AXIOM_REFINER_BLOCKS *)"
-  @search_theory_placeholder "AXIOM_REFINER_SEARCH"
-  @input_theory_placeholder "AXIOM_REFINER_INPUT"
+  @blocking_marker "(* MODAL_LENS_BLOCKS *)"
+  @search_theory_placeholder "MODAL_LENS_SEARCH"
+  @input_theory_placeholder "MODAL_LENS_INPUT"
 
   @type mode :: :countermodels | :satisfying_models | :consistency_check
 

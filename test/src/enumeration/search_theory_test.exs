@@ -35,7 +35,7 @@ defmodule Src.Enumeration.SearchTheoryTest do
     assert source =~ "ax_first"
     assert source =~ "Automatically generated blocking axiom 2"
     assert source =~ "ax_second"
-    assert source =~ "(* AXIOM_REFINER_BLOCKS *)"
+    assert source =~ "(* MODAL_LENS_BLOCKS *)"
   end
 
   test "selects templates for all enumeration modes" do
@@ -64,7 +64,7 @@ defmodule Src.Enumeration.SearchTheoryTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_search_theory_#{System.unique_integer([:positive])}"
+        "modal_lens_search_theory_#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)

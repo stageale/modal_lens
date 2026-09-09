@@ -7,37 +7,48 @@ defmodule Src.Execution.Options do
 
   @model_logics [:sdl, :ddl]
   @graph_formats [:svg, :tikz]
+  @backends [:local, :hpc_connect]
   @default_palette Palette.default()
+  @verbalization_backends ["transformers", "ollama"]
 
   @type model_logic :: :sdl | :ddl
   @type graph_format :: :svg | :tikz
+  @type backend :: :local | :hpc_connect
 
   @type t :: %__MODULE__{
           model_logic: model_logic(),
+          backend: backend(),
           relation: String.t(),
           atoms: [String.t()],
           auto_atoms?: boolean(),
           max_models: pos_integer(),
+          max_parallel_renderers: pos_integer(),
           render_graph?: boolean(),
           graph_format: graph_format(),
           palette: Palette.palette(),
           include_atoms?: boolean(),
           include_designated_world?: boolean(),
           verbalize?: boolean(),
+          verbalization_backend: String.t(),
+          verbalization_backend_options: map(),
           verbalization_model: String.t()
         }
 
   defstruct model_logic: :sdl,
+            backend: :local,
             relation: "R",
             atoms: [],
             auto_atoms?: true,
             max_models: 10,
+            max_parallel_renderers: 1,
             render_graph?: true,
             graph_format: :svg,
             palette: @default_palette,
             include_atoms?: true,
             include_designated_world?: true,
             verbalize?: true,
+            verbalization_backend: "transformers",
+            verbalization_backend_options: %{},
             verbalization_model: "HuggingFaceTB/SmolLM3-3B"
 
   @doc """
@@ -71,16 +82,20 @@ defmodule Src.Execution.Options do
   def to_run_params(%__MODULE__{} = options) do
     %{
       model_logic: options.model_logic,
+      backend: options.backend,
       relation: options.relation,
       atoms: options.atoms,
       auto_atoms?: options.auto_atoms?,
       max_models: options.max_models,
+      max_parallel_renderers: options.max_parallel_renderers,
       render_graph?: options.render_graph?,
       graph_format: options.graph_format,
       palette: options.palette,
       include_atoms?: options.include_atoms?,
       include_designated_world?: options.include_designated_world?,
       verbalize?: options.verbalize?,
+      verbalization_backend: options.verbalization_backend,
+      verbalization_backend_options: options.verbalization_backend_options,
       verbalization_model: options.verbalization_model
     }
   end
@@ -89,6 +104,9 @@ defmodule Src.Execution.Options do
     cond do
       options.model_logic not in @model_logics ->
         {:error, {:invalid_model_logic, options.model_logic}}
+
+      options.backend not in @backends ->
+        {:error, {:invalid_backend, options.backend}}
 
       not is_binary(options.relation) or String.trim(options.relation) == "" ->
         {:error, :invalid_relation}
@@ -106,8 +124,17 @@ defmodule Src.Execution.Options do
       not Palette.valid?(options.palette) ->
         {:error, {:invalid_palette, options.palette}}
 
+      options.verbalization_backend not in @verbalization_backends ->
+        {:error, :invalid_verbalization_backend, options.verbalization_backend}
+
+      not is_map(options.verbalization_backend_options) ->
+        {:error, :invalid_verbalization_backend_options}
+
       not is_binary(options.verbalization_model) or String.trim(options.verbalization_model) == "" ->
         {:error, :invalid_verbalization_model}
+
+      not is_integer(options.max_parallel_renderers) or options.max_parallel_renderers <= 0 ->
+        {:error, {:invalid_max_parallel_renderers, options.max_parallel_renderers}}
 
       not boolean_options_valid?(options) ->
         {:error, :invalid_boolean_option}
@@ -132,13 +159,18 @@ defmodule Src.Execution.Options do
 
   defp normalize_values(attrs) do
     with {:ok, model_logic} <- normalize_model_logic(Map.get(attrs, :model_logic, :sdl)),
+         {:ok, backend} <- normalize_backend(Map.get(attrs, :backend, :local)),
          {:ok, graph_format} <- normalize_graph_format(Map.get(attrs, :graph_format, :svg)),
-         {:ok, palette} <- normalize_palette(Map.get(attrs, :palette, @default_palette)) do
+         {:ok, palette} <- normalize_palette(Map.get(attrs, :palette, @default_palette)),
+         {:ok, verbalization_backend} <-
+           normalize_verbalization_backend(Map.get(attrs, :verbalization_backend, "transformers")) do
       {:ok,
        attrs
        |> Map.put(:model_logic, model_logic)
+       |> Map.put(:backend, backend)
        |> Map.put(:graph_format, graph_format)
-       |> Map.put(:palette, palette)}
+       |> Map.put(:palette, palette)
+       |> Map.put(:verbalization_backend, verbalization_backend)}
     end
   end
 
@@ -156,6 +188,23 @@ defmodule Src.Execution.Options do
 
   defp normalize_model_logic(value) do
     {:error, {:invalid_model_logic, value}}
+  end
+
+  defp normalize_backend(value) when value in @backends do
+    {:ok, value}
+  end
+
+  defp normalize_backend(value) when is_binary(value) do
+    case value |> String.trim() |> String.downcase() do
+      "local" -> {:ok, :local}
+      "hpc_connect" -> {:ok, :hpc_connect}
+      "hpc-connect" -> {:ok, :hpc_connect}
+      _other -> {:error, {:invalid_backend, value}}
+    end
+  end
+
+  defp normalize_backend(value) do
+    {:error, {:invalid_backend, value}}
   end
 
   defp normalize_graph_format(value) when value in @graph_formats do
@@ -207,4 +256,26 @@ defmodule Src.Execution.Options do
   end
 
   defp normalize_attrs(_attrs), do: {:error, :invalid_options}
+
+  @spec normalize_verbalization_backend(term()) :: {:ok, String.t()} | {:error, term()}
+  defp normalize_verbalization_backend(backend) when backend in [:transformers, :ollama] do
+    {:ok, Atom.to_string(backend)}
+  end
+
+  defp normalize_verbalization_backend(backend) when is_binary(backend) do
+    normalized =
+      backend
+      |> String.trim()
+      |> String.downcase()
+
+    if normalized in @verbalization_backends do
+      {:ok, normalized}
+    else
+      {:error, {:invalid_verbalization_backend, backend}}
+    end
+  end
+
+  defp normalize_verbalization_backend(backend) do
+    {:error, {:invalid_verbalization_backend, backend}}
+  end
 end

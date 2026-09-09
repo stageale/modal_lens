@@ -7,15 +7,16 @@ from pathlib import Path
 from typing import Any
 
 from .base import GenerationRequest, Verbalizer
-from .facts import build_verbalization_facts, verbalization_facts_sha256
+from .facts import REFINEMENT_REPORT_SCHEMA, build_verbalization_facts, verbalization_facts_sha256
 from .prompt import build_verbalization_messages
-from .summary_schema import parse_and_validate_summary_json
+from .summary_schema import REFINEMENT_SUMMARY_SCHEMA_VERSION, parse_and_validate_summary_json
 
 
-VERBALIZATION_SUMMARY_SCHEMA = "axiom-refiner/verbalization-summary"
+VERBALIZATION_SUMMARY_SCHEMA = "modal-lens/verbalization-summary"
 VERBALIZATION_SUMMARY_SCHEMA_VERSION = "1.0"
-VERBALIZATION_PROVENANCE_SCHEMA = "axiom-refiner/verbalization-provenance"
+VERBALIZATION_PROVENANCE_SCHEMA = "modal-lens/verbalization-provenance"
 VERBALIZATION_PROVENANCE_SCHEMA_VERSION = "1.0"
+REFINEMENT_SUMMARY_SCHEMA = "modal-lens/refinement-summary"
 
 
 def write_verbalization_result(result: Mapping[str, Any], output_directory: str | Path) -> dict[str, Path]:
@@ -36,11 +37,12 @@ def write_verbalization_result(result: Mapping[str, Any], output_directory: str 
     raw_output_path.write_text(str(result["raw_output"]), encoding="utf-8")
 
     summary = result["summary"]
+    is_refinement = result.get("report_schema") == REFINEMENT_REPORT_SCHEMA
     
     summary_document = {
-        "schema": VERBALIZATION_SUMMARY_SCHEMA,
-        "schema_version": VERBALIZATION_SUMMARY_SCHEMA_VERSION,
-        **summary
+        **summary,
+        "schema": REFINEMENT_SUMMARY_SCHEMA if is_refinement else VERBALIZATION_SUMMARY_SCHEMA,
+        "schema_version": REFINEMENT_SUMMARY_SCHEMA_VERSION if is_refinement else VERBALIZATION_SUMMARY_SCHEMA_VERSION
     }
 
     summary_json_path.write_text(
@@ -54,8 +56,10 @@ def write_verbalization_result(result: Mapping[str, Any], output_directory: str 
         encoding="utf-8"
     )
 
+    summary_markdown = _render_refinement_summary_markdown(summary) if is_refinement else _render_summary_markdown(summary)
+
     summary_markdown_path.write_text(
-        _render_summary_markdown(result["summary"]),
+        summary_markdown,
         encoding="utf-8"
     )
 
@@ -102,15 +106,10 @@ def run_verbalization(report: Mapping[str, Any], verbalizer: Verbalizer, *, seed
 
     generation = verbalizer.generate(request)
 
-    summary = parse_and_validate_summary_json(generation.raw_text)
-    
-    summary_document = {
-        "schema": VERBALIZATION_SUMMARY_SCHEMA,
-        "schema_version": VERBALIZATION_SUMMARY_SCHEMA_VERSION,
-        **summary
-    }
+    summary = parse_and_validate_summary_json(generation.raw_text, verbalization_facts=verbalization_facts)
 
     return {
+        "report_schema": report.get("schema"),
         "summary": summary,
         "raw_output": generation.raw_text,
         "provenance": {
@@ -124,6 +123,45 @@ def run_verbalization(report: Mapping[str, Any], verbalizer: Verbalizer, *, seed
             "backend_metadata": dict(generation.metadata)
         }
     }
+
+def _render_refinement_summary_markdown(summary: Mapping[str, Any]) -> str:
+    """Render a refinement overview and its applied rounds with evidence."""
+    lines = [
+        "# Refinement Summary",
+        "",
+        str(summary["overview"]),
+        "",
+        "**Evidence:**",
+        ""
+    ]
+    
+    lines.extend(f"- `{identifier}`" for identifier in summary["overview_evidence"])
+    
+    lines.extend(["", "## Applied Refinement Rounds", ""])
+    
+    if not summary["round_summaries"]:
+        lines.extend(["No refinement rounds were applied.", ""])
+        
+    for entry in summary["round_summaries"]:
+        lines.extend(
+            [
+                f"### Round {int(entry['round'])}",
+                "",
+                str(entry["summary"]),
+                "",
+                "**Evidence:**",
+                ""
+            ]
+        )
+        
+        lines.extend(f"- `{identifier}`" for identifier in entry["evidence"])
+        lines.append("")
+        
+    lines.extend(["## Limitations", ""])
+    lines.extend(f"- {limitation}" for limitation in summary["limitations"])
+    lines.append("")
+    
+    return "\n".join(lines)
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()

@@ -35,12 +35,12 @@ def feature_matrix(feature_vectors):
     
     return matrix
 
-def feature_vector(graph, method="wl"):
+def feature_vector(graph, method="wl", graphlet_size=3, graphlet_occurrences=None):
     if method == "wl":
         return wl_feature_vector(graph)
     
     if method == "graphlet":
-        return graphlet_feature_vector(graph)
+        return graphlet_feature_vector(graph, size=graphlet_size, occurrences=graphlet_occurrences)
     
     if method == "raw":
         return raw_feature_vector(graph)
@@ -49,7 +49,11 @@ def feature_vector(graph, method="wl"):
         return {
             **raw_feature_vector(graph),
             **wl_feature_vector(graph),
-            **graphlet_feature_vector(graph)
+            **graphlet_feature_vector(
+                graph,
+                size=graphlet_size,
+                occurrences=graphlet_occurrences
+            )
         }
         
     raise ValueError(f"Unknown feature method: {method}")
@@ -133,7 +137,11 @@ def graphlet_features(graphs, size=3):
     
     return features
 
-def graphlet_feature_vector(graph, size=3):
+def graphlet_feature_vector(graph, size=3, occurrences=None):
+
+    if occurrences is not None:
+        return {pattern: len(worlds) for pattern, worlds in occurrences.items()}
+    
     return graphlet_features([graph], size)[0]
 
 def _world_valuation(attributes, atoms):

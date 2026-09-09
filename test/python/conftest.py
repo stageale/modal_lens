@@ -8,14 +8,15 @@ import pytest
 @pytest.fixture
 def sample_report() -> dict:
     return {
-        "schema": "axiom-refiner/analysis-report",
-        "schema_version": "1.0",
+        "schema": "modal-lens/analysis-report",
+        "schema_version": "1.1",
         "generated_at": "2026-07-26T12:00:00+00:00",
         "purpose": "normative_gap_analysis",
         "scope": {
             "goal": "Identify recurring structural indicators of possible normative gaps.",
             "creates_new_norms": False,
             "refinement_role": "diagnostic_support_for_human_deliberation",
+            "application_decision": "external"
         },
         "theory": {
             "name": "Example",
@@ -26,6 +27,7 @@ def sample_report() -> dict:
             "model_count": 2,
             "cluster_count": 1,
             "reported_pattern_count": 1,
+            "refinement_candidate_count": 1
         },
         "clusters": [
             {
@@ -46,6 +48,7 @@ def sample_report() -> dict:
                             "graph_index": 0,
                             "worlds": [0, 1],
                         },
+                        "refinement_candidate": None
                     }
                 ],
                 "representative_model": {

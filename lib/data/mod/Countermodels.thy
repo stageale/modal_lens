@@ -1,10 +1,10 @@
-theory AXIOM_REFINER_SEARCH
-    imports AXIOM_REFINER_INPUT
+theory MODAL_LENS_SEARCH
+    imports MODAL_LENS_INPUT
 begin
 
-(* AXIOM_REFINER_BLOCKS *)
+(* MODAL_LENS_BLOCKS *)
 
-lemma axiom_refiner_probe:
+lemma modal_lens_probe:
     "axiom_refiner_query"
     nitpick [
         user_axioms,

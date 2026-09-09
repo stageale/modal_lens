@@ -6,7 +6,7 @@ defmodule Src.Isabelle.HOLEmbedding do
   and ROOT files that can be executed through `Src.Isabelle.Client`.
   """
 
-  defstruct theory_name: "Axiom_Refiner_Run",
+  defstruct theory_name: "Modal_Lens_Run",
             imports: ["Main"],
             type_name: "i",
             relation_name: "r",

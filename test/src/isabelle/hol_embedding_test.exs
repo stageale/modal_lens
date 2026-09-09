@@ -5,7 +5,7 @@ defmodule Src.Isabelle.HOLEmbeddingTest do
 
   test "creates an embedding with defaults and overrides" do
     default = HOLEmbedding.new()
-    assert default.theory_name == "Axiom_Refiner_Run"
+    assert default.theory_name == "Modal_Lens_Run"
     assert default.imports == ["Main"]
     assert default.goal == "False"
 
@@ -64,7 +64,7 @@ defmodule Src.Isabelle.HOLEmbeddingTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_embedding_test_#{System.unique_integer([:positive])}"
+        "modal_lens_embedding_test_#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)

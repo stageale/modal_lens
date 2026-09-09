@@ -39,6 +39,7 @@ defmodule Src.Execution.PipelineTest do
                atoms: [],
                auto_atoms?: true,
                render_graph?: false,
+               max_parallel_renderers: 1,
                graph_format: :svg,
                palette: :turbo,
                include_atoms?: true,

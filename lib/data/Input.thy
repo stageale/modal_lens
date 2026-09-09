@@ -44,7 +44,7 @@ and
   chisholm_4: "\<lfloor>D4\<rfloor>\<^sub>l"
 
 
-(* AXIOM_REFINER_BLOCKS *)
+(* MODAL_LENS_BLOCKS *)
 
 
 section \<open>Nitpick target\<close>

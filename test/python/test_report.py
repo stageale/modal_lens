@@ -53,12 +53,17 @@ def test_build_report_uses_versioned_envelope_and_durable_highlights() -> None:
     )
 
     assert report["schema"] == "modal-lens/analysis-report"
-    assert report["schema_version"] == "1.0"
+    assert report["schema_version"] == "1.1"
     assert report["highlights"] == _highlights()
     assert report["analysis"] == {
         "model_count": 1,
         "cluster_count": 1,
         "reported_pattern_count": 0,
+        "refinement_candidate_count": 0,
+        "signature": {
+            "atoms": ["go", "tell"],
+            "relation": "R"
+        }
     }
 
     representative = report["clusters"][0]["representative_model"]

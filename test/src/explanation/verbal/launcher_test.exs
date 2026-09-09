@@ -70,4 +70,37 @@ defmodule Src.Explanation.Verbal.LauncherTest do
     File.mkdir_p!(dir)
     dir
   end
+
+  test "runs multiple requests in one Python process" do
+    root = tmp_dir()
+    arguments_file = Path.join(root, "arguments.txt")
+
+    fake_uv =
+      executable(root, "uv", """
+      printf '%s\\n' "$@" > "#{arguments_file}"
+      echo '{"status":"completed","jobs":[]}'
+      """)
+
+    request_a = Path.join(root, "a.json")
+    request_b = Path.join(root, "b.json")
+
+    assert {:ok, response} =
+             Launcher.run_requests(
+               [request_a, request_b],
+               uv_executable: fake_uv,
+               project_root: root
+             )
+
+    assert response["status"] == "completed"
+
+    arguments = File.read!(arguments_file)
+
+    assert arguments =~ Path.expand(request_a)
+    assert arguments =~ Path.expand(request_b)
+  end
+
+  test "rejects an empty request batch" do
+    assert {:error, %{reason: :no_verbalization_requests}} =
+             Launcher.run_requests([])
+  end
 end

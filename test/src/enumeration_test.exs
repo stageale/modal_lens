@@ -94,7 +94,7 @@ defmodule Src.EnumerationTest do
     dir =
       Path.join(
         System.tmp_dir!(),
-        "axiom_refiner_enumeration_#{label}_#{System.unique_integer([:positive])}"
+        "modal_lens_enumeration_#{label}_#{System.unique_integer([:positive])}"
       )
 
     File.mkdir_p!(dir)

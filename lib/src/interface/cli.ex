@@ -5,16 +5,23 @@ defmodule Src.Interface.CLI do
   The CLI dispatches model enumeration, Nitpick summaries, blocking-axiom
   generation, and interactive demo generation.
   """
-  alias Src.NitpickOutput
   alias Src.Core.BlockingAxiom
   alias Src.Enumeration
+  alias Src.Execution.Options
+  alias Src.Execution.Run
+  alias Src.Explanation.Verbal.Launcher, as: VerbalLauncher
   alias Src.Interface.Ui
+  alias Src.NitpickOutput
+  alias Src.Refinement.Axiom
+  alias Src.Refinement.Loop
+  alias Src.Refinement.Report
 
   @demo_switches [
     relation: :string,
     atoms: :string,
     auto_atoms: :boolean,
     model_logic: :string,
+    backend: :string,
     max_models: :integer,
     out_dir: :string,
     render_graph: :boolean,
@@ -35,6 +42,7 @@ defmodule Src.Interface.CLI do
   @enumeration_switches [
     input: :string,
     mode: :string,
+    backend: :string,
     max_models: :integer,
     out_dir: :string,
     search_theory_dir: :string,
@@ -43,6 +51,13 @@ defmodule Src.Interface.CLI do
     include_atoms: :boolean,
     include_designated_world: :boolean
   ]
+
+  @refinement_switches @demo_switches ++
+                         [
+                           max_refinement_rounds: :integer,
+                           auto_refine: :boolean,
+                           verbalization_backend: :string
+                         ]
 
   @doc """
   Runs the command-line interface.
@@ -71,8 +86,9 @@ defmodule Src.Interface.CLI do
       ["demo" | rest] ->
         cmd_demo(rest)
 
-      # ["graphviz" | _rest] ->
-      #  not_implemented("tikz")
+      ["refine" | rest] ->
+        cmd_refine(rest)
+
       [unknown | _] ->
         IO.puts(:stderr, "[ERROR] Unknown command: #{unknown}")
         usage()
@@ -97,24 +113,187 @@ defmodule Src.Interface.CLI do
       demo        Generate a small demo bundle with all outputs.
 
     Options:
-      --input PATH      Isabelle input theory.
-                        Default: lib/data/Input.thy
+      --input PATH        Isabelle input theory.
+                          Default: lib/data/Input.thy
 
-      --mode MODE       countermodels,
-                        satisfying-models,
-                        consistency-check
+      --mode MODE         countermodels,
+                          satisfying-models,
+                          consistency-check
 
-      --no-verbalize    Disable cluster verbalization.
-                        Verbalization is enabled by default.
+      --no-verbalize      Disable cluster and refinement verbalization.
+                          Verbalization is enabled by default.
 
-      --no-render-graph Do not generate DOT, SVG, TikZ, or PDF graph files.
+      --no-render-graph   Do not generate DOT, SVG, TikZ, or PDF graph files.
 
-      --atoms LIST      Include the named atoms explicitly.
-      --no-auto-atoms   Do not detect additional unary predicates.
-                        Automatic detection is enabled by default.
+      --atoms LIST        Include the named atoms explicitly.
+      --no-auto-atoms     Do not detect additional unary predicates.
+                          Automatic detection is enabled by default.
+      --backend BACKEND   Isabelle execution backend:
+                          local or hpc_connect.
+                          Default: local.
     """)
 
     0
+  end
+
+  @spec cmd_refine([String.t()]) :: non_neg_integer()
+  defp cmd_refine(argv) do
+    {opts, inputs, invalid} =
+      OptionParser.parse(argv, strict: @refinement_switches, aliases: [o: :out_dir])
+
+    case {invalid, inputs} do
+      {[], [theory_path]} ->
+        option_set =
+          [
+            model_logic: :model_logic,
+            backend: :backend,
+            relation: :relation,
+            atoms: :atoms,
+            auto_atoms: :auto_atoms?,
+            max_models: :max_models,
+            render_graph: :render_graph?,
+            graph_format: :graph_format,
+            palette: :palette,
+            verbalize: :verbalize?,
+            verbalization_backend: :verbalization_backend,
+            verbalization_model: :verbalization_model
+          ]
+          |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
+            case Keyword.fetch(opts, cli_key) do
+              {:ok, value} -> Map.put(options, option_key, value)
+              :error -> options
+            end
+          end)
+          |> Map.update(:atoms, [], fn atoms ->
+            atoms
+            |> String.split(",", trim: true)
+            |> Enum.map(&String.trim/1)
+          end)
+
+        output_dir = Keyword.get(opts, :out_dir, "out/refinement")
+        max_rounds = Keyword.get(opts, :max_refinement_rounds, 1)
+
+        decision =
+          if Keyword.get(opts, :auto_refine, false) do
+            :automatic
+          else
+            &confirm_refinement/3
+          end
+
+        with {:ok, options} <- Options.new(option_set),
+             {:ok, run} <- Run.new("refinement", output_dir, Options.to_run_params(options)),
+             {:ok, result} <-
+               Loop.run(run, theory_path, max_rounds: max_rounds, decision: decision),
+             {:ok, report_path} <- Report.write(result),
+             {:ok, _session, page_path} <-
+               Ui.write_refinement(result, result.initial_run.output_dir) do
+          IO.puts("Refinement completed")
+          IO.puts("Applied refinements: #{length(result.iterations)}")
+          IO.puts("Stop reason: #{result.stop_reason}")
+          IO.puts("Final theory: #{result.final_theory_path}")
+          IO.puts("Final run directory: #{result.final_run.output_dir}")
+          IO.puts("Refinement report: #{report_path}")
+          IO.puts("UI: #{page_path}")
+
+          maybe_verbalize_refinement(report_path, result.initial_run)
+        else
+          {:error, reason} ->
+            IO.inspect(reason, label: "[ERROR] Refinement failed")
+
+            1
+
+          {:error, reason, _run} ->
+            IO.inspect(reason, label: "[ERROR] Refinement failed")
+
+            1
+        end
+
+      {[], []} ->
+        IO.puts(:stderr, "[ERROR] Refine requires one .thy file.")
+        2
+
+      {[], _inputs} ->
+        IO.puts(:stderr, "[ERROR] Refine accepts exactly one .thy file.")
+        2
+
+      {_invalid, _inputs} ->
+        IO.puts(:stderr, "[ERROR] Invalid refinement options.")
+        2
+    end
+  end
+
+  @spec maybe_verbalize_refinement(String.t(), Run.t()) :: non_neg_integer()
+  defp maybe_verbalize_refinement(report_path, %Run{} = run) do
+    if Map.get(run.params, :verbalize?, false) do
+      launcher_options = [
+        execution_backend: Map.get(run.params, :backend, :local),
+        output_name: ".",
+        project_root: Map.get(run.params, :project_root, File.cwd!()),
+        uv_executable: Map.get(run.params, :uv_executable, "uv"),
+        seed: Map.get(run.params, :verbalization, 42),
+        max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 768),
+        backend_options: Map.get(run.params, :verbalization_backend_options, %{})
+      ]
+
+      case VerbalLauncher.launch(
+             report_path,
+             Path.join(run.output_dir, "verbalization/refinement"),
+             Map.fetch!(run.params, :verbalization_backend),
+             Map.fetch!(run.params, :verbalization_model),
+             launcher_options
+           ) do
+        {:ok,
+         %{
+           request_path: request_path,
+           response: %{"artifacts" => artifacts}
+         }}
+        when is_map(artifacts) ->
+          IO.puts("Refinement verbalization completed.")
+          IO.puts("Request: #{request_path}")
+
+          Enum.each(Enum.sort(artifacts), fn {name, path} ->
+            IO.puts("#{name}: #{path}")
+          end)
+
+          0
+
+        {:error, reason} ->
+          IO.inspect(reason, label: "[ERROR] Refinement verbalization failed")
+
+          1
+
+        {:ok, unexpected} ->
+          IO.inspect(unexpected, label: "[ERROR] Invalid refinement verbalization response")
+
+          1
+      end
+    else
+      0
+    end
+  end
+
+  @spec confirm_refinement(pos_integer(), Axiom.candidate(), map()) :: :apply | :stop
+  defp confirm_refinement(round, candidate, _pipeline_result) do
+    origin = candidate["origin"]
+
+    IO.puts("\nRefinement candidate for round #{round}:")
+    IO.puts("Candidate: #{candidate["candidate_id"]}")
+    IO.puts("Cluster support: #{origin["cluster_support"]}")
+    IO.puts("Outside support: #{origin["outside_support"]}")
+    IO.puts("")
+    IO.puts(Axiom.refinement_axiom(candidate))
+
+    case IO.gets("\nApply this refinement axiom? [y/N] ") do
+      answer when is_binary(answer) ->
+        if String.downcase(String.trim(answer)) in ["y", "yes"] do
+          :apply
+        else
+          :stop
+        end
+
+      _answer ->
+        :stop
+    end
   end
 
   defp cmd_enumerate(argv) do
@@ -130,7 +309,8 @@ defmodule Src.Interface.CLI do
     with :ok <- reject_invalid_options(invalid),
          :ok <- reject_enumeration_positionals(positional_args),
          {:ok, mode} <- parse_enumeration_mode(Keyword.get(opts, :mode)),
-         {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")) do
+         {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")),
+         {:ok, backend} <- parse_backend(Keyword.get(opts, :backend, "local")) do
       input_path =
         Keyword.get(opts, :input)
 
@@ -139,6 +319,7 @@ defmodule Src.Interface.CLI do
         |> Keyword.drop([:input, :out_dir])
         |> Keyword.put(:mode, mode)
         |> Keyword.put(:model_logic, model_logic)
+        |> Keyword.put(:backend, backend)
         |> maybe_put(:output_dir, Keyword.get(opts, :out_dir))
 
       enumeration_result =
@@ -178,6 +359,14 @@ defmodule Src.Interface.CLI do
     {:error,
      "Unexpected positional arguments: " <>
        Enum.join(positional_args, " ") <> ". Use --input PATH to select another theory."}
+  end
+
+  defp parse_backend("local"), do: {:ok, :local}
+  defp parse_backend("hpc_connect"), do: {:ok, :hpc_connect}
+  defp parse_backend("hpc-connect"), do: {:ok, :hpc_connect}
+
+  defp parse_backend(backend) do
+    {:error, "Unknown backend #{inspect(backend)}. Use local or hpc_connect."}
   end
 
   defp parse_enumeration_mode("countermodels") do
@@ -335,6 +524,7 @@ defmodule Src.Interface.CLI do
         option_set =
           [
             model_logic: :model_logic,
+            backend: :backend,
             relation: :relation,
             atoms: :atoms,
             auto_atoms: :auto_atoms?,

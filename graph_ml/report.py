@@ -6,6 +6,7 @@ import tempfile
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timezone
+from graph_ml.refinement import derive_exclusion_candidate
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,7 @@ import networkx as nx
 
 
 REPORT_SCHEMA = "modal-lens/analysis-report"
-REPORT_SCHEMA_VERSION = "1.0"
+REPORT_SCHEMA_VERSION = "1.1"
 
 
 def _json_value(value: Any) -> Any:
@@ -50,7 +51,7 @@ def _graph_atoms(graph: nx.DiGraph) -> list[str]:
     declared_atoms = graph.graph.get("atoms")
     
     if declared_atoms is not None:
-        return [str(atom) for atom in declared_atoms]
+        return sorted(str(atom) for atom in declared_atoms)
     
     ignored_attributes = {"name", "label", "role", "index", "designated"}
     
@@ -60,6 +61,28 @@ def _graph_atoms(graph: nx.DiGraph) -> list[str]:
         atoms.update(str(key) for key, value in attributes.items() if key not in ignored_attributes and isinstance(value, bool))
         
     return sorted(atoms)
+
+def _analysis_signature(graphs: Sequence[nx.DiGraph]) -> tuple[list[str], str | None]:
+    signatures = {
+        (
+            tuple(_graph_atoms(graph)),
+            str(graph.graph.get("relation", "R"))
+        )
+        for graph in graphs
+    }
+
+    if not signatures:
+        return [], None
+
+    if len(signatures) != 1:
+        raise ValueError(
+            "All analyzed models must use the same proposition "
+            "and relation signature."
+        )
+
+    atoms, relation = next(iter(signatures))
+
+    return list(atoms), relation
 
 def _designated_world(graph: nx.DiGraph) -> Any:
     designated_world = graph.graph.get("designated_world")
@@ -120,14 +143,20 @@ def _model_report(graph: nx.DiGraph, graph_index: int) -> dict[str, Any]:
     return model
 
 
-def _pattern_report(pattern_data: Mapping[str, Any], *, cluster_label: int, rank: int, graphs: Sequence[nx.DiGraph]) -> dict[str, Any]:
+def _pattern_report(pattern_data: Mapping[str, Any], *, cluster_label: int, rank: int, graphs: Sequence[nx.DiGraph], atoms: Sequence[str], relation: str | None) -> dict[str, Any]:
     occurrences = pattern_data.get("occurrences", {})
 
     occurrence_models = sorted(int(graph_index) for graph_index in occurrences)
 
-    representative_occurrence = None
+    pattern_id = f"cluster-{cluster_label}-pattern-{rank}"
 
-    if occurrence_models:
+    representative_occurrence = None
+    refinement_candidate = None
+
+    if occurrence_models: 
+        if relation is None:
+            raise ValueError("A pattern occurrence requires a relation signature.")
+
         graph_index = occurrence_models[0]
         first_occurrence = occurrences[graph_index][0]
 
@@ -142,28 +171,23 @@ def _pattern_report(pattern_data: Mapping[str, Any], *, cluster_label: int, rank
             ),
         }
 
+        refinement_candidate = derive_exclusion_candidate(
+            pattern_data,
+            cluster_id=cluster_label,
+            rank=rank,
+            atoms=atoms,
+            relation=relation
+        )
+
     return {
-        "pattern_id": (
-            f"cluster-{cluster_label}-pattern-{rank}"
-        ),
-        "pattern": _json_value(
-            pattern_data["pattern"]
-        ),
-        "cluster_support": float(
-            pattern_data["cluster_support"]
-        ),
-        "outside_support": float(
-            pattern_data["outside_support"]
-        ),
-        "contrast": float(
-            pattern_data["contrast"]
-        ),
-        "occurring_model_count": len(
-            occurrence_models
-        ),
-        "representative_occurrence": (
-            representative_occurrence
-        ),
+        "pattern_id": pattern_id,
+        "pattern": _json_value(pattern_data["pattern"]),
+        "cluster_support": float(pattern_data["cluster_support"]),
+        "outside_support": float(pattern_data["outside_support"]),
+        "contrast": float(pattern_data["contrast"]),
+        "occurring_model_count": len(occurrence_models),
+        "representative_occurrence": (representative_occurrence),
+        "refinement_candidate": refinement_candidate
     }
     
     
@@ -182,6 +206,8 @@ def build_report(*,
     """
     graphs = list(graphs)
 
+    atoms, relation = _analysis_signature(graphs)
+
     cluster_labels = [int(label) for label in cluster_labels]
 
     highlights = list(highlights)
@@ -198,15 +224,34 @@ def build_report(*,
         cluster_indices[cluster_label].append(graph_index)
 
     cluster_reports = []
+    refinement_candidates = []
 
     for cluster_label in sorted(cluster_indices):
         indices = cluster_indices[cluster_label]
 
         raw_patterns = list(cluster_pattern_results.get(cluster_label, ()))
 
-        selected_patterns = raw_patterns[:max_patterns_per_cluster]
+        all_pattern_reports = [
+            _pattern_report(
+                pattern_data,
+                cluster_label=cluster_label,
+                rank=rank,
+                graphs=graphs,
+                atoms=atoms,
+                relation=relation
+            )
+            for rank, pattern_data in enumerate(
+                raw_patterns, start=1
+            )
+        ]
 
-        patterns = [_pattern_report(pattern_data, cluster_label=cluster_label, rank=rank, graphs=graphs) for rank, pattern_data in enumerate(selected_patterns, start=1)]
+        patterns = all_pattern_reports[:max_patterns_per_cluster]
+
+        refinement_candidates.extend(
+            pattern["refinement_candidate"]
+            for pattern in all_pattern_reports
+            if pattern["refinement_candidate"] is not None
+        )
 
         # Vorerst nehmen wir das erste Modell des Clusters.
         representative_index = indices[0]
@@ -253,8 +298,9 @@ def build_report(*,
             ),
             "creates_new_norms": False,
             "refinement_role": (
-                "diagnostic_support_for_human_deliberation"
-            )
+                "structural_candidate_generation"
+            ),
+            "application_decision": "external"
         },
 
         "theory": _normalize_theory(theory),
@@ -263,8 +309,13 @@ def build_report(*,
             "model_count": len(graphs),
             "cluster_count": len(cluster_indices),
             "reported_pattern_count": (reported_pattern_count),
+            "refinement_candidate_count": len(refinement_candidates),
+            "signature": {
+                "atoms": atoms,
+                "relation": relation,
+            }
         },
-
+        "refinement_candidates": refinement_candidates,
         "clusters": cluster_reports,
         "highlights": _json_value(highlights)
     }
