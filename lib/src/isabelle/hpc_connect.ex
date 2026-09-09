@@ -10,9 +10,13 @@ defmodule Src.Isabelle.HPCConnect do
     * it returns the same shape as the local backend: `{:ok, log}` or `{:error, reason}`.
 
   Configuration is read from `:modal_lens, :isabelle_hpc`.
-  SSH authentication is managed by a user-started OpenSSH ControlMaster.
-  ModalLens never reads a private key or passphrase and never starts the
-  authenticated connection itself.
+  SSH authentication is managed entirely by OpenSSH.
+
+  ModalLens never reads private keys or passphrases. When no authenticated
+  OpenSSH ControlMaster exists for the configured SSH alias, ModalLens starts
+  the system `ssh` client interactively once. OpenSSH performs authentication
+  directly in the user's terminal and keeps the resulting ControlMaster
+  connection according to the user's `~/.ssh/config`.
   """
 
   alias HpcConnect.{Cluster, Command, Session, SSH}
@@ -58,9 +62,11 @@ defmodule Src.Isabelle.HPCConnect do
   `{:ok, log}`. With `return_metadata?: true`, it returns
   `{:ok, %{log: log, provenance: provenance}}` instead.
 
-  Before staging, the function verifies that the user has already opened the
-  configured OpenSSH ControlMaster connection. If it is missing, the returned
-  error contains the external command that the user must run in a terminal.
+  Before staging, the function verifies that an authenticated OpenSSH
+  ControlMaster exists for the configured SSH alias. If none exists, ModalLens
+  starts the system `ssh` client once with interactive authentication enabled.
+  The passphrase, private key and authentication state remain entirely under
+  OpenSSH control.
   """
   @spec run(String.t(), hpc_spec()) :: {:ok, String.t() | result()} | {:error, term()}
   @spec run(String.t(), hpc_spec(), keyword()) :: {:ok, String.t() | result()} | {:error, term()}
@@ -91,6 +97,24 @@ defmodule Src.Isabelle.HPCConnect do
     ssh_alias =
       Keyword.get(opts, :ssh_alias, session.ssh_alias)
 
+    case check_control_connection(hpc_module, ssh_alias) do
+      :ok ->
+        :ok
+
+      {:error, _reason} ->
+        with :ok <- open_control_connection(ssh_alias),
+             :ok <- check_control_connection(hpc_module, ssh_alias) do
+          :ok
+        end
+    end
+  end
+
+  # Injected test backends may use a lightweight session value instead of the
+  # HpcConnect.Session struct and therefore do not perform an external check.
+  defp ensure_control_connection(_hpc_module, _session, _opts),
+    do: :ok
+
+  defp check_control_connection(hpc_module, ssh_alias) do
     command = %Command{
       binary: SSH.ssh_binary(),
       args: ["-O", "check", ssh_alias],
@@ -104,28 +128,71 @@ defmodule Src.Isabelle.HPCConnect do
           :ok
 
         {output, exit_code} ->
-          control_connection_error(ssh_alias, exit_code, output)
+          {:error,
+           {:ssh_control_connection_unavailable,
+            %{
+              ssh_alias: ssh_alias,
+              exit_code: exit_code,
+              output: String.trim(to_string(output))
+            }}}
       end
     rescue
       exception ->
-        control_connection_error(ssh_alias, nil, Exception.message(exception))
+        {:error,
+         {:ssh_control_connection_unavailable,
+          %{
+            ssh_alias: ssh_alias,
+            exit_code: nil,
+            output: Exception.message(exception)
+          }}}
     end
   end
 
-  # Injected test backends may use a lightweight session value instead of the
-  # HpcConnect.Session struct and therefore do not perform an external check.
-  defp ensure_control_connection(_hpc_module, _session, _opts),
-    do: :ok
+  defp open_control_connection(ssh_alias) do
+    IO.puts(
+      "[HPC] Opening authenticated SSH connection to #{ssh_alias}. " <>
+        "OpenSSH may ask for your key passphrase."
+    )
 
-  defp control_connection_error(ssh_alias, exit_code, output) do
-    {:error,
-     {:ssh_control_connection_required,
-      %{
-        ssh_alias: ssh_alias,
-        exit_code: exit_code,
-        output: String.trim(to_string(output)),
-        command: "ssh -o BatchMode=no -MNf #{shell_escape(ssh_alias)}"
-      }}}
+    args = [
+      "-o",
+      "BatchMode=no",
+      "-MNf",
+      ssh_alias
+    ]
+
+    try do
+      {_output, exit_code} =
+        System.cmd(
+          SSH.ssh_binary(),
+          args,
+          stderr_to_stdout: true
+        )
+
+      case exit_code do
+        0 ->
+          :ok
+
+        status ->
+          {:error,
+           {:ssh_control_connection_failed,
+            %{
+              ssh_alias: ssh_alias,
+              exit_code: status,
+              command: Enum.join([SSH.ssh_binary() | args], " ")
+            }}}
+      end
+    rescue
+      exception ->
+        {:error,
+         {:ssh_control_connection_failed,
+          %{
+            ssh_alias: ssh_alias,
+            exit_code: nil,
+            command: Enum.join([SSH.ssh_binary() | args], " "),
+            reason: Exception.message(exception)
+          }}}
+    end
   end
 
   defp validate_options(opts) do
@@ -362,10 +429,15 @@ defmodule Src.Isabelle.HPCConnect do
       base_theory_file when is_binary(base_theory_file) and base_theory_file != "" ->
         base_theory_file = Path.expand(base_theory_file)
 
-        if path_within?(base_theory_file, workdir) do
+        theory_files =
+          (local_import_files(base_theory_file) ++ [base_theory_file])
+          |> Enum.map(&Path.expand/1)
+          |> Enum.uniq()
+
+        if Enum.all?(theory_files, &path_within?(&1, workdir)) do
           {:ok, %{source: workdir, relative_workdir: ".", cleanup_dir: nil}}
         else
-          prepare_staging_tree(workdir, Path.dirname(base_theory_file))
+          prepare_staging_tree(workdir, theory_files)
         end
 
       _other ->
@@ -375,10 +447,18 @@ defmodule Src.Isabelle.HPCConnect do
     exception -> {:error, Exception.message(exception)}
   end
 
-  defp prepare_staging_tree(workdir, base_theory_dir) do
-    common_root = common_ancestor(workdir, base_theory_dir)
-    relative_workdir = Path.relative_to(workdir, common_root)
-    relative_base_dir = Path.relative_to(base_theory_dir, common_root)
+  defp prepare_staging_tree(workdir, theory_files) do
+    workdir = Path.expand(workdir)
+
+    common_root =
+      theory_files
+      |> Enum.map(&Path.dirname/1)
+      |> Enum.reduce(workdir, fn directory, root ->
+        common_ancestor(root, directory)
+      end)
+
+    relative_workdir =
+      Path.relative_to(workdir, common_root)
 
     cleanup_dir =
       Path.join(
@@ -386,21 +466,34 @@ defmodule Src.Isabelle.HPCConnect do
         "modal_lens_hpc_staging_#{System.unique_integer([:positive, :monotonic])}"
       )
 
-    staging_root = Path.join(cleanup_dir, "staging")
-    staging_workspace = Path.join(staging_root, "workspace")
+    staging_root =
+      Path.join(cleanup_dir, "staging")
+
+    staging_workspace =
+      Path.join(staging_root, "workspace")
+
     File.mkdir_p!(staging_workspace)
 
     copy_directory!(
-      base_theory_dir,
-      local_join(staging_workspace, relative_base_dir)
+      workdir,
+      local_join(staging_workspace, relative_workdir)
     )
 
-    unless path_within?(workdir, base_theory_dir) do
-      copy_directory!(
-        workdir,
-        local_join(staging_workspace, relative_workdir)
-      )
-    end
+    Enum.each(theory_files, fn theory_file ->
+      unless path_within?(theory_file, workdir) do
+        relative_theory_file =
+          Path.relative_to(theory_file, common_root)
+
+        destination =
+          local_join(
+            staging_workspace,
+            relative_theory_file
+          )
+
+        File.mkdir_p!(Path.dirname(destination))
+        File.cp!(theory_file, destination)
+      end
+    end)
 
     {:ok,
      %{

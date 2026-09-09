@@ -52,7 +52,12 @@ defmodule Src.Interface.CLI do
     include_designated_world: :boolean
   ]
 
-  @refinement_switches @demo_switches ++ [max_refinement_rounds: :integer, auto_refine: :boolean, verbalization_backend: :string]
+  @refinement_switches @demo_switches ++
+                         [
+                           max_refinement_rounds: :integer,
+                           auto_refine: :boolean,
+                           verbalization_backend: :string
+                         ]
 
   @doc """
   Runs the command-line interface.
@@ -138,75 +143,82 @@ defmodule Src.Interface.CLI do
 
     case {invalid, inputs} do
       {[], [theory_path]} ->
-        option_set = [
-          model_logic: :model_logic,
-          backend: :backend,
-          relation: :relation,
-          atoms: :atoms,
-          auto_atoms: :auto_atoms?,
-          max_models: :max_models,
-          render_graph: :render_graph?,
-          graph_format: :graph_format,
-          palette: :palette,
-          verbalize: :verbalize?,
-          verbalization_backend: :verbalization_backend,
-          verbalization_model: :verbalization_model
-        ]
-        |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
-          case Keyword.fetch(opts, cli_key) do
-            {:ok, value} -> Map.put(options, option_key, value)
-            :error -> options
-          end
-        end)
-        |> Map.update(:atoms, [], fn atoms ->
-          atoms
-          |> String.split(",", trim: true)
-          |> Enum.map(&String.trim/1)
-        end)
+        option_set =
+          [
+            model_logic: :model_logic,
+            backend: :backend,
+            relation: :relation,
+            atoms: :atoms,
+            auto_atoms: :auto_atoms?,
+            max_models: :max_models,
+            render_graph: :render_graph?,
+            graph_format: :graph_format,
+            palette: :palette,
+            verbalize: :verbalize?,
+            verbalization_backend: :verbalization_backend,
+            verbalization_model: :verbalization_model
+          ]
+          |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
+            case Keyword.fetch(opts, cli_key) do
+              {:ok, value} -> Map.put(options, option_key, value)
+              :error -> options
+            end
+          end)
+          |> Map.update(:atoms, [], fn atoms ->
+            atoms
+            |> String.split(",", trim: true)
+            |> Enum.map(&String.trim/1)
+          end)
 
         output_dir = Keyword.get(opts, :out_dir, "out/refinement")
         max_rounds = Keyword.get(opts, :max_refinement_rounds, 1)
+
         decision =
           if Keyword.get(opts, :auto_refine, false) do
             :automatic
           else
             &confirm_refinement/3
           end
+
         with {:ok, options} <- Options.new(option_set),
-            {:ok, run} <- Run.new("refinement", output_dir, Options.to_run_params(options)),
-            {:ok, result} <- Loop.run(run, theory_path, max_rounds: max_rounds, decision: decision),
-            {:ok, report_path} <- Report.write(result) do
-              IO.puts("Refinement completed")
-              IO.puts("Applied refinements: #{length(result.iterations)}")
-              IO.puts("Stop reason: #{result.stop_reason}")
-              IO.puts("Final theory: #{result.final_theory_path}")
-              IO.puts("Final run directory: #{result.final_run.output_dir}")
-              IO.puts("Refinement report: #{report_path}")
+             {:ok, run} <- Run.new("refinement", output_dir, Options.to_run_params(options)),
+             {:ok, result} <-
+               Loop.run(run, theory_path, max_rounds: max_rounds, decision: decision),
+             {:ok, report_path} <- Report.write(result),
+             {:ok, _session, page_path} <-
+               Ui.write_refinement(result, result.initial_run.output_dir) do
+          IO.puts("Refinement completed")
+          IO.puts("Applied refinements: #{length(result.iterations)}")
+          IO.puts("Stop reason: #{result.stop_reason}")
+          IO.puts("Final theory: #{result.final_theory_path}")
+          IO.puts("Final run directory: #{result.final_run.output_dir}")
+          IO.puts("Refinement report: #{report_path}")
+          IO.puts("UI: #{page_path}")
 
-              maybe_verbalize_refinement(report_path, result.initial_run)
-            else
-              {:error, reason} ->
-                IO.inspect(reason, label: "[ERROR] Refinement failed")
+          maybe_verbalize_refinement(report_path, result.initial_run)
+        else
+          {:error, reason} ->
+            IO.inspect(reason, label: "[ERROR] Refinement failed")
 
-                1
+            1
 
-              {:error, reason, _run} ->
-                IO.inspect(reason, label: "[ERROR] Refinement failed")
+          {:error, reason, _run} ->
+            IO.inspect(reason, label: "[ERROR] Refinement failed")
 
-                1
-            end
+            1
+        end
 
-          {[], []} ->
-            IO.puts(:stderr, "[ERROR] Refine requires one .thy file.")
-            2
+      {[], []} ->
+        IO.puts(:stderr, "[ERROR] Refine requires one .thy file.")
+        2
 
-          {[], _inputs} ->
-            IO.puts(:stderr, "[ERROR] Refine accepts exactly one .thy file.")
-            2
+      {[], _inputs} ->
+        IO.puts(:stderr, "[ERROR] Refine accepts exactly one .thy file.")
+        2
 
-          {_invalid, _inputs} ->
-            IO.puts(:stderr, "[ERROR] Invalid refinement options.")
-            2
+      {_invalid, _inputs} ->
+        IO.puts(:stderr, "[ERROR] Invalid refinement options.")
+        2
     end
   end
 
@@ -214,6 +226,7 @@ defmodule Src.Interface.CLI do
   defp maybe_verbalize_refinement(report_path, %Run{} = run) do
     if Map.get(run.params, :verbalize?, false) do
       launcher_options = [
+        execution_backend: Map.get(run.params, :backend, :local),
         output_name: ".",
         project_root: Map.get(run.params, :project_root, File.cwd!()),
         uv_executable: Map.get(run.params, :uv_executable, "uv"),
@@ -223,18 +236,17 @@ defmodule Src.Interface.CLI do
       ]
 
       case VerbalLauncher.launch(
-        report_path,
-        Path.join(run.output_dir, "verbalization/refinement"),
-        Map.fetch!(run.params, :verbalization_backend),
-        Map.fetch!(run.params, :verbalization_model),
-        launcher_options
-      ) do
+             report_path,
+             Path.join(run.output_dir, "verbalization/refinement"),
+             Map.fetch!(run.params, :verbalization_backend),
+             Map.fetch!(run.params, :verbalization_model),
+             launcher_options
+           ) do
         {:ok,
-          %{
-            request_path: request_path,
-            response: %{"artifacts" => artifacts}
-        }}
-
+         %{
+           request_path: request_path,
+           response: %{"artifacts" => artifacts}
+         }}
         when is_map(artifacts) ->
           IO.puts("Refinement verbalization completed.")
           IO.puts("Request: #{request_path}")
@@ -244,10 +256,12 @@ defmodule Src.Interface.CLI do
           end)
 
           0
+
         {:error, reason} ->
           IO.inspect(reason, label: "[ERROR] Refinement verbalization failed")
 
           1
+
         {:ok, unexpected} ->
           IO.inspect(unexpected, label: "[ERROR] Invalid refinement verbalization response")
 
@@ -271,11 +285,12 @@ defmodule Src.Interface.CLI do
 
     case IO.gets("\nApply this refinement axiom? [y/N] ") do
       answer when is_binary(answer) ->
-        if String.downcase(String.trim(answer)) in ["y","yes"] do
+        if String.downcase(String.trim(answer)) in ["y", "yes"] do
           :apply
         else
           :stop
         end
+
       _answer ->
         :stop
     end
@@ -351,8 +366,7 @@ defmodule Src.Interface.CLI do
   defp parse_backend("hpc-connect"), do: {:ok, :hpc_connect}
 
   defp parse_backend(backend) do
-    {:error,
-      "Unknown backend #{inspect(backend)}. Use local or hpc_connect."}
+    {:error, "Unknown backend #{inspect(backend)}. Use local or hpc_connect."}
   end
 
   defp parse_enumeration_mode("countermodels") do

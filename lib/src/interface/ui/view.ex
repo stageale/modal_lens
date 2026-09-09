@@ -3,8 +3,8 @@ defmodule Src.Interface.Ui.View do
   Projects calculated UI variants into data consumed by the HTML page.
   """
 
-  alias Src.Execution.Run
   alias Src.Execution.Options
+  alias Src.Execution.Run
   alias Src.Interface.Ui.Session
 
   @doc "Returns all calculated variants in their execution order."
@@ -16,9 +16,34 @@ defmodule Src.Interface.Ui.View do
       %{
         options: Options.to_run_params(variant.options),
         run: Run.to_map(variant.run),
+        stage: Map.get(variant, :stage),
+        refinement: refinement_view(Map.get(variant, :refinement)),
         result: result_view(variant.result)
       }
     end)
+  end
+
+  defp refinement_view(nil), do: nil
+
+  defp refinement_view(refinement) when is_map(refinement) do
+    candidate = Map.get(refinement, :candidate, %{})
+    origin = Map.get(candidate, "origin", %{})
+    occurrence = Map.get(candidate, "occurrence", %{})
+
+    %{
+      round: Map.get(refinement, :round),
+      input_theory_path: Map.get(refinement, :input_theory_path),
+      refined_theory_path: Map.get(refinement, :refined_theory_path),
+      candidate_id: Map.get(candidate, "candidate_id"),
+      pattern_id: Map.get(origin, "pattern_id"),
+      cluster_id: Map.get(origin, "cluster_id"),
+      cluster_support: Map.get(origin, "cluster_support"),
+      outside_support: Map.get(origin, "outside_support"),
+      contrast: Map.get(origin, "contrast"),
+      graphlet_size: Map.get(occurrence, "size"),
+      axiom: Map.get(refinement, :axiom),
+      candidate: candidate
+    }
   end
 
   defp result_view(result) do
@@ -30,8 +55,7 @@ defmodule Src.Interface.Ui.View do
         result
         |> Map.get(:clusters, [])
         |> Enum.map(&cluster_view/1),
-        cluster_verbs:
-          Map.get(result, :cluster_verbs, [])
+      cluster_verbs: Map.get(result, :cluster_verbs, [])
     }
   end
 

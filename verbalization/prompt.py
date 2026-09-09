@@ -43,36 +43,47 @@ Return only valid JSON.
 
 
 def render_user_message(verbalization_facts: Mapping[str, Any]) -> str:
-    facts_json = json.dumps(verbalization_facts, ensure_ascii=False, sort_keys=True, indent=2)
-    
+    facts_json = json.dumps(
+        verbalization_facts,
+        ensure_ascii=False,
+        sort_keys=True,
+        indent=2,
+    )
+
     return f"""
     Create a concise English summary of the supplied analysis facts.
-    
+
     Return exactly this JSON structure:
-    
+
     {{
         "overview": "string",
-        "cluster_summaries":[
+        "cluster_summaries": [
             {{
                 "cluster_id": 0,
                 "summary": "string",
-                "notable_patterns": ["cluster-0-pattern-1],
+                "notable_patterns": ["cluster-0-pattern-1"],
                 "evidence": ["fact.identifier"]
             }}
         ],
         "limitations": ["string"]
     }}
-    
+
     Requirements:
     - Include one cluster summary for every supplied cluster.
     - Use only existing cluster identifiers.
-    - List only supplied pattern identifiers under "notable_patterns"; use an empty list when none are notable.
+    - Under "notable_patterns", copy only the "value" from supplied facts
+      whose "id" ends in ".pattern_id", for the same cluster.
+    - A pattern ID looks like "cluster-0-pattern-1". The label "graphlet",
+      pattern descriptions, and fact IDs are not pattern IDs.
+    - Use [] when no supplied patterns are notable; never invent identifiers.
     - Evidence entries must exactly match supplied fact identifiers.
+    - The example identifiers above are illustrative; use only identifiers
+      actually present in the supplied facts.
     - Do not include Markdown or explanatory text outside the JSON.
     - State uncertainty or missing information under "limitations".
-    
+
     VERBALIZATION FACTS:
-    
+
     {facts_json}
     """.strip()
 
@@ -134,6 +145,8 @@ def render_refinement_user_message(verbalization_facts: Mapping[str, Any]) -> st
     - Report model counts together with their respective enumeration statuses.
     - Describe the stop reason without claiming convergence or inventing
       why a decision function stopped.
+    - "limitations" must always be a JSON array of strings. With one
+      limitation, return ["string"], never a bare string.
     - State evidential limitations under "limitations".
     - Do not include Markdown or explanatory text outside the JSON.
     
