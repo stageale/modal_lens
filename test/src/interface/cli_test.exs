@@ -13,6 +13,8 @@ defmodule Src.Interface.CLITest do
     assert output =~ "--no-render-graph"
     assert output =~ "--no-verbalize"
     assert output =~ "--no-auto-atoms"
+    assert output =~ "--cardinality"
+    assert output =~ "--cardinality-feature"
   end
 
   test "reports removed and unknown commands uniformly" do
@@ -34,6 +36,23 @@ defmodule Src.Interface.CLITest do
       end)
 
     assert unknown =~ "Unknown mode"
+  end
+
+  test "rejects malformed enumeration cardinalities before Isabelle" do
+    for invalid <- ["0", "4-2", "2-4-6"] do
+      output =
+        capture_io(:stderr, fn ->
+          assert CLI.main([
+                   "enumerate",
+                   "--mode",
+                   "countermodels",
+                   "--cardinality",
+                   invalid
+                 ]) == 2
+        end)
+
+      assert output =~ "Invalid cardinality"
+    end
   end
 
   test "requires inputs for summary and exactly one theory for demo" do

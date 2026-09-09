@@ -15,14 +15,14 @@ defmodule Src.TPTP.Parser do
   """
   @type parse_error ::
           {:file_error, String.t(), term()}
-        | {:unsupported_construct, String.t()}
-        | {:invalid_thf, String.t()}
-        | {:invalid_include, String.t()}
-        | {:invalid_role, String.t()}
-        | {:unterminated_comment, :block}
-        | {:unterminated_quote, :single | :double}
-        | {:unbalanced_delimiter, String.t()}
-        | {:unterminated_statement, String.t()}
+          | {:unsupported_construct, String.t()}
+          | {:invalid_thf, String.t()}
+          | {:invalid_include, String.t()}
+          | {:invalid_role, String.t()}
+          | {:unterminated_comment, :block}
+          | {:unterminated_quote, :single | :double}
+          | {:unbalanced_delimiter, String.t()}
+          | {:unterminated_statement, String.t()}
 
   @typedoc """
   Option accepted by the TPTP parser.
@@ -38,10 +38,10 @@ defmodule Src.TPTP.Parser do
   @spec parse(String.t(), [option()]) :: {:ok, Document.t()} | {:error, parse_error()}
   def parse(source, opts \\ []) when is_binary(source) do
     with {:ok, source} <- strip_comments(source),
-        {:ok, statements} <- split_statements(source),
-        {:ok, entries} <- parse_statements(statements) do
-          {:ok, Document.new(entries, Keyword.get(opts, :source))}
-        end
+         {:ok, statements} <- split_statements(source),
+         {:ok, entries} <- parse_statements(statements) do
+      {:ok, Document.new(entries, Keyword.get(opts, :source))}
+    end
   end
 
   @doc """
@@ -67,33 +67,69 @@ defmodule Src.TPTP.Parser do
     |> do_strip_comments(:normal, false, [])
   end
 
-  @spec do_strip_comments(charlist(), :normal | :line_comment | :block_comment | :single | :double, boolean(), charlist()) :: {:ok, String.t()} | {:error, parse_error()}
-  defp do_strip_comments([], :normal, _escaped, acc), do: {:ok, acc |> Enum.reverse() |> List.to_string()}
-  defp do_strip_comments([], :line_comment, _escaped, acc), do: {:ok, acc |> Enum.reverse() |> List.to_string()}
-  defp do_strip_comments([], :block_comment, _escaped, _acc), do: {:error, {:unterminated_comment, :block}}
-  defp do_strip_comments([], :single, _escaped, _acc), do: {:error, {:unterminated_quote, :single}}
-  defp do_strip_comments([], :double, _escaped, _acc), do: {:error, {:unterminated_quote, :double}}
-  defp do_strip_comments([?% | rest], :normal, _escaped, acc), do: do_strip_comments(rest, :line_comment, false, acc)
-  defp do_strip_comments([?/, ?* | rest], :normal, _escaped, acc), do: do_strip_comments(rest, :block_comment, false, acc)
-  defp do_strip_comments([?' | rest], :normal, _escaped, acc), do: do_strip_comments(rest, :single, false, [?' | acc])
-  defp do_strip_comments([?" | rest], :normal, _escaped, acc), do: do_strip_comments(rest, :double, false, [?" | acc])
-  defp do_strip_comments([char | rest], :normal, _escaped, acc), do: do_strip_comments(rest, :normal, false, [char | acc])
-  defp do_strip_comments([?\n | rest], :line_comment, _escaped, acc), do: do_strip_comments(rest, :normal, false, acc)
-  defp do_strip_comments([_char | rest], :line_comment, _escaped, acc), do: do_strip_comments(rest, :line_comment, false, acc)
-  defp do_strip_comments([?*, ?/ | rest], :block_comment, _escaped, acc), do: do_strip_comments(rest, :normal, false, acc)
-  defp do_strip_comments([_char | rest], :block_comment, _escaped, acc), do: do_strip_comments(rest, :block_comment, false, acc)
+  @spec do_strip_comments(
+          charlist(),
+          :normal | :line_comment | :block_comment | :single | :double,
+          boolean(),
+          charlist()
+        ) :: {:ok, String.t()} | {:error, parse_error()}
+  defp do_strip_comments([], :normal, _escaped, acc),
+    do: {:ok, acc |> Enum.reverse() |> List.to_string()}
+
+  defp do_strip_comments([], :line_comment, _escaped, acc),
+    do: {:ok, acc |> Enum.reverse() |> List.to_string()}
+
+  defp do_strip_comments([], :block_comment, _escaped, _acc),
+    do: {:error, {:unterminated_comment, :block}}
+
+  defp do_strip_comments([], :single, _escaped, _acc),
+    do: {:error, {:unterminated_quote, :single}}
+
+  defp do_strip_comments([], :double, _escaped, _acc),
+    do: {:error, {:unterminated_quote, :double}}
+
+  defp do_strip_comments([?% | rest], :normal, _escaped, acc),
+    do: do_strip_comments(rest, :line_comment, false, acc)
+
+  defp do_strip_comments([?/, ?* | rest], :normal, _escaped, acc),
+    do: do_strip_comments(rest, :block_comment, false, acc)
+
+  defp do_strip_comments([?' | rest], :normal, _escaped, acc),
+    do: do_strip_comments(rest, :single, false, [?' | acc])
+
+  defp do_strip_comments([?" | rest], :normal, _escaped, acc),
+    do: do_strip_comments(rest, :double, false, [?" | acc])
+
+  defp do_strip_comments([char | rest], :normal, _escaped, acc),
+    do: do_strip_comments(rest, :normal, false, [char | acc])
+
+  defp do_strip_comments([?\n | rest], :line_comment, _escaped, acc),
+    do: do_strip_comments(rest, :normal, false, acc)
+
+  defp do_strip_comments([_char | rest], :line_comment, _escaped, acc),
+    do: do_strip_comments(rest, :line_comment, false, acc)
+
+  defp do_strip_comments([?*, ?/ | rest], :block_comment, _escaped, acc),
+    do: do_strip_comments(rest, :normal, false, acc)
+
+  defp do_strip_comments([_char | rest], :block_comment, _escaped, acc),
+    do: do_strip_comments(rest, :block_comment, false, acc)
 
   defp do_strip_comments([char | rest], mode, true, acc)
        when mode in [:single, :double] do
     do_strip_comments(rest, mode, false, [char | acc])
   end
+
   defp do_strip_comments([?\\ | rest], mode, false, acc)
        when mode in [:single, :double] do
     do_strip_comments(rest, mode, true, [?\\ | acc])
   end
 
-  defp do_strip_comments([?' | rest], :single, false, acc), do: do_strip_comments(rest, :normal, false, [?' | acc])
-  defp do_strip_comments([?" | rest], :double, false, acc), do: do_strip_comments(rest, :normal, false, [?" | acc])
+  defp do_strip_comments([?' | rest], :single, false, acc),
+    do: do_strip_comments(rest, :normal, false, [?' | acc])
+
+  defp do_strip_comments([?" | rest], :double, false, acc),
+    do: do_strip_comments(rest, :normal, false, [?" | acc])
 
   defp do_strip_comments([char | rest], mode, false, acc)
        when mode in [:single, :double] do
@@ -127,60 +163,46 @@ defmodule Src.TPTP.Parser do
       source
       |> String.to_charlist()
       |> Enum.reduce_while(initial, fn char,
-                                        {round, square, curly, quote, escaped,
-                                         current, parts} ->
+                                       {round, square, curly, quote, escaped, current, parts} ->
         cond do
           quote != nil and escaped ->
-            {:cont,
-             {round, square, curly, quote, false, [char | current], parts}}
+            {:cont, {round, square, curly, quote, false, [char | current], parts}}
 
           quote != nil and char == ?\\ ->
-            {:cont,
-             {round, square, curly, quote, true, [char | current], parts}}
+            {:cont, {round, square, curly, quote, true, [char | current], parts}}
 
           quote == :single and char == ?' ->
-            {:cont,
-             {round, square, curly, nil, false, [char | current], parts}}
+            {:cont, {round, square, curly, nil, false, [char | current], parts}}
 
           quote == :double and char == ?" ->
-            {:cont,
-             {round, square, curly, nil, false, [char | current], parts}}
+            {:cont, {round, square, curly, nil, false, [char | current], parts}}
 
           quote != nil ->
-            {:cont,
-             {round, square, curly, quote, false, [char | current], parts}}
+            {:cont, {round, square, curly, quote, false, [char | current], parts}}
 
           char == ?' ->
-            {:cont,
-             {round, square, curly, :single, false, [char | current], parts}}
+            {:cont, {round, square, curly, :single, false, [char | current], parts}}
 
           char == ?" ->
-            {:cont,
-             {round, square, curly, :double, false, [char | current], parts}}
+            {:cont, {round, square, curly, :double, false, [char | current], parts}}
 
           char == ?( ->
-            {:cont,
-             {round + 1, square, curly, nil, false, [char | current], parts}}
+            {:cont, {round + 1, square, curly, nil, false, [char | current], parts}}
 
           char == ?[ ->
-            {:cont,
-             {round, square + 1, curly, nil, false, [char | current], parts}}
+            {:cont, {round, square + 1, curly, nil, false, [char | current], parts}}
 
           char == ?{ ->
-            {:cont,
-             {round, square, curly + 1, nil, false, [char | current], parts}}
+            {:cont, {round, square, curly + 1, nil, false, [char | current], parts}}
 
           char == ?) and round > 0 ->
-            {:cont,
-             {round - 1, square, curly, nil, false, [char | current], parts}}
+            {:cont, {round - 1, square, curly, nil, false, [char | current], parts}}
 
           char == ?] and square > 0 ->
-            {:cont,
-             {round, square - 1, curly, nil, false, [char | current], parts}}
+            {:cont, {round, square - 1, curly, nil, false, [char | current], parts}}
 
           char == ?} and curly > 0 ->
-            {:cont,
-             {round, square, curly - 1, nil, false, [char | current], parts}}
+            {:cont, {round, square, curly - 1, nil, false, [char | current], parts}}
 
           char == ?) ->
             {:halt, {:error, {:unbalanced_delimiter, ")"}}}
@@ -200,10 +222,10 @@ defmodule Src.TPTP.Parser do
             {:cont, {0, 0, 0, nil, false, [], [part | parts]}}
 
           true ->
-            {:cont,
-             {round, square, curly, nil, false, [char | current], parts}}
+            {:cont, {round, square, curly, nil, false, [char | current], parts}}
         end
       end)
+
     case result do
       {:error, reason} ->
         {:error, reason}
@@ -249,13 +271,15 @@ defmodule Src.TPTP.Parser do
   end
 
   @spec parse_thf(String.t()) :: {:ok, AnnotatedFormula.t()} | {:error, parse_error()}
-  defp parse_thf(statement)  do
+  defp parse_thf(statement) do
     case Regex.run(~r/^thf\s*\((.*)\)$/s, statement, capture: :all_but_first) do
-      [body] -> with {:ok, args} <- split_top_level(body, ?,) do
-        build_thf(Enum.map(args, &String.trim/1))
-      end
+      [body] ->
+        with {:ok, args} <- split_top_level(body, ?,) do
+          build_thf(Enum.map(args, &String.trim/1))
+        end
 
-      _ -> {:error, {:invalid_thf, statement}}
+      _ ->
+        {:error, {:invalid_thf, statement}}
     end
   end
 
@@ -263,14 +287,18 @@ defmodule Src.TPTP.Parser do
   defp build_thf([name, raw_role, formula]) do
     build_thf([name, raw_role, formula, nil, nil])
   end
+
   defp build_thf([name, raw_role, formula, source]) do
     build_thf([name, raw_role, formula, source, nil])
   end
-  defp build_thf([name, raw_role, formula, source, useful_info]) when name != "" and formula != "" do
+
+  defp build_thf([name, raw_role, formula, source, useful_info])
+       when name != "" and formula != "" do
     with {:ok, role} <- parse_role(raw_role) do
       {:ok, AnnotatedFormula.new(name, role, formula, source, useful_info)}
     end
   end
+
   defp build_thf(args) do
     {:error, {:invalid_thf, inspect(args)}}
   end
@@ -290,6 +318,7 @@ defmodule Src.TPTP.Parser do
   defp parse_role("interpretation"), do: {:ok, :interpretation}
   defp parse_role("logic"), do: {:ok, :logic}
   defp parse_role("unknown"), do: {:ok, :unknown}
+
   defp parse_role(role) do
     {:error, {:invalid_role, role}}
   end
@@ -301,7 +330,9 @@ defmodule Src.TPTP.Parser do
         with {:ok, args} <- split_top_level(body, ?,) do
           build_include(Enum.map(args, &String.trim/1))
         end
-      _ -> {:error, {:invalid_include, statement}}
+
+      _ ->
+        {:error, {:invalid_include, statement}}
     end
   end
 
@@ -311,18 +342,21 @@ defmodule Src.TPTP.Parser do
       {:ok, Include.new(file)}
     end
   end
+
   defp build_include([raw_file, raw_selection]) do
     with {:ok, file} <- parse_file_name(raw_file),
-        {:ok, selection} <- parse_selection(raw_selection) do
-          {:ok, Include.new(file, selection)}
-        end
+         {:ok, selection} <- parse_selection(raw_selection) do
+      {:ok, Include.new(file, selection)}
+    end
   end
+
   defp build_include([raw_file, raw_selection, space]) do
     with {:ok, file} <- parse_file_name(raw_file),
-        {:ok, selection} <- parse_selection(raw_selection) do
-          {:ok, Include.new(file, selection, space)}
-        end
+         {:ok, selection} <- parse_selection(raw_selection) do
+      {:ok, Include.new(file, selection, space)}
+    end
   end
+
   defp build_include(args) do
     {:error, {:invalid_include, inspect(args)}}
   end
@@ -332,17 +366,20 @@ defmodule Src.TPTP.Parser do
     file = String.trim(raw_file)
 
     cond do
-      file == "" -> {:error, {:invalid_include, "empty file name"}}
+      file == "" ->
+        {:error, {:invalid_include, "empty file name"}}
 
       String.starts_with?(file, "'") and String.ends_with?(file, "'") ->
         {:ok, String.slice(file, 1, String.length(file) - 2)}
 
-      true -> {:ok, file}
+      true ->
+        {:ok, file}
     end
   end
 
   @spec parse_selection(String.t()) :: {:ok, Include.selection()} | {:error, parse_error()}
   defp parse_selection("*"), do: {:ok, :all}
+
   defp parse_selection(raw_selection) do
     case Regex.run(~r/^\[(.*)\]$/s, raw_selection, capture: :all_but_first) do
       [body] when body != "" ->
@@ -358,7 +395,8 @@ defmodule Src.TPTP.Parser do
           end
         end
 
-      _ -> {:error, {:invalid_include, raw_selection}}
+      _ ->
+        {:error, {:invalid_include, raw_selection}}
     end
   end
 end

@@ -9,14 +9,14 @@ defmodule Src.Explanation.Visual.Highlight do
   @type edge :: {world(), world()}
 
   @type basis ::
-        :semantic
-        | :structural_metric
-        | :feature
-        | :pattern
+          :semantic
+          | :structural_metric
+          | :feature
+          | :pattern
 
   @type scope ::
-        :model
-        | :cluster
+          :model
+          | :cluster
 
   @type score :: float()
 
@@ -27,15 +27,14 @@ defmodule Src.Explanation.Visual.Highlight do
             tags: [],
             metadata: %{}
 
-
   @type t :: %__MODULE__{
-        basis: basis() | nil,
-        scope: scope(),
-        world_scores: %{optional(world()) => score()},
-        edge_scores: %{optional(edge()) => score()},
-        tags: [atom() | String.t()],
-        metadata: map()
-      }
+          basis: basis() | nil,
+          scope: scope(),
+          world_scores: %{optional(world()) => score()},
+          edge_scores: %{optional(edge()) => score()},
+          tags: [atom() | String.t()],
+          metadata: map()
+        }
 
   @doc "Returns an empty highlight."
   @spec empty() :: t()
@@ -138,9 +137,7 @@ defmodule Src.Explanation.Visual.Highlight do
     validate_world!(world)
     score = validate_score!(score)
 
-    %{heatmap |
-      world_scores: Map.put(heatmap.world_scores, world, score)
-    }
+    %{heatmap | world_scores: Map.put(heatmap.world_scores, world, score)}
   end
 
   @doc "Stores the normalized score for `edge`."
@@ -150,16 +147,17 @@ defmodule Src.Explanation.Visual.Highlight do
     validate_world!(target)
     score = validate_score!(score)
 
-    %{heatmap |
-      edge_scores: Map.put(heatmap.edge_scores, edge, score)
-    }
+    %{heatmap | edge_scores: Map.put(heatmap.edge_scores, edge, score)}
   end
 
   defp normalize_metadata(metadata) when is_map(metadata), do: metadata
   defp normalize_metadata(_metadata), do: %{}
 
   defp validate_basis!(nil), do: nil
-  defp validate_basis!(basis) when basis in [:semantic, :structural_metric, :feature, :pattern], do: basis
+
+  defp validate_basis!(basis) when basis in [:semantic, :structural_metric, :feature, :pattern],
+    do: basis
+
   defp validate_basis!(basis) do
     raise ArgumentError,
           "invalid heatmap basis: #{inspect(basis)}"
@@ -184,6 +182,7 @@ defmodule Src.Explanation.Visual.Highlight do
         validate_world!(target)
 
         {edge, validate_score!(score)}
+
       {edge, _score} ->
         raise ArgumentError,
               "invalid edge identifier: #{inspect(edge)}"
@@ -196,24 +195,29 @@ defmodule Src.Explanation.Visual.Highlight do
   end
 
   defp validate_world!(world) when is_integer(world) and world >= 0, do: world
+
   defp validate_world!(world) do
     raise ArgumentError,
           "invalid world identifier: #{inspect(world)}"
   end
 
-  defp validate_score!(score) when is_number(score) and score >= 0.0 and score <= 1.0, do: score / 1
+  defp validate_score!(score) when is_number(score) and score >= 0.0 and score <= 1.0,
+    do: score / 1
+
   defp validate_score!(score) do
     raise ArgumentError,
           "heatmap score must be between 0.0 and 1.0, got: #{inspect(score)}"
   end
 
   defp validate_metadata!(metadata) when is_map(metadata), do: metadata
+
   defp validate_metadata!(metadata) do
     raise ArgumentError,
           "metadata must be a map, got: #{inspect(metadata)}"
   end
 
   defp validate_scope!(scope) when scope in [:model, :cluster], do: scope
+
   defp validate_scope!(scope) do
     raise ArgumentError,
           "invalid heatmap scope: #{inspect(scope)}"

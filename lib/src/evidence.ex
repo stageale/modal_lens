@@ -8,17 +8,19 @@ defmodule Src.Evidence do
   """
 
   @typedoc "The epistemic kind of an evidence record."
-  @type kind :: :model
-              | :proof
-              | :structural
-              | :learned
-              | :operational
+  @type kind ::
+          :model
+          | :proof
+          | :structural
+          | :learned
+          | :operational
 
   @typedoc "The assurance level associated with an evidence kind."
-  @type assurance :: :formal
-                   | :deterministic
-                   | :empirical
-                   | :operational
+  @type assurance ::
+          :formal
+          | :deterministic
+          | :empirical
+          | :operational
 
   @typedoc "The component or backend that produced the evidence."
   @type source :: atom() | String.t()
@@ -49,20 +51,21 @@ defmodule Src.Evidence do
 
   @typedoc "A single evidence record in the shared ModalLens evidence layer."
   @type t :: %__MODULE__{
-    id: String.t(),
-    kind: kind(),
-    source: source(),
-    payload: payload(),
-    provenance: provenance(),
-    assurance: assurance()
-  }
+          id: String.t(),
+          kind: kind(),
+          source: source(),
+          payload: payload(),
+          provenance: provenance(),
+          assurance: assurance()
+        }
 
   @typedoc "An error returned when constructing an invalid evidence record."
-  @type construction_error :: {:invalid_id, term()}
-                             | {:invalid_kind, term()}
-                             | {:invalid_source, term()}
-                             | {:invalid_payload, term()}
-                             | {:invalid_provenance, term()}
+  @type construction_error ::
+          {:invalid_id, term()}
+          | {:invalid_kind, term()}
+          | {:invalid_source, term()}
+          | {:invalid_payload, term()}
+          | {:invalid_provenance, term()}
 
   @doc """
   Creates an evidence record and assigns the assurance implied by its kind.
@@ -70,25 +73,26 @@ defmodule Src.Evidence do
   Model and proof evidence are formal, structural evidence is deterministic,
   learnede evidence is empirical, and operational evidence remains operational.
   """
-  @spec new(String.t(), kind(), source(), payload()) :: {:ok, t()} | {:error, construction_error()}
-  @spec new(String.t(), kind(), source(), payload(), provenance()) :: {:ok, t()} | {:error, construction_error()}
+  @spec new(String.t(), kind(), source(), payload()) ::
+          {:ok, t()} | {:error, construction_error()}
+  @spec new(String.t(), kind(), source(), payload(), provenance()) ::
+          {:ok, t()} | {:error, construction_error()}
   def new(id, kind, source, payload, provenance \\ %{}) do
     with {:ok, id} <- normalize_id(id),
-          :ok <- validate_kind(kind),
+         :ok <- validate_kind(kind),
          {:ok, source} <- normalize_source(source),
-          :ok <- validate_payload(payload),
-          :ok <- validate_provenance(provenance) do
-            {:ok,
-              %__MODULE__{
-                id: id,
-                kind: kind,
-                source: source,
-                payload: payload,
-                provenance: provenance,
-                assurance: assurance_for(kind)
-              }
-            }
-          end
+         :ok <- validate_payload(payload),
+         :ok <- validate_provenance(provenance) do
+      {:ok,
+       %__MODULE__{
+         id: id,
+         kind: kind,
+         source: source,
+         payload: payload,
+         provenance: provenance,
+         assurance: assurance_for(kind)
+       }}
+    end
   end
 
   @doc """
@@ -106,18 +110,23 @@ defmodule Src.Evidence do
       normalized -> {:ok, normalized}
     end
   end
+
   defp normalize_id(id), do: {:error, {:invalid_id, id}}
 
-  defp validate_kind(kind) when kind in [:model, :proof, :structural, :learned, :operational], do: :ok
+  defp validate_kind(kind) when kind in [:model, :proof, :structural, :learned, :operational],
+    do: :ok
+
   defp validate_kind(kind), do: {:error, {:invalid_kind, kind}}
 
   defp normalize_source(source) when is_atom(source), do: {:ok, source}
+
   defp normalize_source(source) when is_binary(source) do
     case String.trim(source) do
       "" -> {:error, {:invalid_source, source}}
       normalized -> {:ok, normalized}
     end
   end
+
   defp normalize_source(source), do: {:error, {:invalid_source, source}}
 
   defp validate_payload(payload) when is_map(payload), do: :ok

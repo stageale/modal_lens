@@ -6,6 +6,9 @@ defmodule Src.Refinement.Report do
   observed model counts before and after every refinement. Model-count changes
   describe the bounded enumeration runs and are not interpreted as global
   logical model counts.
+
+  Initial and final theory sources are embedded so remote verbalization does
+  not depend on access to local filesystem paths.
   """
 
   alias Src.Refinement.Loop
@@ -17,8 +20,9 @@ defmodule Src.Refinement.Report do
   @type t :: %{required(String.t()) => term()}
 
   @typedoc "An error encountered while writing the refinement report."
-  @type write_error :: {:cannot_encode_refinement_report, term()}
-                     | {:cannot_write_refinement_report, String.t(), term()}
+  @type write_error ::
+          {:cannot_encode_refinement_report, term()}
+          | {:cannot_write_refinement_report, String.t(), term()}
 
   @doc """
   Projects a completed refinement loop onto its JSON-compatible report.
@@ -33,8 +37,7 @@ defmodule Src.Refinement.Report do
         loop.initial_pipeline_result
         |> Map.fetch!(:status)
         |> Atom.to_string(),
-      "model_count" =>
-        Map.get(loop.initial_pipeline_result, :model_count, 0)
+      "model_count" => Map.get(loop.initial_pipeline_result, :model_count, 0)
     }
 
     {iterations, _final_model_count} =
@@ -47,8 +50,7 @@ defmodule Src.Refinement.Report do
             iteration.pipeline_result
             |> Map.fetch!(:status)
             |> Atom.to_string(),
-          "model_count" =>
-            Map.get(iteration.pipeline_result, :model_count, 0)
+          "model_count" => Map.get(iteration.pipeline_result, :model_count, 0)
         }
 
         report = %{
@@ -66,7 +68,7 @@ defmodule Src.Refinement.Report do
           "graphlet_size" => candidate["occurrence"]["size"],
           "refinement_axiom" => iteration.refined_theory.refinement_axiom,
           "enumeration_before" => enumeration_before,
-          "enumeration_after" => enumeration_after,
+          "enumeration_after" => enumeration_after
         }
 
         {report, enumeration_after}
@@ -77,8 +79,7 @@ defmodule Src.Refinement.Report do
         loop.final_pipeline_result
         |> Map.fetch!(:status)
         |> Atom.to_string(),
-      "model_count" =>
-        Map.get(loop.final_pipeline_result, :model_count, 0)
+      "model_count" => Map.get(loop.final_pipeline_result, :model_count, 0)
     }
 
     %{
@@ -89,6 +90,7 @@ defmodule Src.Refinement.Report do
       "applied_refinement_count" => length(iterations),
       "initial" => %{
         "theory_path" => loop.initial_theory_path,
+        "theory" => theory_snapshot(loop.initial_theory_path),
         "run_id" => loop.initial_run.id,
         "output_dir" => loop.initial_run.output_dir,
         "enumeration" => initial_enumeration
@@ -96,6 +98,7 @@ defmodule Src.Refinement.Report do
       "iteration" => iterations,
       "final" => %{
         "theory_path" => loop.final_theory_path,
+        "theory" => theory_snapshot(loop.final_theory_path),
         "run_id" => loop.final_run.id,
         "output_dir" => loop.final_run.output_dir,
         "enumeration" => final_enumeration
@@ -114,26 +117,36 @@ defmodule Src.Refinement.Report do
     report_path =
       path ||
         Path.join(loop.initial_run.output_dir, "refinement.json")
-      |> Path.expand()
+        |> Path.expand()
 
     with {:ok, json} <- Jason.encode(to_map(loop), pretty: true),
-          :ok <- File.mkdir_p(Path.dirname(report_path)),
-          :ok <- File.write(report_path, json <> "\n") do
-            {:ok, report_path}
-          else
-            {:error, %Jason.EncodeError{} = reason} ->
-              {:error,
-                {:cannot_encode_refinement_report,
-                  reason
-                }
-              }
-            {:error, reason} ->
-              {:error,
-                {:cannot_write_refinement_report,
-                  report_path,
-                  reason
-                }
-              }
-          end
+         :ok <- File.mkdir_p(Path.dirname(report_path)),
+         :ok <- File.write(report_path, json <> "\n") do
+      {:ok, report_path}
+    else
+      {:error, %Jason.EncodeError{} = reason} ->
+        {:error, {:cannot_encode_refinement_report, reason}}
+
+      {:error, reason} ->
+        {:error, {:cannot_write_refinement_report, report_path, reason}}
+    end
+  end
+
+  @spec theory_snapshot(String.t()) :: %{required(String.t()) => term()}
+  defp theory_snapshot(path) do
+    case File.read(path) do
+      {:ok, content} ->
+        %{
+          "path" => path,
+          "content" => content
+        }
+
+      {:error, reason} ->
+        %{
+          "path" => path,
+          "content" => nil,
+          "read_error" => reason |> :file.format_error() |> to_string()
+        }
+    end
   end
 end

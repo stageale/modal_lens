@@ -20,16 +20,18 @@ defmodule Src.Refinement.Iteration do
   @type candidate :: Axiom.candidate()
 
   @typedoc "An option controlling one refinement iteration."
-  @type option :: {:round, pos_integer()}
-                | {:theory, Theory.options()}
+  @type option ::
+          {:round, pos_integer()}
+          | {:theory, Theory.options()}
 
   @typedoc "Options controlling one refinement iteration."
   @type options :: [option()]
 
   @typedoc "An error encountered during one refinement iteration."
-  @type iteration_error :: {:refinement_theory_failed, term()}
-                        | {:refinement_theory_registration_failed, term()}
-                        | {:refined_pipeline_failed, term()}
+  @type iteration_error ::
+          {:refinement_theory_failed, term()}
+          | {:refinement_theory_registration_failed, term()}
+          | {:refined_pipeline_failed, term()}
 
   @enforce_keys [
     :round,
@@ -51,13 +53,13 @@ defmodule Src.Refinement.Iteration do
 
   @typedoc "The completed result of one structural refinement iteration."
   @type t :: %__MODULE__{
-    round: pos_integer(),
-    input_theory_path: String.t(),
-    selected_candidate: candidate(),
-    refined_theory: Theory.t(),
-    run: Run.t(),
-    pipeline_result: map()
-  }
+          round: pos_integer(),
+          input_theory_path: String.t(),
+          selected_candidate: candidate(),
+          refined_theory: Theory.t(),
+          run: Run.t(),
+          pipeline_result: map()
+        }
 
   @typedoc "The result of attempting one refinement iteration."
   @type result :: {:ok, t()} | {:error, iteration_error(), Run.t()}
@@ -76,17 +78,20 @@ defmodule Src.Refinement.Iteration do
   """
   @spec run(Run.t(), String.t(), candidate()) :: result()
   @spec run(Run.t(), String.t(), candidate(), options()) :: result()
-  def run(%Run{} = run, input_theory_path, candidate, opts \\ []) when is_binary(input_theory_path) and is_map(candidate) and is_list(opts) do
+  def run(%Run{} = run, input_theory_path, candidate, opts \\ [])
+      when is_binary(input_theory_path) and is_map(candidate) and is_list(opts) do
     round = Keyword.get(opts, :round, @default_round)
+
     theory_opts =
       opts
       |> Keyword.get(:theory, [])
       |> Keyword.put_new(:refinement_theory_dir, Path.join(run.output_dir, "refinement_theory"))
+
     case Theory.write(
-      input_theory_path,
-      candidate,
-      theory_opts
-    ) do
+           input_theory_path,
+           candidate,
+           theory_opts
+         ) do
       {:ok, refined_theory} ->
         execute_refined_pipeline(
           run,
@@ -95,36 +100,38 @@ defmodule Src.Refinement.Iteration do
           round,
           refined_theory
         )
-      {:error, reason} -> {:error, {:refinement_theory_failed, reason}, run}
+
+      {:error, reason} ->
+        {:error, {:refinement_theory_failed, reason}, run}
     end
   end
 
-  @spec execute_refined_pipeline(Run.t(), String.t(), candidate(), pos_integer(), Theory.t()) :: result()
+  @spec execute_refined_pipeline(Run.t(), String.t(), candidate(), pos_integer(), Theory.t()) ::
+          result()
   defp execute_refined_pipeline(run, input_theory_path, candidate, round, refined_theory) do
     case ArtifactStore.register(run, :refinement_theory, refined_theory.theory_path) do
       {:ok, register_run, _absolute_path} ->
         case Pipeline.run_theory(
-          register_run,
-          refined_theory.theory_path
-        ) do
+               register_run,
+               refined_theory.theory_path
+             ) do
           {:ok, completed_run, pipeline_result} ->
             {:ok,
-              %__MODULE__{
-                round: round,
-                input_theory_path: Path.expand(input_theory_path),
-                selected_candidate: candidate,
-                refined_theory: refined_theory,
-                run: completed_run,
-                pipeline_result: pipeline_result
-              }
-            }
-          {:error, reason, failed_run} -> {:error, {:refined_pipeline_failed, reason}, failed_run}
+             %__MODULE__{
+               round: round,
+               input_theory_path: Path.expand(input_theory_path),
+               selected_candidate: candidate,
+               refined_theory: refined_theory,
+               run: completed_run,
+               pipeline_result: pipeline_result
+             }}
+
+          {:error, reason, failed_run} ->
+            {:error, {:refined_pipeline_failed, reason}, failed_run}
         end
+
       {:error, reason} ->
-        {:error,
-          {:refinement_theory_registration_failed, reason},
-          run
-        }
+        {:error, {:refinement_theory_registration_failed, reason}, run}
     end
   end
 end

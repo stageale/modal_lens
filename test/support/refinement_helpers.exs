@@ -24,22 +24,32 @@ defmodule Src.Refinement.TestSupport do
       "kind" => "exact_induced_graphlet_exclusion",
       "status" => "candidate",
       "origin" => %{
-        "pattern_id" => "cluster-0-pattern-1", "cluster_id" => 0, "rank" => 1,
-        "cluster_support" => inside, "outside_support" => outside,
+        "pattern_id" => "cluster-0-pattern-1",
+        "cluster_id" => 0,
+        "rank" => 1,
+        "cluster_support" => inside,
+        "outside_support" => outside,
         "contrast" => inside - outside
       },
       "occurrence" => %{
         "size" => size,
         "pairwise_distinct" => true,
-        "worlds" => Enum.map(ids, &%{"id" => &1, "valuations" => %{"p" => &1 == "u1", "q" => false}}),
+        "worlds" =>
+          Enum.map(ids, &%{"id" => &1, "valuations" => %{"p" => &1 == "u1", "q" => false}}),
         "relation_cells" =>
           for source <- ids, target <- ids do
-            %{"source" => source, "target" => target, "relation" => "R",
-              "holds" => source == "u1" and target == "u2"}
+            %{
+              "source" => source,
+              "target" => target,
+              "relation" => "R",
+              "holds" => source == "u1" and target == "u2"
+            }
           end
       },
       "refinement" => %{
-        "rule" => "exclude_exact_induced_occurrence", "operator" => "not", "operand" => "occurrence"
+        "rule" => "exclude_exact_induced_occurrence",
+        "operator" => "not",
+        "operand" => "occurrence"
       }
     }
   end
@@ -47,7 +57,9 @@ defmodule Src.Refinement.TestSupport do
   @doc "Creates an isolated workspace and removes it after the test."
   @spec workspace() :: map()
   def workspace do
-    root = Path.join(System.tmp_dir!(), "modal_lens_refinement_#{System.unique_integer([:positive])}")
+    root =
+      Path.join(System.tmp_dir!(), "modal_lens_refinement_#{System.unique_integer([:positive])}")
+
     File.mkdir_p!(root)
     ExUnit.Callbacks.on_exit(fn -> File.rm_rf!(root) end)
     theory = Path.join(root, "Base.thy")
@@ -64,20 +76,30 @@ defmodule Src.Refinement.TestSupport do
     write_candidates(context, [candidate()])
 
     previous = Map.new(["PATH", "MODAL_LENS_ISABELLE_BIN"], &{&1, System.get_env(&1)})
+
     ExUnit.Callbacks.on_exit(fn ->
       Enum.each(previous, fn
         {name, nil} -> System.delete_env(name)
         {name, value} -> System.put_env(name, value)
       end)
     end)
+
     System.put_env("MODAL_LENS_ISABELLE_BIN", isabelle)
     System.put_env("PATH", context.root <> ":" <> (previous["PATH"] || ""))
 
-    {:ok, run} = Run.new("refinement-test", Path.join(context.root, "out"), %{
-      max_models: 1, model_logic: :sdl, relation: "R", atoms: ["p", "q"],
-      auto_atoms?: false, render_graph?: false, verbalize?: false,
-      project_root: context.root, uv_executable: uv
-    })
+    {:ok, run} =
+      Run.new("refinement-test", Path.join(context.root, "out"), %{
+        max_models: 1,
+        model_logic: :sdl,
+        relation: "R",
+        atoms: ["p", "q"],
+        auto_atoms?: false,
+        render_graph?: false,
+        verbalize?: false,
+        project_root: context.root,
+        uv_executable: uv
+      })
+
     Map.merge(context, %{run: run, isabelle: isabelle, uv: uv})
   end
 
@@ -85,14 +107,28 @@ defmodule Src.Refinement.TestSupport do
   @spec write_candidates(map(), [map()]) :: :ok
   def write_candidates(context, candidates) do
     report = %{
-      "schema" => "modal-lens/analysis-report", "schema_version" => "1.1",
-      "analysis" => %{"model_count" => 1, "cluster_count" => 1,
-        "reported_pattern_count" => 0, "refinement_candidate_count" => length(candidates)},
-      "clusters" => [%{"cluster_id" => 0, "model_count" => 1, "model_fraction" => 1.0,
-        "model_indices" => [0], "characteristic_patterns" => [],
-        "representative_model" => %{"graph_index" => 0}}],
-      "highlights" => [], "refinement_candidates" => candidates
+      "schema" => "modal-lens/analysis-report",
+      "schema_version" => "1.1",
+      "analysis" => %{
+        "model_count" => 1,
+        "cluster_count" => 1,
+        "reported_pattern_count" => 0,
+        "refinement_candidate_count" => length(candidates)
+      },
+      "clusters" => [
+        %{
+          "cluster_id" => 0,
+          "model_count" => 1,
+          "model_fraction" => 1.0,
+          "model_indices" => [0],
+          "characteristic_patterns" => [],
+          "representative_model" => %{"graph_index" => 0}
+        }
+      ],
+      "highlights" => [],
+      "refinement_candidates" => candidates
     }
+
     File.write!(Path.join(context.root, "analysis-fixture.json"), Jason.encode!(report))
   end
 

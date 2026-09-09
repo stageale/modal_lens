@@ -7,6 +7,8 @@ defmodule Src.Explanation.Verbal.Job do
   @request_schema_version "1.0"
   @default_seed 42
   @default_max_new_tokens 768
+  @default_verbalization_mode :grounded
+  @default_reasoning false
 
   @enforce_keys [
     :backend,
@@ -15,15 +17,20 @@ defmodule Src.Explanation.Verbal.Job do
     :output_directory
   ]
 
+  @typedoc "Output style requested from the verbalizer."
+  @type verbalization_mode :: :grounded | :interpretive
+
   @type t :: %__MODULE__{
-    backend: String.t(),
-    model_id: String.t(),
-    report_path: String.t(),
-    output_directory: String.t(),
-    seed: non_neg_integer(),
-    max_new_tokens: pos_integer(),
-    backend_options: map()
-  }
+          backend: String.t(),
+          model_id: String.t(),
+          report_path: String.t(),
+          output_directory: String.t(),
+          seed: non_neg_integer(),
+          max_new_tokens: pos_integer(),
+          backend_options: map(),
+          verbalization_mode: verbalization_mode(),
+          reasoning: boolean()
+        }
 
   defstruct [
     :backend,
@@ -32,37 +39,46 @@ defmodule Src.Explanation.Verbal.Job do
     :output_directory,
     seed: @default_seed,
     max_new_tokens: @default_max_new_tokens,
-    backend_options: %{}
+    backend_options: %{},
+    verbalization_mode: @default_verbalization_mode,
+    reasoning: @default_reasoning
   ]
 
   @doc "Creates and validates a verbalization job."
   @spec new(String.t(), String.t(), String.t(), String.t()) :: {:ok, t()} | {:error, term()}
-  @spec new(String.t(), String.t(), String.t(), String.t(), keyword()) :: {:ok, t()} | {:error, term()}
+  @spec new(String.t(), String.t(), String.t(), String.t(), keyword()) ::
+          {:ok, t()} | {:error, term()}
   def new(backend, model_id, report_path, output_directory, opts \\ []) do
     seed = Keyword.get(opts, :seed, @default_seed)
-
     max_new_tokens = Keyword.get(opts, :max_new_tokens, @default_max_new_tokens)
-
     backend_options = Keyword.get(opts, :backend_options, %{})
 
-    with  :ok <- validate_backend(backend),
-          :ok <- validate_string(model_id, :model_id),
-          :ok <- validate_string(report_path, :report_path),
-          :ok <- validate_string(output_directory, :output_directory),
-          :ok <- validate_non_negative_integer(seed, :seed),
-          :ok <- validate_positive_integer(max_new_tokens, :max_new_tokens),
-          :ok <- validate_backend_options(backend_options) do
+    reasoning = Keyword.get(opts, :reasoning, @default_reasoning)
+
+    with {:ok, verbalization_mode} <-
+           normalize_verbalization_mode(
+             Keyword.get(opts, :verbalization_mode, @default_verbalization_mode)
+           ),
+         :ok <- validate_backend(backend),
+         :ok <- validate_string(model_id, :model_id),
+         :ok <- validate_string(report_path, :report_path),
+         :ok <- validate_string(output_directory, :output_directory),
+         :ok <- validate_non_negative_integer(seed, :seed),
+         :ok <- validate_positive_integer(max_new_tokens, :max_new_tokens),
+         :ok <- validate_backend_options(backend_options),
+         :ok <- validate_reasoning(reasoning) do
       {:ok,
-        %__MODULE__{
-          backend: backend,
-          model_id: model_id,
-          report_path: report_path,
-          output_directory: output_directory,
-          seed: seed,
-          max_new_tokens: max_new_tokens,
-          backend_options: backend_options
-        }
-      }
+       %__MODULE__{
+         backend: backend,
+         model_id: model_id,
+         report_path: report_path,
+         output_directory: output_directory,
+         seed: seed,
+         max_new_tokens: max_new_tokens,
+         backend_options: backend_options,
+         verbalization_mode: verbalization_mode,
+         reasoning: reasoning
+       }}
     end
   end
 
@@ -78,7 +94,9 @@ defmodule Src.Explanation.Verbal.Job do
       "output_directory" => job.output_directory,
       "seed" => job.seed,
       "max_new_tokens" => job.max_new_tokens,
-      "backend_options" => job.backend_options
+      "backend_options" => job.backend_options,
+      "verbalization_mode" => Atom.to_string(job.verbalization_mode),
+      "reasoning" => job.reasoning
     }
   end
 
@@ -90,10 +108,10 @@ defmodule Src.Explanation.Verbal.Job do
     request_directory = Path.dirname(request_path)
 
     with :ok <- File.mkdir_p(request_directory),
-        {:ok, json} <- Jason.encode(to_map(job), pretty: true),
+         {:ok, json} <- Jason.encode(to_map(job), pretty: true),
          :ok <- File.write(request_path, json <> "\n") do
-           {:ok, request_path}
-         end
+      {:ok, request_path}
+    end
   end
 
   @doc "Returns the default request-file path within `output_directory`."
@@ -144,5 +162,31 @@ defmodule Src.Explanation.Verbal.Job do
 
   defp validate_backend_options(_options) do
     {:error, :invalid_backend_options}
+  end
+
+  @spec normalize_verbalization_mode(term()) :: {:ok, verbalization_mode()} | {:error, term()}
+  defp normalize_verbalization_mode(mode) when mode in [:grounded, :interpretive] do
+    {:ok, mode}
+  end
+
+  defp normalize_verbalization_mode(mode) when is_binary(mode) do
+    case mode |> String.trim() |> String.downcase() do
+      "grounded" -> {:ok, :grounded}
+      "interpretive" -> {:ok, :interpretive}
+      _other -> {:error, {:invalid_verbalization_mode, mode}}
+    end
+  end
+
+  defp normalize_verbalization_mode(mode) do
+    {:error, {:invalid_verbalization_mode, mode}}
+  end
+
+  @spec validate_reasoning(term()) :: :ok | {:error, term()}
+  defp validate_reasoning(reasoning) when is_boolean(reasoning) do
+    :ok
+  end
+
+  defp validate_reasoning(reasoning) do
+    {:error, {:invalid_verbalization_reasoning, reasoning}}
   end
 end

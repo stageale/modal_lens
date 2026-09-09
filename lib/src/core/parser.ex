@@ -41,25 +41,25 @@ defmodule Src.Core.Parser do
 
   @typedoc "A parser option accepted by `parse_nitpick_text/2`."
   @type parse_option ::
-    {:model_logic, model_logic()}
-    | {:relation, String.t()}
-    | {:atoms, String.t() | [String.t()] | nil}
-    | {:auto_atoms, boolean()}
-    | {:source, String.t() | nil}
+          {:model_logic, model_logic()}
+          | {:relation, String.t()}
+          | {:atoms, String.t() | [String.t()] | nil}
+          | {:auto_atoms, boolean()}
+          | {:source, String.t() | nil}
 
   @typedoc "Options controlling Nitpick parsing."
   @type parse_options :: [parse_option()]
 
   @type model_attributes :: %{
-    required(:source) => String.t() | nil,
-    required(:kind) => result_kind(),
-    required(:cardinality) => non_neg_integer(),
-    required(:relation_name) => String.t(),
-    required(:edges) => MapSet.t(edge()),
-    required(:valuations) => %{String.t() => valuation()},
-    required(:warnings) => [ParseWarning.t()],
-    required(:raw_text) => String.t()
-  }
+          required(:source) => String.t() | nil,
+          required(:kind) => result_kind(),
+          required(:cardinality) => non_neg_integer(),
+          required(:relation_name) => String.t(),
+          required(:edges) => MapSet.t(edge()),
+          required(:valuations) => %{String.t() => valuation()},
+          required(:warnings) => [ParseWarning.t()],
+          required(:raw_text) => String.t()
+        }
 
   @world ~S/i(?:⇩|\\<\^sub>)(\d+)/
   @world_pair "\\(#{@world}\\s*,\\s*#{@world}\\)\\s*:?=\\s*(True|False)"
@@ -138,6 +138,7 @@ defmodule Src.Core.Parser do
 
     model_logic = Keyword.get(opts, :model_logic, :sdl)
     relation = Keyword.get(opts, :relation, "R")
+
     atoms =
       opts
       |> Keyword.get(:atoms, [])
@@ -150,8 +151,11 @@ defmodule Src.Core.Parser do
 
     {designated_world, warnings} =
       case parse_designated_world(text) do
-        nil -> {0, [%ParseWarning{message: "No explicit designated world found; defaulted to i1."}]}
-        val -> {val, []}
+        nil ->
+          {0, [%ParseWarning{message: "No explicit designated world found; defaulted to i1."}]}
+
+        val ->
+          {val, []}
       end
 
     edge_set = parse_relation_edges(text, relation, cardinality)
@@ -229,7 +233,7 @@ defmodule Src.Core.Parser do
   end
 
   @spec parse_kind_and_cardinality(String.t()) ::
-    {result_kind(), non_neg_integer()}
+          {result_kind(), non_neg_integer()}
   defp parse_kind_and_cardinality(text) do
     cond do
       m = Regex.run(~r/Nitpick found a counterexample for card i\s*=\s*(\d+)/, text) ->
@@ -403,7 +407,7 @@ defmodule Src.Core.Parser do
   end
 
   @spec normalize_atoms(nil | String.t() | [String.t()]) ::
-        [String.t()]
+          [String.t()]
   defp normalize_atoms(nil), do: []
   defp normalize_atoms(""), do: []
   defp normalize_atoms("-"), do: []
@@ -430,7 +434,9 @@ defmodule Src.Core.Parser do
   @spec isolate_last_nitpick_result(String.t()) :: String.t()
   defp isolate_last_nitpick_result(text) do
     case Regex.scan(@nitpick_result_header, text, return: :index) do
-      [] -> text
+      [] ->
+        text
+
       matches ->
         [{start_position, _length}] = List.last(matches)
 

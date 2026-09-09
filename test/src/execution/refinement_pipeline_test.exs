@@ -34,8 +34,10 @@ defmodule Src.Execution.RefinementPipelineTest do
   test "reports an invalid selected axiom instead of applying or dropping it", context do
     invalid = put_in(TestSupport.candidate(), ["occurrence", "relation_cells"], [])
     TestSupport.write_candidates(context, [invalid])
+
     assert {:error, {:refinement_selection_failed, {:refinement_axiom_rendering_failed, _}}, run} =
-      Pipeline.run_theory(context.run, context.theory)
+             Pipeline.run_theory(context.run, context.theory)
+
     assert run.status == :failed
     assert Path.wildcard(Path.join(context.root, "**/*Refined*.thy")) == []
   end

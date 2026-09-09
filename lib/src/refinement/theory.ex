@@ -17,35 +17,36 @@ defmodule Src.Refinement.Theory do
   @type candidate :: Axiom.candidate()
 
   @typedoc "An option controlling theory generation."
-  @type option :: {:refinement_theory_dir, String.t()}
-                | {:theory_name, String.t()}
-                | {:axiom_name, String.t()}
+  @type option ::
+          {:refinement_theory_dir, String.t()}
+          | {:theory_name, String.t()}
+          | {:axiom_name, String.t()}
 
   @typedoc "Options controlling theory generation."
   @type options :: [option()]
 
   @typedoc "A generated refined Isabelle theory."
   @type t :: %{
-    theory_name: String.t(),
-    theory_path: String.t(),
-    base_theory_name: String.t(),
-    base_theory_path: String.t(),
-    candidate_id: String.t(),
-    refinement_axiom: String.t()
-  }
+          theory_name: String.t(),
+          theory_path: String.t(),
+          base_theory_name: String.t(),
+          base_theory_path: String.t(),
+          candidate_id: String.t(),
+          refinement_axiom: String.t()
+        }
 
   @typedoc "An error encountered while generating a refined theory."
-  @type write_error :: {:invalid_options, term()}
-                      | {:invalid_candidate, term()}
-                      | {:base_theory_not_found, String.t()}
-                      | {:invalid_base_theory_extension, String.t()}
-                      | {:missing_theory_declaration, String.t()}
-                      | {:theory_name_mismatch, map()}
-                      | {:invalid_theory_name, term()}
-                      | {:cannot_read_base_theory, map()}
-                      | {:cannot_create_refinement_directory, map()}
-                      | {:cannot_write_refinement_theory, map()}
-
+  @type write_error ::
+          {:invalid_options, term()}
+          | {:invalid_candidate, term()}
+          | {:base_theory_not_found, String.t()}
+          | {:invalid_base_theory_extension, String.t()}
+          | {:missing_theory_declaration, String.t()}
+          | {:theory_name_mismatch, map()}
+          | {:invalid_theory_name, term()}
+          | {:cannot_read_base_theory, map()}
+          | {:cannot_create_refinement_directory, map()}
+          | {:cannot_write_refinement_theory, map()}
 
   @doc """
   Writes a refined Isabelle theory importing `base_theory_path`.
@@ -98,26 +99,23 @@ defmodule Src.Refinement.Theory do
 
         end
         """
+
       case File.mkdir_p(theory_dir) do
         :ok ->
           case File.write(theory_path, source) do
             :ok ->
               {:ok,
-                %{
-                  theory_name: theory_name,
-                  theory_path: theory_path,
-                  base_theory_name: base_theory_name,
-                  base_theory_path: base_theory_path,
-                  candidate_id: candidate_id,
-                  refinement_axiom: refinement_axiom
-                }
-              }
+               %{
+                 theory_name: theory_name,
+                 theory_path: theory_path,
+                 base_theory_name: base_theory_name,
+                 base_theory_path: base_theory_path,
+                 candidate_id: candidate_id,
+                 refinement_axiom: refinement_axiom
+               }}
+
             {:error, reason} ->
-              {:error,
-                {:cannot_write_refinement_theory,
-                  %{path: theory_path, reason: reason}
-                }
-              }
+              {:error, {:cannot_write_refinement_theory, %{path: theory_path, reason: reason}}}
           end
 
         {:error, reason} ->

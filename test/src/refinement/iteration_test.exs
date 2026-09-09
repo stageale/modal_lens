@@ -35,16 +35,20 @@ defmodule Src.Refinement.IterationTest do
 
   test "wraps theory generation failures before invoking backends", context do
     missing = Path.join(context.root, "Missing.thy")
+
     assert {:error, {:refinement_theory_failed, {:base_theory_not_found, ^missing}}, run} =
-      Iteration.run(context.run, missing, TestSupport.candidate())
+             Iteration.run(context.run, missing, TestSupport.candidate())
+
     assert run.status == :planned
     assert TestSupport.calls(context, "isabelle") == []
   end
 
   test "wraps a refined pipeline failure and retains the written theory", context do
     File.touch!(Path.join(context.root, "fail-isabelle"))
+
     assert {:error, {:refined_pipeline_failed, _reason}, run} =
-      Iteration.run(context.run, context.theory, TestSupport.candidate())
+             Iteration.run(context.run, context.theory, TestSupport.candidate())
+
     assert run.status == :failed
     assert [_] = Path.wildcard(Path.join(context.run.output_dir, "refinement_theory/*.thy"))
   end

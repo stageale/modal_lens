@@ -64,7 +64,6 @@ defmodule Src.Interface.Ui do
     {:error, :invalid_ui_output_dir}
   end
 
-
   defp options_from_run(%Run{} = run) do
     option_keys =
       %Options{}

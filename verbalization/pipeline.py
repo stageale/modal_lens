@@ -46,22 +46,14 @@ def write_verbalization_result(result: Mapping[str, Any], output_directory: str 
     }
 
     summary_json_path.write_text(
-        json.dumps(
-            summary_document,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-        )
+        json.dumps(summary_document, ensure_ascii=False, indent=2, sort_keys=True)
         + "\n",
         encoding="utf-8"
     )
 
     summary_markdown = _render_refinement_summary_markdown(summary) if is_refinement else _render_summary_markdown(summary)
 
-    summary_markdown_path.write_text(
-        summary_markdown,
-        encoding="utf-8"
-    )
+    summary_markdown_path.write_text(summary_markdown, encoding="utf-8")
 
     provenance = result["provenance"]
     
@@ -75,12 +67,7 @@ def write_verbalization_result(result: Mapping[str, Any], output_directory: str 
     }
 
     provenance_path.write_text(
-        json.dumps(
-            provenance_document,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True
-        )
+        json.dumps(provenance_document, ensure_ascii=False, indent=2, sort_keys=True)
         + "\n",
         encoding="utf-8"
     )
@@ -92,17 +79,25 @@ def write_verbalization_result(result: Mapping[str, Any], output_directory: str 
         "provenance": provenance_path
     }
 
-def run_verbalization(report: Mapping[str, Any], verbalizer: Verbalizer, *, seed: int = 42, max_new_tokens: int = 768) -> dict[str, Any]:
-    verbalization_facts = (build_verbalization_facts(report))
+def run_verbalization(
+        report: Mapping[str, Any],
+        verbalizer: Verbalizer,
+        *,
+        seed: int = 42,
+        max_new_tokens: int = 768,
+        verbalization_mode: str = "grounded",
+        reasoning: bool = False,
+    ) -> dict[str, Any]:
+    if not isinstance(reasoning, bool):
+        raise ValueError("reasoning must be a boolean.")
 
-    messages = build_verbalization_messages(verbalization_facts)
-    
+    verbalization_facts = build_verbalization_facts(report, verbalization_mode=verbalization_mode)
 
-    request = GenerationRequest(
-        messages=messages,
-        seed=seed,
-        max_new_tokens=max_new_tokens
-    )
+    normalized_mode = verbalization_facts["source"]["verbalization_mode"]
+
+    messages = build_verbalization_messages(verbalization_facts, verbalization_mode=normalized_mode)
+
+    request = GenerationRequest(messages=messages, seed=seed, max_new_tokens=max_new_tokens)
 
     generation = verbalizer.generate(request)
 
@@ -117,6 +112,8 @@ def run_verbalization(report: Mapping[str, Any], verbalizer: Verbalizer, *, seed
             "model_id": generation.model_id,
             "seed": seed,
             "max_new_tokens": max_new_tokens,
+            "verbalization_mode": normalized_mode,
+            "reasoning_enabled": reasoning,
             "verbalization_facts_sha256": verbalization_facts_sha256(verbalization_facts),
             "messages_sha256": _messages_sha256(messages),
             "raw_output_sha256": _sha256_text(generation.raw_text),

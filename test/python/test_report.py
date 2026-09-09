@@ -60,6 +60,15 @@ def test_build_report_uses_versioned_envelope_and_durable_highlights() -> None:
         "cluster_count": 1,
         "reported_pattern_count": 0,
         "refinement_candidate_count": 0,
+        "by_cardinality": [
+            {
+                "cardinality": 2,
+                "model_count": 1,
+                "model_fraction": 1.0,
+                "model_indices": [0],
+                "model_ids": ["model-0"],
+            }
+        ],
         "signature": {
             "atoms": ["go", "tell"],
             "relation": "R"
@@ -70,6 +79,38 @@ def test_build_report_uses_versioned_envelope_and_durable_highlights() -> None:
     assert representative["atoms"] == ["go", "tell"]
     assert representative["designated_world"] == 1
     assert representative["warnings"] == ["example warning"]
+
+
+def test_build_report_groups_models_by_cardinality() -> None:
+    small = _graph()
+    large = _graph()
+    large.add_node(2, go=False, tell=False, designated=False)
+    large.graph["model_id"] = "model-1"
+
+    report = build_report(
+        theory="theory Example imports Main begin end",
+        graphs=[small, large],
+        cluster_labels=[0, 1],
+        cluster_pattern_results={0: [], 1: []},
+        highlights=[],
+    )
+
+    assert report["analysis"]["by_cardinality"] == [
+        {
+            "cardinality": 2,
+            "model_count": 1,
+            "model_fraction": 0.5,
+            "model_indices": [0],
+            "model_ids": ["model-0"],
+        },
+        {
+            "cardinality": 3,
+            "model_count": 1,
+            "model_fraction": 0.5,
+            "model_indices": [1],
+            "model_ids": ["model-1"],
+        },
+    ]
 
 
 def test_build_report_does_not_infer_designated_as_an_atom() -> None:

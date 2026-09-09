@@ -10,10 +10,10 @@ defmodule Src.Core.Logic.Lang.Operator.Argument do
   alias Src.Core.Logic.Type
 
   @type t :: %__MODULE__{
-    label: atom() | nil,
-    binds: [Type.t()],
-    type: Type.t()
-  }
+          label: atom() | nil,
+          binds: [Type.t()],
+          type: Type.t()
+        }
 
   @enforce_keys [:type]
   defstruct label: nil,
@@ -37,15 +37,15 @@ defmodule Src.Core.Logic.Lang.Operator do
   @type side_condition :: term()
 
   @type t :: %__MODULE__{
-    key: key(),
-    name: String.t(),
-    type_parameters: [term()],
-    arguments: [Argument.t()],
-    result: Type.t(),
-    side_conditions: [side_condition()],
-    semantics_key: term() | nil,
-    metadata: map()
-  }
+          key: key(),
+          name: String.t(),
+          type_parameters: [term()],
+          arguments: [Argument.t()],
+          result: Type.t(),
+          side_conditions: [side_condition()],
+          semantics_key: term() | nil,
+          metadata: map()
+        }
 
   @enforce_keys [:key, :name, :arguments, :result]
   defstruct key: nil,

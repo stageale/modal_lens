@@ -41,11 +41,12 @@ defmodule Src.EnumerationTest do
 
   test "enumerates one model without rendering visual artifacts" do
     dir = tmp_dir("enumeration")
+
     isabelle =
       write_executable(
         dir,
         "isabelle",
-        "cat <<'OUT'\nNitpick found a counterexample for card i = 1:\nw = i⇩1\nR = (i⇩1, i⇩1) := True\nOUT\n"
+        "cat <<'OUT'\nNitpick found a counterexample for card i = 2:\nw = i⇩1\nR = (i⇩1, i⇩1) := True\nOUT\n"
       )
 
     base_theory = write_theory(dir, "Base_Theory")
@@ -56,6 +57,7 @@ defmodule Src.EnumerationTest do
              Enumeration.enumerate(base_theory,
                mode: :countermodels,
                model_logic: :sdl,
+               cardinalities: [2],
                max_models: 1,
                render_graph: false,
                output_dir: output_dir,
@@ -65,7 +67,9 @@ defmodule Src.EnumerationTest do
 
     assert result.status == :max_models_reached
     assert result.model_count == 1
+    assert Enum.map(result.cardinality_results, & &1.cardinality) == [2]
     assert [entry] = result.models
+    assert entry.cardinality == 2
     assert %SDL{} = entry.model
     assert entry.model.edges == MapSet.new([{0, 0}])
     assert entry.graph_dot_file == nil
@@ -75,6 +79,59 @@ defmodule Src.EnumerationTest do
     assert result.svg_files == []
     assert result.tikz_files == []
     assert result.pdf_files == []
+  end
+
+  test "enumerates each cardinality independently with a per-cardinality model budget" do
+    dir = tmp_dir("multi_cardinality")
+
+    isabelle =
+      write_executable(
+        dir,
+        "isabelle",
+        ~S"""
+        card=2
+        for argument in "$@"; do
+          if [ -f "$argument" ] && grep -q 'card i = 3' "$argument"; then
+            card=3
+          fi
+        done
+        printf 'Nitpick found a counterexample for card i = %s:\n' "$card"
+        """
+      )
+
+    base_theory = write_theory(dir, "Multi_Cardinality")
+    output_dir = Path.join(dir, "out")
+
+    assert {:ok, result} =
+             Enumeration.enumerate(base_theory,
+               mode: :countermodels,
+               model_logic: :sdl,
+               cardinalities: [2, 3],
+               max_models: 2,
+               render_graph: false,
+               output_dir: output_dir,
+               isabelle_bin: isabelle
+             )
+
+    assert result.status == :max_models_reached
+    assert result.model_count == 4
+    assert Enum.map(result.models, & &1.cardinality) == [2, 2, 3, 3]
+
+    assert [cardinality_2, cardinality_3] = result.cardinality_results
+    assert cardinality_2.cardinality == 2
+    assert cardinality_2.model_count == 2
+    assert cardinality_3.cardinality == 3
+    assert cardinality_3.model_count == 2
+
+    assert Path.basename(cardinality_2.output_dir) == "cardinality_002"
+    assert Path.basename(cardinality_3.output_dir) == "cardinality_003"
+
+    for cardinality_result <- result.cardinality_results do
+      assert [next_search_theory] = cardinality_result.search_theory_files
+      source = File.read!(next_search_theory)
+      assert length(Regex.scan(~r/Automatically generated blocking axiom/, source)) == 1
+      assert source =~ "card i = #{cardinality_result.cardinality}"
+    end
   end
 
   defp write_theory(dir, name) do

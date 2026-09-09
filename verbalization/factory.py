@@ -20,13 +20,17 @@ def create_verbalizer(
         torch_dtype: Any = "auto",
         ollama_base_url: str = "http://localhost:11434",
         ollama_timeout: float = 300.0, 
+        reasoning: bool = False
     ) -> Verbalizer:
+    if not isinstance(reasoning, bool):
+        raise ValueError("reasoning must be a boolean.")
+
     normalized_backend = backend.strip().lower()
     
     if normalized_backend == "ollama":
         from .ollama import OllamaVerbalizer
         
-        return OllamaVerbalizer(model_id=model_id, base_url=ollama_base_url, timeout=ollama_timeout)
+        return OllamaVerbalizer(model_id=model_id, base_url=ollama_base_url, timeout=ollama_timeout, reasoning=reasoning)
     
     if normalized_backend == "transformers":
         from .transformers import TransformersVerbalizer
@@ -38,7 +42,7 @@ def create_verbalizer(
             revision=revision,
             device=device,
             torch_dtype=torch_dtype,
-            chat_template_kwargs=_hf_chat_template_kwargs(resolved_model_id)
+            chat_template_kwargs=_hf_chat_template_kwargs(resolved_model_id, reasoning=reasoning)
         )
     
     raise ValueError(f"Unsupported verbalization backend: {backend!r}. Expected 'ollama' or 'transformers'.")
@@ -52,8 +56,8 @@ def _resolve_hf_model_id(model_id: str) -> str:
     
     return HF_MODEL_ALIASES.get(normalized.lower(), normalized)
 
-def _hf_chat_template_kwargs(model_id: str) -> dict[str, Any]:
+def _hf_chat_template_kwargs(model_id: str, *, reasoning: bool) -> dict[str, Any]:
     if model_id == "HuggingFaceTB/SmolLM3-3B":
-        return {"enable_thinking": False}
+        return {"enable_thinking": reasoning}
     
     return {}

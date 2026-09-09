@@ -44,6 +44,7 @@ def test_ollama_verbalizer_normalizes_configuration():
     [
         ({"model_id": " "}, "must not be empty"),
         ({"model_id": "qwen2.5", "timeout": 0}, "must be positive"),
+        ({"model_id": "qwen2.5", "reasoning": "on"}, "must be a boolean"),
     ],
 )
 def test_ollama_verbalizer_rejects_invalid_configuration(
@@ -149,6 +150,15 @@ def test_chat_payload_uses_json_and_greedy_options():
     }
 
 
+def test_chat_payload_enables_reasoning_without_exposing_thinking():
+    verbalizer = OllamaVerbalizer("qwen3.5:9b", reasoning=True)
+    request = GenerationRequest(messages=MESSAGES)
+
+    payload = verbalizer._chat_payload(request)
+
+    assert payload["think"] is True
+
+
 def test_generate_returns_raw_text_and_provenance(monkeypatch):
     verbalizer = OllamaVerbalizer("qwen2.5:3b")
     request = GenerationRequest(
@@ -201,6 +211,7 @@ def test_generate_returns_raw_text_and_provenance(monkeypatch):
     assert result.metadata["model_digest"] == "sha256:abc"
     assert result.metadata["prompt_token_count"] == 100
     assert result.metadata["generated_token_count"] == 20
+    assert result.metadata["reasoning_enabled"] is False
     assert result.metadata["decoding"]["seed"] == 17
 
 

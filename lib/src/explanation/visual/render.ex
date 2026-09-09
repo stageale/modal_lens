@@ -151,7 +151,13 @@ defmodule Src.Explanation.Visual.Render do
     {_output, status} =
       System.cmd(
         exe,
-        ["-interaction=nonstopmode", "-halt-on-error", "-file-line-error", "-output-directory=#{out_dir}", tex_file],
+        [
+          "-interaction=nonstopmode",
+          "-halt-on-error",
+          "-file-line-error",
+          "-output-directory=#{out_dir}",
+          tex_file
+        ],
         cd: out_dir,
         stderr_to_stdout: true
       )
@@ -206,6 +212,7 @@ defmodule Src.Explanation.Visual.Render do
           penwidth = score_width(score, 1.0, 4.0)
 
           ~s/ [color="#{color}", penwidth=#{format_float(penwidth)}]/
+
         :error ->
           ""
       end
@@ -263,8 +270,9 @@ defmodule Src.Explanation.Visual.Render do
               "below"
             end
 
-            tikz_edge_options(edge, highlight, palette, ["loop #{loop_pos}"])
+          tikz_edge_options(edge, highlight, palette, ["loop #{loop_pos}"])
         end
+
       "  \\path[#{options}] (w#{a}) edge (w#{b});"
     end)
   end

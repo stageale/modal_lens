@@ -37,24 +37,24 @@ defmodule Src.Refinement.Axiom do
 
   @typedoc "A validated world from the occurrence specification."
   @type world :: %{
-    id: id(),
-    valuations: %{required(id()) => boolean()}
-  }
+          id: id(),
+          valuations: %{required(id()) => boolean()}
+        }
 
   @typedoc "A validated cell of the induced relation matrix."
   @type relation_cell :: %{
-    source: id(),
-    target: id(),
-    relation: id(),
-    holds: boolean()
-  }
+          source: id(),
+          target: id(),
+          relation: id(),
+          holds: boolean()
+        }
 
   @typedoc "The validated internal representation of a candidate."
   @type normalized_candidate :: %{
-    candidate_id: String.t(),
-    worlds: [world()],
-    relation_cells: [relation_cell()]
-  }
+          candidate_id: String.t(),
+          worlds: [world()],
+          relation_cells: [relation_cell()]
+        }
 
   @schema "modal-lens/refinement-candidate"
   @schema_version "1.0"
@@ -63,7 +63,6 @@ defmodule Src.Refinement.Axiom do
   @isabelle_not ~S(\<not>)
   @isabelle_exists ~S(\<exists>)
   @isabelle_and ~S(\<and>)
-
 
   @doc """
   Renders the exact existential occurrence described by `candidate`.
@@ -126,22 +125,21 @@ defmodule Src.Refinement.Axiom do
   end
 
   @spec normalize_candidate!(term()) :: normalized_candidate()
-  defp normalize_candidate!(
-    %{
-      "schema" => @schema,
-      "schema_version" => @schema_version,
-      "candidate_id" => candidate_id,
-      "kind" => @kind,
-      "status" => "candidate",
-      "origin" => origin,
-      "occurrence" => occurrence,
-      "refinement" => %{
-        "rule" => "exclude_exact_induced_occurrence",
-        "operator" => "not",
-        "operand" => "occurrence"
-      }
-    }
-  ) when is_binary(candidate_id) and is_map(origin) do
+  defp normalize_candidate!(%{
+         "schema" => @schema,
+         "schema_version" => @schema_version,
+         "candidate_id" => candidate_id,
+         "kind" => @kind,
+         "status" => "candidate",
+         "origin" => origin,
+         "occurrence" => occurrence,
+         "refinement" => %{
+           "rule" => "exclude_exact_induced_occurrence",
+           "operator" => "not",
+           "operand" => "occurrence"
+         }
+       })
+       when is_binary(candidate_id) and is_map(origin) do
     if String.trim(candidate_id) == "" do
       raise ArgumentError, "refinement candidate ID must not be empty"
     end
@@ -157,15 +155,13 @@ defmodule Src.Refinement.Axiom do
   end
 
   @spec normalize_occurrence!(term()) :: %{worlds: [world()], relation_cells: [relation_cell()]}
-  defp normalize_occurrence!(
-    %{
-      "size" => size,
-      "pairwise_distinct" => true,
-      "worlds" => raw_worlds,
-      "relation_cells" => raw_cells
-    }
-  )
-  when is_integer(size) and size > 0 and is_list(raw_worlds) and is_list(raw_cells) do
+  defp normalize_occurrence!(%{
+         "size" => size,
+         "pairwise_distinct" => true,
+         "worlds" => raw_worlds,
+         "relation_cells" => raw_cells
+       })
+       when is_integer(size) and size > 0 and is_list(raw_worlds) and is_list(raw_cells) do
     if length(raw_worlds) != size do
       raise ArgumentError,
             "occurrence world count must equal its declared size"
@@ -188,11 +184,9 @@ defmodule Src.Refinement.Axiom do
 
     %{
       worlds: worlds,
-      relation_cells:
-        sort_relation_cells(relation_cells, world_ids)
+      relation_cells: sort_relation_cells(relation_cells, world_ids)
     }
   end
-
 
   defp normalize_occurrence!(_occurrence) do
     raise ArgumentError,
@@ -200,13 +194,11 @@ defmodule Src.Refinement.Axiom do
   end
 
   @spec normalize_world!(term()) :: world()
-  defp normalize_world!(
-    %{
-      "id" => world_id,
-      "valuations" => valuations
-    }
-  )
-  when is_binary(world_id) and is_map(valuations) do
+  defp normalize_world!(%{
+         "id" => world_id,
+         "valuations" => valuations
+       })
+       when is_binary(world_id) and is_map(valuations) do
     validate_identifier!(world_id, "world")
 
     normalized_valuations =
@@ -214,6 +206,7 @@ defmodule Src.Refinement.Axiom do
         {atom, truth_value} when is_binary(atom) and is_boolean(truth_value) ->
           validate_identifier!(atom, "proposition")
           {atom, truth_value}
+
         {atom, truth_value} ->
           raise ArgumentError,
                 "invalid valuation #{inspect(atom)} => " <>
@@ -260,16 +253,16 @@ defmodule Src.Refinement.Axiom do
 
   @spec normalize_relation_cell!(term(), [id()]) :: relation_cell()
   defp normalize_relation_cell!(
-    %{
-      "source" => source,
-      "target" => target,
-      "relation" => relation,
-      "holds" => holds
-    },
-    world_ids
-  )
-  when is_binary(source) and is_binary(target) and
-        is_binary(relation) and is_boolean(holds) do
+         %{
+           "source" => source,
+           "target" => target,
+           "relation" => relation,
+           "holds" => holds
+         },
+         world_ids
+       )
+       when is_binary(source) and is_binary(target) and
+              is_binary(relation) and is_boolean(holds) do
     validate_identifier!(source, "source world")
     validate_identifier!(target, "target world")
     validate_identifier!(relation, "relation")
@@ -323,7 +316,7 @@ defmodule Src.Refinement.Axiom do
     expected_pairs =
       for source <- world_ids,
           target <- world_ids do
-            {source, target}
+        {source, target}
       end
 
     if MapSet.new(actual_pairs) != MapSet.new(expected_pairs) do

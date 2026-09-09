@@ -13,12 +13,12 @@ defmodule Src.Core.Logic.ProofSystem do
   @type property :: term()
 
   @type t :: %__MODULE__{
-    judgements: [judgement()],
-    axioms: [axiom_schema()],
-    rules: [inference_rule()],
-    claimed_properties: [property()],
-    metadata: map()
-  }
+          judgements: [judgement()],
+          axioms: [axiom_schema()],
+          rules: [inference_rule()],
+          claimed_properties: [property()],
+          metadata: map()
+        }
 
   defstruct judgements: [],
             axioms: [],

@@ -121,9 +121,10 @@ defmodule Src.Isabelle.HPCConnectTest do
 
     batch_script = decode_batch_script(job_command)
     assert batch_script =~ "module load isabelle"
-    assert batch_script =~ "exec 'isabelle' build"
+    assert batch_script =~ "exec 'isabelle' process_theories"
+    assert batch_script =~ "-l 'HOL'"
     assert batch_script =~ "-o 'threads=6'"
-    assert batch_script =~ "'Remote'"
+    assert batch_script =~ "-f 'Remote.thy'"
 
     assert_receive {:run_command, %Command{} = job_ssh_command, job_run_opts}
     assert job_ssh_command.remote_command == job_command
@@ -164,9 +165,7 @@ defmodule Src.Isabelle.HPCConnectTest do
 
     missing_module = Module.concat(__MODULE__, "MissingDependency")
 
-    assert {:error,
-            {:hpc_connect_not_available,
-             ^missing_module}} =
+    assert {:error, {:hpc_connect_not_available, ^missing_module}} =
              HPCConnect.run(
                workdir,
                %{theory_name: "Remote"},
@@ -174,18 +173,14 @@ defmodule Src.Isabelle.HPCConnectTest do
              )
 
     assert {:error, {:hpc_bootstrap_failed, "bootstrap unavailable"}} =
-             HPCConnect.run(workdir, %{theory_name: "Remote"},
-               hpc_module: FailingHpcConnect
-             )
+             HPCConnect.run(workdir, %{theory_name: "Remote"}, hpc_module: FailingHpcConnect)
   end
 
   test "reports missing generated Isabelle files" do
     workdir = tmp_dir()
 
     assert {:error, {:cannot_read_isabelle_file, path, :enoent}} =
-             HPCConnect.run(workdir, %{theory_name: "Remote"},
-               hpc_module: FakeHpcConnect
-             )
+             HPCConnect.run(workdir, %{theory_name: "Remote"}, hpc_module: FakeHpcConnect)
 
     assert path == Path.join(workdir, "ROOT")
   end

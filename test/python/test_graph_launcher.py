@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from graph_ml.launcher import launch_analysis
+import networkx as nx
+
+from graph_ml.launcher import (
+    _analysis_feature_vector,
+    _analysis_model_id,
+    launch_analysis,
+)
 
 
 def test_launch_analysis_writes_versioned_report_and_minimal_result(
@@ -24,6 +30,7 @@ def test_launch_analysis_writes_versioned_report_and_minimal_result(
                 "metadata": {
                     "run_id": "variant-1",
                     "iteration": 1,
+                    "cardinality": 3,
                     "theory_name": "Example",
                 },
                 "model": {
@@ -59,6 +66,7 @@ def test_launch_analysis_writes_versioned_report_and_minimal_result(
     assert result["status"] == "completed"
     assert result["model_count"] == 1
     assert result["report_path"] == str(report_file.resolve())
+    assert result["include_cardinality_feature"] is False
     assert "highlight" not in result
     assert "highlights" not in result
 
@@ -66,3 +74,61 @@ def test_launch_analysis_writes_versioned_report_and_minimal_result(
     assert report["theory"]["name"] == "Example"
     assert report["highlights"][0]["graph_index"] == 0
     assert report["clusters"][0]["representative_model"]["model_id"] == "variant-1"
+
+
+def test_analysis_feature_vector_excludes_cardinality_by_default() -> None:
+    graph = nx.DiGraph()
+    graph.add_nodes_from(
+        [
+            (0, {"designated": True}),
+            (1, {"designated": False}),
+            (2, {"designated": False}),
+        ]
+    )
+
+    without_cardinality = _analysis_feature_vector(
+        graph,
+        feature_method="raw",
+        graphlet_size=2,
+        graphlet_occurrences=None,
+        include_cardinality_feature=False,
+    )
+    with_cardinality = _analysis_feature_vector(
+        graph,
+        feature_method="raw",
+        graphlet_size=2,
+        graphlet_occurrences=None,
+        include_cardinality_feature=True,
+    )
+
+    assert "worlds" not in without_cardinality
+    assert with_cardinality["worlds"] == 3
+
+
+def test_analysis_model_id_disambiguates_cardinalities() -> None:
+    path = Path("model.json")
+
+    assert (
+        _analysis_model_id(
+            {"iteration": 1, "cardinality": 2},
+            path,
+            multi_cardinality=True,
+        )
+        == "cardinality-002-model-001"
+    )
+    assert (
+        _analysis_model_id(
+            {"iteration": 1, "cardinality": 3},
+            path,
+            multi_cardinality=True,
+        )
+        == "cardinality-003-model-001"
+    )
+    assert (
+        _analysis_model_id(
+            {"iteration": 1, "cardinality": 3},
+            path,
+            multi_cardinality=False,
+        )
+        == "model-001"
+    )

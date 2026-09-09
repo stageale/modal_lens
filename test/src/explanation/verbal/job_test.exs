@@ -15,7 +15,9 @@ defmodule Src.Explanation.Verbal.JobTest do
                output_dir,
                seed: 7,
                max_new_tokens: 128,
-               backend_options: %{device: "cpu"}
+               backend_options: %{device: "cpu"},
+               verbalization_mode: :interpretive,
+               reasoning: true
              )
 
     assert {:ok, ^request_path} = Job.write(job, request_path)
@@ -31,6 +33,8 @@ defmodule Src.Explanation.Verbal.JobTest do
     assert request["seed"] == 7
     assert request["max_new_tokens"] == 128
     assert request["backend_options"] == %{"device" => "cpu"}
+    assert request["verbalization_mode"] == "interpretive"
+    assert request["reasoning"] == true
   end
 
   test "uses reproducible defaults" do
@@ -38,6 +42,8 @@ defmodule Src.Explanation.Verbal.JobTest do
     assert job.seed == 42
     assert job.max_new_tokens == 768
     assert job.backend_options == %{}
+    assert job.verbalization_mode == :grounded
+    refute job.reasoning
   end
 
   test "rejects invalid request values" do
@@ -55,6 +61,24 @@ defmodule Src.Explanation.Verbal.JobTest do
 
     assert {:error, :invalid_backend_options} =
              Job.new("ollama", "model", "report.json", "out", backend_options: [])
+
+    assert {:error, _reason} =
+             Job.new(
+               "ollama",
+               "model",
+               "report.json",
+               "out",
+               verbalization_mode: :expansive
+             )
+
+    assert {:error, _reason} =
+             Job.new(
+               "ollama",
+               "model",
+               "report.json",
+               "out",
+               reasoning: :sometimes
+             )
   end
 
   defp tmp_dir do

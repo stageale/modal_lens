@@ -14,7 +14,6 @@ defmodule Src.Enumeration.Iteration do
   alias Src.Serialization, as: Serial
   alias Src.Isabelle.Client
 
-
   @typep artifacts :: %{
            required(:graph_dot_file) => String.t() | nil,
            required(:graph_svg_file) => String.t() | nil,
@@ -28,7 +27,6 @@ defmodule Src.Enumeration.Iteration do
   @schema "modal-lens/model"
   @schema_version "1.0"
 
-
   @doc """
   Runs one complete model-enumeration iteration.
 
@@ -38,6 +36,7 @@ defmodule Src.Enumeration.Iteration do
   def run(theory_path, opts \\ []) when is_binary(theory_path) and is_list(opts) do
     theory_path = Path.expand(theory_path)
     iteration = Keyword.get(opts, :iteration, 1)
+    cardinality = Keyword.get(opts, :cardinality, 2)
 
     base_theory_file =
       opts
@@ -55,46 +54,46 @@ defmodule Src.Enumeration.Iteration do
       Keyword.put(opts, :output_file, nitpick_output_file)
 
     with :ok <- validate_iteration(iteration),
+         :ok <- validate_cardinality(cardinality),
          :ok <- ensure_output_dir(output_dir),
-        {:ok, isabelle_run} <-
-          Client.nitpick_theory(theory_path, isabelle_opts),
-        {:ok, parsed_result} <-
-          parse_nitpick_result(isabelle_run.output_file, opts) do
-            case parsed_result do
-              :no_result ->
-                {:ok,
-                  no_model_result(
-                    base_theory_file,
-                    isabelle_run,
-                    output_dir,
-                    iteration,
-                    opts
-                  )
-                }
-              model ->
-                with {:ok, artifacts} <- write_countermodel_artifacts(
-                  model,
-                  base_theory_file,
-                  isabelle_run,
-                  output_dir,
-                  iteration,
-                  opts
-                ) do
-                  {:ok,
-                    model_result(
-                      model,
-                      artifacts,
-                      base_theory_file,
-                      isabelle_run,
-                      output_dir,
-                      iteration,
-                      opts
-                    )
-                  }
-                end
-            end
-          end
+         {:ok, isabelle_run} <-
+           Client.nitpick_theory(theory_path, isabelle_opts),
+         {:ok, parsed_result} <-
+           parse_nitpick_result(isabelle_run.output_file, opts) do
+      case parsed_result do
+        :no_result ->
+          {:ok,
+           no_model_result(
+             base_theory_file,
+             isabelle_run,
+             output_dir,
+             iteration,
+             opts
+           )}
 
+        model ->
+          with {:ok, artifacts} <-
+                 write_countermodel_artifacts(
+                   model,
+                   base_theory_file,
+                   isabelle_run,
+                   output_dir,
+                   iteration,
+                   opts
+                 ) do
+            {:ok,
+             model_result(
+               model,
+               artifacts,
+               base_theory_file,
+               isabelle_run,
+               output_dir,
+               iteration,
+               opts
+             )}
+          end
+      end
+    end
   end
 
   defp parse_nitpick_result(path, opts) do
@@ -110,13 +109,11 @@ defmodule Src.Enumeration.Iteration do
 
       {:error, reason} ->
         {:error,
-          {:cannot_read_nitpic_output,
-            %{
-              file: path,
-              reason: reason
-            }
-          }
-        }
+         {:cannot_read_nitpic_output,
+          %{
+            file: path,
+            reason: reason
+          }}}
     end
   end
 
@@ -139,39 +136,44 @@ defmodule Src.Enumeration.Iteration do
           atoms: Keyword.get(opts, :atoms, []),
           auto_atoms: Keyword.get(opts, :auto_atoms, true)
         )
+
       {:ok, model}
     rescue
       error in ArgumentError ->
         {:error,
-          {:nitpick_parse_failed,
-            %{
-              file: source,
-              message: Exception.message(error)
-            }
-          }
-        }
+         {:nitpick_parse_failed,
+          %{
+            file: source,
+            message: Exception.message(error)
+          }}}
     end
   end
 
   @spec write_countermodel_artifacts(
-        Model.model(),
-        String.t(),
-        map(),
-        String.t(),
-        pos_integer(),
-        keyword()
-      ) ::
-        {:ok, artifacts()}
-        | {:error,
-           {:artifact_generation_failed,
-            %{
-              required(:output_dir) => String.t(),
-              required(:message) => String.t()
-            }}}
-  defp write_countermodel_artifacts(model, base_theory_file, isabelle_run, output_dir, iteration, opts) do
+          Model.model(),
+          String.t(),
+          map(),
+          String.t(),
+          pos_integer(),
+          keyword()
+        ) ::
+          {:ok, artifacts()}
+          | {:error,
+             {:artifact_generation_failed,
+              %{
+                required(:output_dir) => String.t(),
+                required(:message) => String.t()
+              }}}
+  defp write_countermodel_artifacts(
+         model,
+         base_theory_file,
+         isabelle_run,
+         output_dir,
+         iteration,
+         opts
+       ) do
     try do
-      {graph_dot_file, graph_svg_file, graph_tikz_file,
-       graph_pdf_file} =
+      {graph_dot_file, graph_svg_file, graph_tikz_file, graph_pdf_file} =
         if Keyword.get(opts, :render_graph, true) do
           graph_dot_file =
             Path.join(output_dir, "model.dot")
@@ -220,15 +222,15 @@ defmodule Src.Enumeration.Iteration do
                 nil
             end
 
-        {
-          graph_dot_file,
-          graph_svg_file,
-          graph_tikz_file,
-          graph_pdf_file
-        }
-      else
-        {nil, nil, nil, nil}
-      end
+          {
+            graph_dot_file,
+            graph_svg_file,
+            graph_tikz_file,
+            graph_pdf_file
+          }
+        else
+          {nil, nil, nil, nil}
+        end
 
       blocking_name =
         Keyword.get(
@@ -241,8 +243,7 @@ defmodule Src.Enumeration.Iteration do
         BlockingAxiom.blocking_axiom(
           model,
           name: blocking_name,
-          include_atoms:
-            Keyword.get(opts, :include_atoms, true),
+          include_atoms: Keyword.get(opts, :include_atoms, true),
           include_designated_world:
             Keyword.get(
               opts,
@@ -271,35 +272,35 @@ defmodule Src.Enumeration.Iteration do
           "schema_version" => @schema_version,
           "metadata" => %{
             "iteration" => iteration,
+            "cardinality" => Keyword.get(opts, :cardinality, 2),
             "mode" =>
               opts
               |> Keyword.fetch!(:mode)
               |> Atom.to_string(),
-            "theory_name" =>
-              isabelle_run.theory_name,
-            "base_theory_file" =>
-              Path.basename(base_theory_file),
-            "search_theory_file" =>
-              Path.basename(isabelle_run.theory_path)
+            "theory_name" => isabelle_run.theory_name,
+            "base_theory_file" => Path.basename(base_theory_file),
+            "search_theory_file" => Path.basename(isabelle_run.theory_path)
           },
           "artifacts" => %{
-            "nitpick_output" =>
-              Path.basename(isabelle_run.output_file),
-            "dot" => if is_binary(graph_dot_file) do
-              Path.basename(graph_dot_file)
-            end,
+            "nitpick_output" => Path.basename(isabelle_run.output_file),
+            "dot" =>
+              if is_binary(graph_dot_file) do
+                Path.basename(graph_dot_file)
+              end,
             "json" => Path.basename(model_json_file),
-            "svg" => if is_binary(graph_svg_file) do
-              Path.basename(graph_svg_file)
-            end,
-            "tikz" => if is_binary(graph_tikz_file) do
-              Path.basename(graph_tikz_file)
-            end,
-            "pdf" => if is_binary(graph_pdf_file) do
-              Path.basename(graph_pdf_file)
-            end,
-            "blocking_axiom" =>
-              Path.basename(blocking_axiom_file)
+            "svg" =>
+              if is_binary(graph_svg_file) do
+                Path.basename(graph_svg_file)
+              end,
+            "tikz" =>
+              if is_binary(graph_tikz_file) do
+                Path.basename(graph_tikz_file)
+              end,
+            "pdf" =>
+              if is_binary(graph_pdf_file) do
+                Path.basename(graph_pdf_file)
+              end,
+            "blocking_axiom" => Path.basename(blocking_axiom_file)
           },
           "model" =>
             model
@@ -331,14 +332,14 @@ defmodule Src.Enumeration.Iteration do
   end
 
   @spec model_result(
-        Model.model(),
-        artifacts(),
-        String.t(),
-        map(),
-        String.t(),
-        pos_integer(),
-        keyword()
-      ) :: map()
+          Model.model(),
+          artifacts(),
+          String.t(),
+          map(),
+          String.t(),
+          pos_integer(),
+          keyword()
+        ) :: map()
   defp model_result(
          model,
          artifacts,
@@ -368,8 +369,7 @@ defmodule Src.Enumeration.Iteration do
       graph_pdf_file: artifacts.graph_pdf_file,
       model_json_file: artifacts.model_json_file,
       blocking_axiom: artifacts.blocking_axiom,
-      blocking_axiom_file:
-        artifacts.blocking_axiom_file,
+      blocking_axiom_file: artifacts.blocking_axiom_file,
       highlight: Keyword.get(opts, :highlight)
     })
   end
@@ -410,6 +410,7 @@ defmodule Src.Enumeration.Iteration do
        ) do
     %{
       iteration: iteration,
+      cardinality: Keyword.get(opts, :cardinality, 2),
       output_dir: output_dir,
       base_theory_file: base_theory_file,
       search_theory_file: isabelle_run.theory_path,
@@ -430,8 +431,8 @@ defmodule Src.Enumeration.Iteration do
     do: :no_countermodel
 
   defp no_model_status(mode)
-    when mode in [:satisfying_models, :consistency_check],
-    do: :no_model
+       when mode in [:satisfying_models, :consistency_check],
+       do: :no_model
 
   defp validate_iteration(iteration)
        when is_integer(iteration) and iteration > 0 do
@@ -444,6 +445,19 @@ defmodule Src.Enumeration.Iteration do
       %{
         expected: :positive_integer,
         received: iteration
+      }}}
+  end
+
+  defp validate_cardinality(cardinality) when is_integer(cardinality) and cardinality > 0 do
+    :ok
+  end
+
+  defp validate_cardinality(cardinality) do
+    {:error,
+     {:invalid_cardinality,
+      %{
+        expected: :positive_integer,
+        received: cardinality
       }}}
   end
 
@@ -492,5 +506,4 @@ defmodule Src.Enumeration.Iteration do
     )
     |> String.trim("_")
   end
-
 end

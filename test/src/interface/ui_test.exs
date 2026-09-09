@@ -54,13 +54,14 @@ defmodule Src.Interface.UiTest do
     theory: theory
   } do
     output = Path.join(root, "parallel-ui")
+
     options = [
       %{max_models: 1, verbalize?: false, render_graph?: false},
       %{max_models: 2, verbalize?: false, render_graph?: false}
     ]
 
     assert {:ok, session, _page} =
-      Ui.run(theory, output, options, max_parallel_runs: 2)
+             Ui.run(theory, output, options, max_parallel_runs: 2)
 
     assert Enum.sort(Enum.map(session.variants, & &1.run.id)) == ["ui-variant-1", "ui-variant-2"]
 
@@ -75,20 +76,20 @@ defmodule Src.Interface.UiTest do
     output = Path.join(root, "ui")
 
     assert {:error, {:invalid_max_parallel_runs, 0}} =
-      Ui.run(
-        theory,
-        output,
-        [%{}],
-        max_parallel_runs: 0
-      )
+             Ui.run(
+               theory,
+               output,
+               [%{}],
+               max_parallel_runs: 0
+             )
 
     assert {:error, {:invalid_max_parallel_runs, -1}} =
-      Ui.run(
-        theory,
-        output,
-        [%{}],
-        max_parallel_runs: -1
-      )
+             Ui.run(
+               theory,
+               output,
+               [%{}],
+               max_parallel_runs: -1
+             )
   end
 
   defp tmp_dir do

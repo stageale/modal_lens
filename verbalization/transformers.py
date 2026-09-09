@@ -109,6 +109,21 @@ class TransformersVerbalizer(Verbalizer):
             name: tensor.to(self._device) for name, tensor in encoded.items()
         }
         
+    @staticmethod
+    def _final_response(decoded_text: str) -> str:
+        stripped = decoded_text.strip()
+
+        if "<think>" in stripped and "</think>" not in stripped:
+            raise TransformersError("Transformers reasoning was truncated before the final response.")
+
+        if "</think>" in stripped:
+            stripped = stripped.rsplit("</think>", 1)[1].strip()
+
+        if not stripped:
+            raise TransformersError("Transformers returned no final response after reasoning.")
+
+        return stripped
+
     def _runtime_metadata(self, request: GenerationRequest, *, prompt_token_count: int, generated_token_count: int) -> dict[str, Any]:
         parameter = next(self._model.parameters())
         
@@ -136,23 +151,16 @@ class TransformersVerbalizer(Verbalizer):
             "device": str(self._device),
             "device_name": device_name,
             "dtype": str(parameter.dtype),
-            "prompt_token_count": (
-                prompt_token_count
-            ),
-            "generated_token_count": (
-                generated_token_count
-            ),
-            "chat_template_kwargs": dict(
-                self._chat_template_kwargs
-            ),
+            "prompt_token_count": (prompt_token_count),
+            "generated_token_count": (generated_token_count),
+            "chat_template_kwargs": dict(self._chat_template_kwargs),
+            "reasoning_enabled": bool(self._chat_template_kwargs.get("enable_thinking", False)),
             "decoding": {
                 "policy": "greedy",
                 "do_sample": False,
                 "num_beams": 1,
                 "seed": request.seed,
-                "max_new_tokens": (
-                    request.max_new_tokens
-                ),
+                "max_new_tokens": (request.max_new_tokens),
             },
         }
         
@@ -183,7 +191,9 @@ class TransformersVerbalizer(Verbalizer):
 
         generated_ids = output_ids[0,prompt_token_count:]
 
-        raw_text = self._tokenizer.decode(generated_ids,skip_special_tokens=True).strip()
+        decoded_text = self._tokenizer.decode(generated_ids, skip_special_tokens=True)
+
+        raw_text = self._final_response(decoded_text)
 
         generated_token_count = int(generated_ids.shape[-1])
 

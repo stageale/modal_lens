@@ -81,6 +81,8 @@ def test_run_verbalization_connects_facts_prompt_and_backend(
     assert result["provenance"]["model_id"] == "fake/model"
     assert result["provenance"]["seed"] == 17
     assert result["provenance"]["max_new_tokens"] == 256
+    assert result["provenance"]["verbalization_mode"] == "grounded"
+    assert result["provenance"]["reasoning_enabled"] is False
     assert result["provenance"]["backend_metadata"] == {"device": "test"}
     assert len(result["provenance"]["messages_sha256"]) == 64
     assert len(result["provenance"]["verbalization_facts_sha256"]) == 64
@@ -89,6 +91,39 @@ def test_run_verbalization_connects_facts_prompt_and_backend(
     assert verbalizer.last_request.seed == 17
     assert verbalizer.last_request.max_new_tokens == 256
     assert verbalizer.last_request.messages[0]["role"] == "system"
+
+
+def test_run_verbalization_records_interpretive_reasoning(
+    sample_report: dict,
+    sample_summary: dict,
+) -> None:
+    verbalizer = FakeVerbalizer(json.dumps(sample_summary))
+
+    result = run_verbalization(
+        sample_report,
+        verbalizer,
+        verbalization_mode="interpretive",
+        reasoning=True,
+    )
+
+    assert result["provenance"]["verbalization_mode"] == "interpretive"
+    assert result["provenance"]["reasoning_enabled"] is True
+    assert verbalizer.last_request is not None
+    assert "theory.content" in verbalizer.last_request.messages[1]["content"]
+
+
+def test_run_verbalization_rejects_non_boolean_reasoning(
+    sample_report: dict,
+    sample_summary: dict,
+) -> None:
+    verbalizer = FakeVerbalizer(json.dumps(sample_summary))
+
+    with pytest.raises(ValueError, match="reasoning must be a boolean"):
+        run_verbalization(
+            sample_report,
+            verbalizer,
+            reasoning="on",  # type: ignore[arg-type]
+        )
 
 
 def test_run_verbalization_rejects_invalid_model_output(sample_report: dict) -> None:

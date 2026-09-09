@@ -18,7 +18,15 @@ defmodule Src.Explanation.Verbal.Launcher do
   def launch(report_path, output_root, backend, model_id, opts \\ []) do
     output_name = Keyword.get_lazy(opts, :output_name, fn -> default_output_name(model_id) end)
     output_directory = Path.join(output_root, output_name)
-    job_options = Keyword.take(opts, [:seed, :max_new_tokens, :backend_options])
+
+    job_options =
+      Keyword.take(opts, [
+        :seed,
+        :max_new_tokens,
+        :backend_options,
+        :verbalization_mode,
+        :reasoning
+      ])
 
     with {:ok, job} <- Job.new(backend, model_id, report_path, output_directory, job_options),
          request_path <- Job.build_request_path(output_directory),

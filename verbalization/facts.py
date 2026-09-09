@@ -10,13 +10,15 @@ VERBALIZATION_FACTS_SCHEMA_VERSION = "1.0"
 SUPPORTED_REPORT_SCHEMA_VERSION = "1.1"
 REFINEMENT_REPORT_SCHEMA = "modal-lens/refinement-report"
 SUPPORTED_REFINEMENT_REPORT_SCHEMA_VERSION = "1.0"
+SUPPORTED_VERBALIZATION_MODES = frozenset({"grounded", "interpretive"})
 
 
-def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
+def build_verbalization_facts(report: Mapping[str, Any], *, verbalization_mode: str = "grounded") -> dict[str, Any]:
     """Build a deterministic, backend-independent fact collection.
     
-    The result contains only information already present in the analysis report. It excludes volatile metadata
-    and unrestricted theory text.
+    The result contains only information already present in the report. 
+    Grounded mode excludes unrestricted theory text, while interpretive mode
+    includes it as explicitly identified source evidence.
 
     Args:
         report (Mapping[str, Any]): Analysis or refinement report.
@@ -27,8 +29,10 @@ def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(report, Mapping):
         raise TypeError("Report must be a mapping.")
 
+    mode = _normalize_verbalization_mode(verbalization_mode)
+
     if report.get("schema") == REFINEMENT_REPORT_SCHEMA:
-        return _build_refinement_verbalization_facts(report)
+        return _build_refinement_verbalization_facts(report, verbalization_mode=mode)
      
     report_schema_version = _require_field(report, "schema_version", path="")
     
@@ -81,8 +85,13 @@ def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
         fact_prefix="analysis",
         source_prefix="analysis"
     )
+    optional_theory_fields = (
+        ("name", "source", "content")
+        if mode == "interpretive"
+        else ("name", "source")
+    )
     
-    for optional_theory_field in ("name", "source"):
+    for optional_theory_field in optional_theory_fields:
         if optional_theory_field not in theory:
             continue
         
@@ -104,12 +113,13 @@ def build_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": VERBALIZATION_FACTS_SCHEMA_VERSION,
         "source": {
-            "report_schema_version": report_schema_version
+            "report_schema_version": report_schema_version,
+            "verbalization_mode": mode
         },
         "facts": facts
     }
 
-def _build_refinement_verbalization_facts(report: Mapping[str, Any]) -> dict[str, Any]:
+def _build_refinement_verbalization_facts(report: Mapping[str, Any], *, verbalization_mode: str = "grounded") -> dict[str, Any]:
     """Project the applied rounds of a refinement report onto evidence facts.
     
     The report stores its round list under the singular key ``iteration``.
@@ -120,6 +130,8 @@ def _build_refinement_verbalization_facts(report: Mapping[str, Any]) -> dict[str
     Enumeration status and model count remain separate observations.
     Both fields must be present: no model-count delta, missing status, or global
     validity or consistency conclusion is inferred from bounded searches."""
+
+    mode = _normalize_verbalization_mode(verbalization_mode)
 
     report_schema_version = _require_field(report, "schema_version", path="")
 
@@ -152,6 +164,19 @@ def _build_refinement_verbalization_facts(report: Mapping[str, Any]) -> dict[str
             fact_prefix=state_name,
             source_prefix=state_name
         )
+
+        if mode == "interpretive" and "theory" in state:
+            theory_path = f"{state_name}.theory"
+            theory = _require_mapping(state["theory"], path=theory_path)
+
+            if "content" in theory:
+                _add_fact(
+                    facts,
+                    known_fact_ids,
+                    fact_id=f"{state_name}.theory.content",
+                    source_path=f"{theory_path}.content",
+                    value=theory["content"]
+                )
 
         enumeration_path = f"{state_name}.enumeration"
         enumeration = _require_mapping(_require_field(state, "enumeration", path=state_name), path=enumeration_path)
@@ -217,7 +242,8 @@ def _build_refinement_verbalization_facts(report: Mapping[str, Any]) -> dict[str
         "schema_version": VERBALIZATION_FACTS_SCHEMA_VERSION,
         "source": {
             "report_schema": REFINEMENT_REPORT_SCHEMA,
-            "report_schema_version": report_schema_version
+            "report_schema_version": report_schema_version,
+            "verbalization_mode": mode
         },
         "facts": facts
     }
@@ -247,6 +273,18 @@ def verbalization_facts_sha256(verbalization_facts: Mapping[str, Any]) -> str:
     
     return hashlib.sha256(canonical_bytes).hexdigest()
 
+def _normalize_verbalization_mode(value: Any) -> str:
+    if not isinstance(value, str):
+        raise TypeError("Verbalization mode must be a string.")
+
+    normalized = value.strip().lower()
+
+    if normalized not in SUPPORTED_VERBALIZATION_MODES:
+        expected = ", ".join(sorted(SUPPORTED_VERBALIZATION_MODES))
+        raise ValueError(f"Unsupported verbalization mode: {value!r}."
+                         f"Expected one of: {expected}.")
+    
+    return normalized
 
 def _require_field(mapping: Mapping[str, Any], field: str, *, path: str) -> Any:
     if field not in mapping:

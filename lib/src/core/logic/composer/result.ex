@@ -24,9 +24,10 @@ defmodule Src.Core.Logic.Composer.Result do
   @type mode :: :strict | :infer
   @type compile_option :: {:mode, mode()} | {atom(), term()}
 
-  @type result :: {:ok}
-                | {:incomplete, Draft.t()}
-                | {:error, [Diagnostic.t()]}
+  @type result ::
+          {:ok}
+          | {:incomplete, Draft.t()}
+          | {:error, [Diagnostic.t()]}
 
   @doc """
   Compiles one specification determinstically.
@@ -46,13 +47,15 @@ defmodule Src.Core.Logic.Composer.Result do
   admissible choice dimensions must be supplied explicitly to prevent an
   accidental combinatorial explosion.
   """
-  @spec variants(Spec.t(), keyword()) :: {:ok, [CompiledLogic.t()]}
-                                       | {:incomplete, Draft.t()}
-                                       | {:error, [Diagnostic.t()]}
+  @spec variants(Spec.t(), keyword()) ::
+          {:ok, [CompiledLogic.t()]}
+          | {:incomplete, Draft.t()}
+          | {:error, [Diagnostic.t()]}
   def variants(_spec, _opts \\ []) do
     raise "Src.Core.Logic.Composer.variants/2 is not implemented."
   end
 end
+
 defmodule Src.Core.Logic.Composer.Choice do
   @moduledoc """
   Describes one genuine semantic or compositional choice left unresolved.

@@ -101,6 +101,7 @@ defmodule Src.Execution.Pipeline do
     [
       mode: :countermodels,
       backend: Map.get(run.params, :backend, :local),
+      cardinalities: Map.get(run.params, :cardinalities, [2]),
       max_models: Map.get(run.params, :max_models, 10),
       output_dir: run.output_dir,
       model_logic: Map.get(run.params, :model_logic, :sdl),
@@ -184,37 +185,15 @@ defmodule Src.Execution.Pipeline do
         )
 
       launcher_options = [
-        execution_backend:
-          Map.get(
-            run.params,
-            :backend,
-            :local
-          ),
-        project_root:
-          Map.get(
-            run.params,
-            :project_root,
-            File.cwd!()
-          ),
-        uv_executable:
-          Map.get(
-            run.params,
-            :uv_executable,
-            "uv"
-          ),
+        execution_backend: Map.get(run.params, :backend, :local),
+        project_root: Map.get(run.params, :project_root, File.cwd!()),
+        uv_executable: Map.get(run.params, :uv_executable, "uv"),
         output_name: ".",
-        seed:
-          Map.get(
-            run.params,
-            :verbalization_seed,
-            42
-          ),
-        max_new_tokens:
-          Map.get(
-            run.params,
-            :verbalization_max_new_tokens,
-            768
-          )
+        seed: Map.get(run.params, :verbalization_seed, 42),
+        max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 768),
+        backend_options: Map.get(run.params, :verbalization_backend_options, %{}),
+        verbalization_mode: Map.get(run.params, :verbalization_mode, :grounded),
+        reasoning: Map.get(run.params, :verbalization_reasoning?, false)
       ]
 
       clusters
@@ -399,17 +378,7 @@ defmodule Src.Execution.Pipeline do
        when is_list(model_json_files) do
     report_path = Path.join(run.output_dir, "report.json")
 
-    arguments =
-      [
-        "run",
-        "python",
-        "-m",
-        @graph_python_module,
-        "--theory",
-        Path.expand(theory_path),
-        "--output",
-        report_path
-      ] ++ model_json_files
+    arguments = graph_analysis_arguments(run, theory_path, report_path, model_json_files)
 
     try do
       case System.cmd(
@@ -463,6 +432,30 @@ defmodule Src.Execution.Pipeline do
     rescue
       error -> {:error, {:graph_analysis_failed, Exception.message(error)}}
     end
+  end
+
+  defp graph_analysis_arguments(%Run{} = run, theory_path, report_path, model_json_files) do
+    base_arguments = [
+      "run",
+      "python",
+      "-m",
+      @graph_python_module,
+      "--theory",
+      Path.expand(theory_path),
+      "--output",
+      report_path
+    ]
+
+    feature_arguments =
+      if Map.get(run.params, :include_cardinality_feature?, false) do
+        ["--cardinality-feature"]
+      else
+        []
+      end
+
+    base_arguments ++
+      feature_arguments ++
+      model_json_files
   end
 
   defp apply_highlights(models, highlights, %Run{} = run)
@@ -597,8 +590,8 @@ defmodule Src.Execution.Pipeline do
 
     with {:ok, run} <- register_artifacts(run, experiment_result),
          {:ok, run} <- Run.put_provenance(run, :backend, backend),
-         {:ok, run} <-
-           put_isabelle_hpc_provenance(run, experiment_result),
+         {:ok, run} <- put_enumeration_cardinality_provenance(run, experiment_result),
+         {:ok, run} <- put_isabelle_hpc_provenance(run, experiment_result),
          {:ok, run} <- Run.put_metric(run, :runtime_ms, runtime_ms),
          {:ok, completed_run} <- Run.complete(run),
          {:ok, _manifest_path} <- ArtifactStore.persist(completed_run) do
@@ -630,15 +623,46 @@ defmodule Src.Execution.Pipeline do
     end
   end
 
+  defp put_enumeration_cardinality_provenance(%Run{} = run, experiment_result) do
+    case Map.get(experiment_result, :cardinality_results, []) do
+      [] ->
+        {:ok, run}
+
+      results ->
+        summaries =
+          Enum.map(results, fn result ->
+            %{
+              cardinality: result.cardinality,
+              status: result.status,
+              model_count: result.model_count,
+              output_dir: result.output_dir,
+              svg_files: Map.get(result, :svg_files, []),
+              tikz_files: Map.get(result, :tikz_files, []),
+              pdf_files: Map.get(result, :pdf_files, []),
+              blocking_axiom_files: Map.get(result, :blocking_axiom_files, []),
+              search_theory_files: Map.get(result, :search_theory_files, [])
+            }
+          end)
+
+        Run.put_provenance(run, :enumeration_by_cardinality, summaries)
+    end
+  end
+
   @spec isabelle_hpc_jobs(map()) :: [map()]
   defp isabelle_hpc_jobs(experiment_result) do
     terminal_iterations =
       case Map.get(experiment_result, :terminal_iteration) do
-        %{} = terminal_iteration ->
-          [terminal_iteration]
+        iterations when is_list(iterations) ->
+          iterations
 
         _other ->
-          []
+          case Map.get(experiment_result, :terminal_iteration) do
+            %{} = terminal_iteration ->
+              [terminal_iteration]
+
+            _other ->
+              []
+          end
       end
 
     experiment_result
@@ -654,11 +678,9 @@ defmodule Src.Execution.Pipeline do
         %{role: :isabelle, scheduler: :slurm} =
             hpc_provenance ->
           [
-            Map.put_new(
-              hpc_provenance,
-              :iteration,
-              Map.get(iteration_result, :iteration)
-            )
+            hpc_provenance
+            |> Map.put_new(:iteration, Map.get(iteration_result, :iteration))
+            |> Map.put_new(:cardinality, Map.get(iteration_result, :cardinality))
           ]
 
         _other ->
@@ -690,19 +712,19 @@ defmodule Src.Execution.Pipeline do
           [result]
       end
 
+    multi_cardinality? =
+      case Map.get(result, :cardinality_results, []) do
+        [_first, _second | _rest] -> true
+        _other -> false
+      end
+
     run_artifacts = [
       {:report_json, result[:report_file]}
     ]
 
     model_artifacts =
       Enum.flat_map(model_results, fn model_result ->
-        iteration =
-          model_result
-          |> Map.get(:iteration, 0)
-          |> Integer.to_string()
-          |> String.pad_leading(3, "0")
-
-        prefix = "model_#{iteration}"
+        prefix = model_artifact_prefix(model_result, multi_cardinality?)
 
         [
           {"#{prefix}_nitpick_output", model_result[:nitpick_output_file]},
@@ -755,5 +777,31 @@ defmodule Src.Execution.Pipeline do
           end
       end
     )
+  end
+
+  defp model_artifact_prefix(model_result, false) do
+    iteration =
+      model_result
+      |> Map.get(:iteration, 0)
+      |> Integer.to_string()
+      |> String.pad_leading(3, "0")
+
+    "model_#{iteration}"
+  end
+
+  defp model_artifact_prefix(model_result, true) do
+    cardinality =
+      model_result
+      |> Map.fetch!(:cardinality)
+      |> Integer.to_string()
+      |> String.pad_leading(3, "0")
+
+    iteration =
+      model_result
+      |> Map.get(:iteration, 0)
+      |> Integer.to_string()
+      |> String.pad_leading(3, "0")
+
+    "cardinality_#{cardinality}_model_#{iteration}"
   end
 end

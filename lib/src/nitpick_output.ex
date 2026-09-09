@@ -13,7 +13,6 @@ defmodule Src.NitpickOutput do
   alias Src.Core.Model
   alias Src.Core.Parser
 
-
   @doc """
   Parses one previously stored Nitpick output and prepares its basic data.
 

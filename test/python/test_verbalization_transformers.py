@@ -227,7 +227,32 @@ def test_generate_uses_greedy_decoding_and_returns_metadata(
     assert result.metadata["chat_template_kwargs"] == {
         "enable_thinking": False,
     }
+    assert result.metadata["reasoning_enabled"] is False
     assert result.metadata["decoding"]["seed"] == 17
+
+
+def test_final_response_removes_internal_reasoning():
+    decoded = '<think>private reasoning</think> {"overview":"final"}'
+
+    assert TransformersVerbalizer._final_response(decoded) == (
+        '{"overview":"final"}'
+    )
+
+
+def test_final_response_rejects_truncated_reasoning():
+    with pytest.raises(
+        TransformersError,
+        match="reasoning was truncated",
+    ):
+        TransformersVerbalizer._final_response("<think>unfinished")
+
+
+def test_final_response_rejects_missing_final_answer():
+    with pytest.raises(
+        TransformersError,
+        match="no final response",
+    ):
+        TransformersVerbalizer._final_response("<think>done</think>")
 
 
 def test_select_device_accepts_cpu():

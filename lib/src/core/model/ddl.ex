@@ -42,7 +42,6 @@ defmodule Src.Core.Model.DDL do
           raw_text: String.t()
         }
 
-
   @enforce_keys [:cardinality]
 
   defstruct [

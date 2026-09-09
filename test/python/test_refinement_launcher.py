@@ -18,6 +18,10 @@ def _report() -> dict:
         "applied_refinement_count": 0,
         "initial": {
             "theory_path": "/tmp/input.thy",
+            "theory": {
+                "path": "/tmp/input.thy",
+                "content": "theory Input imports Main begin end",
+            },
             "run_id": "run-0",
             "output_dir": "/tmp/run-0",
             "enumeration": {"status": "exhausted", "model_count": 0},
@@ -25,6 +29,10 @@ def _report() -> dict:
         "iteration": [],
         "final": {
             "theory_path": "/tmp/input.thy",
+            "theory": {
+                "path": "/tmp/input.thy",
+                "content": "theory Input imports Main begin end",
+            },
             "run_id": "run-0",
             "output_dir": "/tmp/run-0",
             "enumeration": {"status": "exhausted", "model_count": 0},

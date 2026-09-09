@@ -27,28 +27,32 @@ defmodule Src.Refinement.Loop do
   @type decision_function :: (pos_integer(), candidate(), map() -> :apply | :stop)
 
   @typedoc "The decision mode used by the refinement loop."
-  @type decision :: :automatic
-                  | decision_function()
+  @type decision ::
+          :automatic
+          | decision_function()
 
   @typedoc "An option controlling the outer refinement loop."
-  @type option :: {:max_rounds, non_neg_integer()}
-                | {:decision, decision()}
-                | {:theory, Theory.options()}
+  @type option ::
+          {:max_rounds, non_neg_integer()}
+          | {:decision, decision()}
+          | {:theory, Theory.options()}
 
   @typedoc "Options controlling the outer refinement loop."
   @type options :: [option()]
 
   @typedoc "The reason why a completed refinement loop stopped."
-  @type stop_reason :: :max_rounds
-                    | :no_refinement_candidate
-                    | :decision_stop
+  @type stop_reason ::
+          :max_rounds
+          | :no_refinement_candidate
+          | :decision_stop
 
   @typedoc "An error encountered while executing the refinement loop."
-  @type loop_error :: {:invalid_max_rounds, term()}
-                    | {:invalid_decision, term()}
-                    | {:initial_pipeline_failed, term()}
-                    | {:cannot_plan_refinement_run, pos_integer(), term()}
-                    | {:refinement_iteration_failed, pos_integer(), term()}
+  @type loop_error ::
+          {:invalid_max_rounds, term()}
+          | {:invalid_decision, term()}
+          | {:initial_pipeline_failed, term()}
+          | {:cannot_plan_refinement_run, pos_integer(), term()}
+          | {:refinement_iteration_failed, pos_integer(), term()}
 
   @enforce_keys [
     :initial_theory_path,
@@ -73,15 +77,15 @@ defmodule Src.Refinement.Loop do
 
   @typedoc "The accumulated result of the outer refinement loop."
   @type t :: %__MODULE__{
-    initial_theory_path: String.t(),
-    initial_run: Run.t(),
-    initial_pipeline_result: map(),
-    iterations: [Iteration.t()],
-    final_theory_path: String.t(),
-    final_run: Run.t(),
-    final_pipeline_result: map(),
-    stop_reason: stop_reason() | nil
-  }
+          initial_theory_path: String.t(),
+          initial_run: Run.t(),
+          initial_pipeline_result: map(),
+          iterations: [Iteration.t()],
+          final_theory_path: String.t(),
+          final_run: Run.t(),
+          final_pipeline_result: map(),
+          stop_reason: stop_reason() | nil
+        }
 
   @typedoc "The result of executing the outer refinement loop."
   @type result :: {:ok, t()} | {:error, loop_error(), Run.t()}
@@ -102,6 +106,7 @@ defmodule Src.Refinement.Loop do
     max_rounds = Keyword.get(opts, :max_rounds, @default_max_rounds)
     decision = Keyword.get(opts, :decision, @default_decision)
     theory_opts = Keyword.get(opts, :theory, [])
+
     cond do
       not is_integer(max_rounds) or max_rounds < 0 ->
         {:error, {:invalid_max_rounds, max_rounds}, run}
@@ -120,7 +125,13 @@ defmodule Src.Refinement.Loop do
     end
   end
 
-  @spec execute_initial_pipeline(Run.t(), String.t(), non_neg_integer(), decision(), Theory.options()) :: result()
+  @spec execute_initial_pipeline(
+          Run.t(),
+          String.t(),
+          non_neg_integer(),
+          decision(),
+          Theory.options()
+        ) :: result()
   defp execute_initial_pipeline(run, theory_path, max_rounds, decision, theory_opts) do
     case Pipeline.run_theory(run, theory_path) do
       {:ok, completed_run, pipeline_result} ->
@@ -129,14 +140,16 @@ defmodule Src.Refinement.Loop do
           initial_run: completed_run,
           initial_pipeline_result: pipeline_result,
           iterations: [],
-          final_theory_path:  Path.expand(theory_path),
+          final_theory_path: Path.expand(theory_path),
           final_run: completed_run,
           final_pipeline_result: pipeline_result,
           stop_reason: nil
         }
 
         continue(loop, 1, max_rounds, decision, theory_opts)
-      {:error, reason, failed_run} -> {:error, {:initial_pipeline_failed, reason}, failed_run}
+
+      {:error, reason, failed_run} ->
+        {:error, {:initial_pipeline_failed, reason}, failed_run}
     end
   end
 
@@ -150,9 +163,7 @@ defmodule Src.Refinement.Loop do
 
     case candidate do
       nil ->
-        {:ok,
-          %{loop | stop_reason: :no_refinement_candidate}
-        }
+        {:ok, %{loop | stop_reason: :no_refinement_candidate}}
 
       candidate ->
         case decide(decision, round, candidate, loop.final_pipeline_result) do
@@ -163,8 +174,10 @@ defmodule Src.Refinement.Loop do
     end
   end
 
-  @spec decide(decision(), pos_integer(), candidate(), map()) :: :apply | :stop | {:error, loop_error()}
+  @spec decide(decision(), pos_integer(), candidate(), map()) ::
+          :apply | :stop | {:error, loop_error()}
   defp decide(:automatic, _round, _candidate, _pipeline_result), do: :apply
+
   defp decide(decision, round, candidate, pipeline_result) when is_function(decision, 3) do
     case decision.(round, candidate, pipeline_result) do
       :apply -> :apply
@@ -173,7 +186,14 @@ defmodule Src.Refinement.Loop do
     end
   end
 
-  @spec apply_candidate(t(), pos_integer(), non_neg_integer(), decision(), Theory.options(), candidate()) :: result()
+  @spec apply_candidate(
+          t(),
+          pos_integer(),
+          non_neg_integer(),
+          decision(),
+          Theory.options(),
+          candidate()
+        ) :: result()
   defp apply_candidate(loop, round, max_rounds, decision, theory_opts, candidate) do
     round_label =
       round
@@ -188,14 +208,39 @@ defmodule Src.Refinement.Loop do
 
     case Run.new(run_id, output_dir, loop.initial_run.params) do
       {:ok, refinement_run} ->
-        execute_iteration(loop, refinement_run, round, max_rounds, decision, theory_opts, candidate)
+        execute_iteration(
+          loop,
+          refinement_run,
+          round,
+          max_rounds,
+          decision,
+          theory_opts,
+          candidate
+        )
+
       {:error, reason} ->
         {:error, {:cannot_plan_refinement_run, round, reason}, loop.final_run}
     end
   end
 
-  @spec execute_iteration(t(), Run.t(), pos_integer(), non_neg_integer(), decision(), Theory.options(), candidate()) :: result()
-  defp execute_iteration(loop, refinement_run, round, max_rounds, decision, theory_opts, candidate) do
+  @spec execute_iteration(
+          t(),
+          Run.t(),
+          pos_integer(),
+          non_neg_integer(),
+          decision(),
+          Theory.options(),
+          candidate()
+        ) :: result()
+  defp execute_iteration(
+         loop,
+         refinement_run,
+         round,
+         max_rounds,
+         decision,
+         theory_opts,
+         candidate
+       ) do
     iteration_opts = [
       round: round,
       theory: theory_opts

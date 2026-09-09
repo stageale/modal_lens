@@ -21,9 +21,9 @@ defmodule Formula do
 
   @typedoc "A lightweight structured formula representation."
   @type t :: %__MODULE__{
-    kind: atom() | nil,
-    args: [term()] | nil
-  }
+          kind: atom() | nil,
+          args: [term()] | nil
+        }
 
   defstruct [:kind, :args]
 
