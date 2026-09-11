@@ -23,10 +23,10 @@ defmodule Src.TPTP.Include do
   A parsed TPTP include directive.
   """
   @type t :: %__MODULE__{
-    file: String.t(),
-    selection: selection(),
-    space: String.t() | nil
-  }
+          file: String.t(),
+          selection: selection(),
+          space: String.t() | nil
+        }
 
   @doc """
   Creates a TPTP include directive.

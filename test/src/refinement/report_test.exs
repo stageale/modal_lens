@@ -18,6 +18,8 @@ defmodule Src.Refinement.ReportTest do
     assert report["iteration"] == []
     assert report["initial"] == report["final"]
     assert report["initial"]["enumeration"] == %{"status" => "exhausted", "model_count" => 0}
+    assert report["initial"]["theory"]["path"] == context.theory
+    assert report["initial"]["theory"]["content"] == File.read!(context.theory)
   end
 
   test "chains complete before and after observations across rounds", context do
@@ -31,12 +33,15 @@ defmodule Src.Refinement.ReportTest do
     assert second["enumeration_before"] == first["enumeration_after"]
     assert second["enumeration_after"] == report["final"]["enumeration"]
     assert second["enumeration_after"] == %{"status" => "exhausted", "model_count" => 0}
+    assert report["final"]["theory"]["content"] == nil
+    assert is_binary(report["final"]["theory"]["read_error"])
     refute Jason.encode!(report) =~ "model_count_delta"
   end
 
   test "uses actually applied candidates and written axioms despite recurring IDs", context do
     loop = example_loop(context, 2)
     [first, second] = Report.to_map(loop)["iteration"]
+
     for {entry, iteration} <- Enum.zip([first, second], loop.iterations) do
       assert entry["candidate"] == iteration.selected_candidate
       assert entry["candidate_id"] == iteration.selected_candidate["candidate_id"]
@@ -45,6 +50,7 @@ defmodule Src.Refinement.ReportTest do
       assert entry["graphlet_size"] == 2
       assert entry["refinement_axiom"] == iteration.refined_theory.refinement_axiom
     end
+
     assert first["pattern_id"] == second["pattern_id"]
     assert first["cluster_id"] == second["cluster_id"]
     assert first["run_id"] != second["run_id"]
@@ -66,30 +72,50 @@ defmodule Src.Refinement.ReportTest do
   defp example_loop(context, rounds) do
     {:ok, initial} = Run.new("initial", Path.join(context.root, "initial"))
     initial = %{initial | status: :completed}
-    initial_result = if rounds == 0, do: %{status: :exhausted, model_count: 0},
-      else: %{status: :max_models_reached, model_count: 2}
+
+    initial_result =
+      if rounds == 0,
+        do: %{status: :exhausted, model_count: 0},
+        else: %{status: :max_models_reached, model_count: 2}
 
     {iterations, final_theory, final_run, final_result} =
-      Enum.reduce(if(rounds == 0, do: [], else: 1..rounds), {[], context.theory, initial, initial_result},
+      Enum.reduce(
+        if(rounds == 0, do: [], else: 1..rounds),
+        {[], context.theory, initial, initial_result},
         fn round, {iterations, base, _run, _result} ->
           {:ok, run} = Run.new("round-#{round}", Path.join(context.root, "round-#{round}"))
           run = %{run | status: :completed}
           candidate = TestSupport.candidate(cluster_support: if(round == 1, do: 0.75, else: 0.5))
           theory = Path.join(run.output_dir, "Refined#{round}.thy")
-          result = if round == 1, do: %{status: :max_models_reached, model_count: 2},
-            else: %{status: :exhausted, model_count: 0}
+
+          result =
+            if round == 1,
+              do: %{status: :max_models_reached, model_count: 2},
+              else: %{status: :exhausted, model_count: 0}
+
           iteration = %Iteration{
-            round: round, input_theory_path: base, selected_candidate: candidate,
-            refined_theory: %{theory_path: theory,
-              refinement_axiom: "axiomatization where ax_written_#{round}: \"True\""},
-            run: run, pipeline_result: result
+            round: round,
+            input_theory_path: base,
+            selected_candidate: candidate,
+            refined_theory: %{
+              theory_path: theory,
+              refinement_axiom: "axiomatization where ax_written_#{round}: \"True\""
+            },
+            run: run,
+            pipeline_result: result
           }
+
           {iterations ++ [iteration], theory, run, result}
-        end)
+        end
+      )
 
     %Loop{
-      initial_theory_path: context.theory, initial_run: initial, initial_pipeline_result: initial_result,
-      iterations: iterations, final_theory_path: final_theory, final_run: final_run,
+      initial_theory_path: context.theory,
+      initial_run: initial,
+      initial_pipeline_result: initial_result,
+      iterations: iterations,
+      final_theory_path: final_theory,
+      final_run: final_run,
       final_pipeline_result: final_result,
       stop_reason: if(rounds == 0, do: :no_refinement_candidate, else: :max_rounds)
     }

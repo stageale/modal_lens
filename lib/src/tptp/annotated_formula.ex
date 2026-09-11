@@ -14,20 +14,21 @@ defmodule Src.TPTP.AnnotatedFormula do
   @typedoc """
   Standard TPTP role assigned to an annotated formula.
   """
-  @type role :: :axiom
-              | :hypothesis
-              | :definition
-              | :assumption
-              | :lemma
-              | :theorem
-              | :corollary
-              | :conjecture
-              | :negated_conjecture
-              | :plain
-              | :type
-              | :interpretation
-              | :logic
-              | :unknown
+  @type role ::
+          :axiom
+          | :hypothesis
+          | :definition
+          | :assumption
+          | :lemma
+          | :theorem
+          | :corollary
+          | :conjecture
+          | :negated_conjecture
+          | :plain
+          | :type
+          | :interpretation
+          | :logic
+          | :unknown
 
   @enforce_keys [:language, :name, :role, :formula]
   defstruct [
@@ -43,13 +44,13 @@ defmodule Src.TPTP.AnnotatedFormula do
   A parsed THF annotated-formula record
   """
   @type t :: %__MODULE__{
-    language: language(),
-    name: String.t(),
-    role: role(),
-    formula: String.t(),
-    source: String.t() | nil,
-    useful_info: String.t() | nil
-  }
+          language: language(),
+          name: String.t(),
+          role: role(),
+          formula: String.t(),
+          source: String.t() | nil,
+          useful_info: String.t() | nil
+        }
 
   @doc """
   Creates an annotated THF formula without optional annotations.

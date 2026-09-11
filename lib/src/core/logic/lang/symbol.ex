@@ -11,26 +11,27 @@ defmodule Src.Core.Logic.Lang.Symbol do
 
   @type key :: atom() | {atom(), atom() | String.t()}
 
-  @type kind :: :constant
-              | :function
-              | :predicate
-              | :relation
-              | :proposition
-              | :higher_order
-              | atom()
+  @type kind ::
+          :constant
+          | :function
+          | :predicate
+          | :relation
+          | :proposition
+          | :higher_order
+          | atom()
 
   @type dependence :: :rigid | :flexible | :unspecified
   @type role :: :object | :frame | :semantic | {:custom, atom()}
 
   @type t :: %__MODULE__{
-    key: key(),
-    name: String.t(),
-    kind: kind(),
-    type: Type.t(),
-    dependence: dependence(),
-    role: role(),
-    metadata: map()
-  }
+          key: key(),
+          name: String.t(),
+          kind: kind(),
+          type: Type.t(),
+          dependence: dependence(),
+          role: role(),
+          metadata: map()
+        }
 
   @enforce_keys [:key, :name, :kind, :type]
   defstruct key: nil,

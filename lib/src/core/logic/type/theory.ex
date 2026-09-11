@@ -7,10 +7,10 @@ defmodule Src.Core.Logic.Type.Theory do
   @type type_error :: term()
 
   @type t :: %__MODULE__{
-    id: id(),
-    provider: module(),
-    options: map()
-  }
+          id: id(),
+          provider: module(),
+          options: map()
+        }
 
   @enforce_keys [:id, :provider]
   defstruct id: nil,

@@ -10,8 +10,14 @@ defmodule Src.Refinement.TheoryTest do
     original = File.read!(context.theory)
     candidate = TestSupport.candidate()
     directory = Path.join(context.root, "rounds/one")
-    assert {:ok, result} = Theory.write(context.theory, candidate,
-      refinement_theory_dir: directory, theory_name: "First", axiom_name: "round_1")
+
+    assert {:ok, result} =
+             Theory.write(context.theory, candidate,
+               refinement_theory_dir: directory,
+               theory_name: "First",
+               axiom_name: "round_1"
+             )
+
     source = File.read!(result.theory_path)
     assert result.theory_path == Path.join(directory, "First.thy")
     assert result.base_theory_path == context.theory
@@ -26,10 +32,17 @@ defmodule Src.Refinement.TheoryTest do
 
   test "the second refinement imports the first refined theory", context do
     candidate = TestSupport.candidate()
-    assert {:ok, first} = Theory.write(context.theory, candidate,
-      refinement_theory_dir: Path.join(context.root, "first"))
-    assert {:ok, second} = Theory.write(first.theory_path, candidate,
-      refinement_theory_dir: Path.join(context.root, "second"))
+
+    assert {:ok, first} =
+             Theory.write(context.theory, candidate,
+               refinement_theory_dir: Path.join(context.root, "first")
+             )
+
+    assert {:ok, second} =
+             Theory.write(first.theory_path, candidate,
+               refinement_theory_dir: Path.join(context.root, "second")
+             )
+
     assert second.base_theory_path == first.theory_path
     assert second.theory_path != first.theory_path
     assert File.read!(second.theory_path) =~ ~s(imports "../first/#{first.theory_name}")
@@ -38,14 +51,18 @@ defmodule Src.Refinement.TheoryTest do
 
   test "reports a missing base theory", context do
     missing = Path.join(context.root, "Missing.thy")
-    assert Theory.write(missing, TestSupport.candidate()) == {:error, {:base_theory_not_found, missing}}
+
+    assert Theory.write(missing, TestSupport.candidate()) ==
+             {:error, {:base_theory_not_found, missing}}
   end
 
   test "reports an output directory blocked by a regular file", context do
     blocked = Path.join(context.root, "blocked")
     File.write!(blocked, "occupied")
+
     assert {:error, {:cannot_create_refinement_directory, details}} =
-      Theory.write(context.theory, TestSupport.candidate(), refinement_theory_dir: blocked)
+             Theory.write(context.theory, TestSupport.candidate(), refinement_theory_dir: blocked)
+
     assert details.path == blocked
     assert File.read!(blocked) == "occupied"
   end

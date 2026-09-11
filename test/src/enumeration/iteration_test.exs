@@ -30,6 +30,18 @@ defmodule Src.Enumeration.IterationTest do
     assert details.received == 0
   end
 
+  test "validates cardinality before invoking Isabelle" do
+    assert {:error, {:invalid_cardinality, details}} =
+             Iteration.run("missing.thy",
+               cardinality: 0,
+               mode: :countermodels,
+               output_dir: tmp_dir("invalid_cardinality")
+             )
+
+    assert details.expected == :positive_integer
+    assert details.received == 0
+  end
+
   test "returns a terminal no-countermodel result" do
     dir = tmp_dir("no_result")
     theory = write_theory(dir, "No_Result")
@@ -49,6 +61,7 @@ defmodule Src.Enumeration.IterationTest do
              )
 
     assert result.status == :no_countermodel
+    assert result.cardinality == 2
     assert result.model == nil
     assert result.graph_dot_file == nil
     assert File.read!(result.nitpick_output_file) =~ "Nitpick found no counterexample"
@@ -69,6 +82,7 @@ defmodule Src.Enumeration.IterationTest do
              Iteration.run(theory,
                mode: :countermodels,
                model_logic: :sdl,
+               cardinality: 1,
                atoms: ["p"],
                render_graph: false,
                isabelle_bin: isabelle,
@@ -76,6 +90,7 @@ defmodule Src.Enumeration.IterationTest do
              )
 
     assert result.status == :countermodel_found
+    assert result.cardinality == 1
     assert %SDL{} = result.model
     assert result.model.valuations == %{"p" => [true]}
     assert result.graph_dot_file == nil
@@ -87,6 +102,7 @@ defmodule Src.Enumeration.IterationTest do
     assert document["schema"] == "modal-lens/model"
     assert document["schema_version"] == "1.0"
     assert document["metadata"]["iteration"] == 1
+    assert document["metadata"]["cardinality"] == 1
     assert document["model"]["logic"] == "sdl"
     assert document["model"]["edges"] == [[0, 0]]
     assert document["artifacts"]["dot"] == nil

@@ -13,9 +13,10 @@ defmodule Src.Refinement.Selection do
   @type candidate :: %{required(String.t()) => term()}
 
   @typedoc "An error encountered during candidate selection."
-  @type selection_error :: :no_eligible_candidate
-                        | {:invalid_options, term()}
-                        | {:invalid_candidate, term()}
+  @type selection_error ::
+          :no_eligible_candidate
+          | {:invalid_options, term()}
+          | {:invalid_candidate, term()}
 
   @doc """
   Selects the best eligible refinement candidate.
@@ -37,6 +38,7 @@ defmodule Src.Refinement.Selection do
           {:halt, {:invalid_candidate, candidate}}
         end
       end)
+
     case invalid_candidate do
       nil ->
         candidates
@@ -52,30 +54,24 @@ defmodule Src.Refinement.Selection do
   end
 
   def select(candidates) do
-    {:error,
-      {:invalid_options,
-        candidates
-      }
-    }
+    {:error, {:invalid_options, candidates}}
   end
 
   @spec valid_candidate?(term()) :: boolean()
-  defp valid_candidate?(
-    %{
-      "schema" => "modal-lens/refinement-candidate",
-      "schema_version" => "1.0",
-      "candidate_id" => candidate_id,
-      "kind" => "exact_induced_graphlet_exclusion",
-      "status" => "candidate",
-      "origin" => %{
-        "cluster_support" => cluster_support,
-        "outside_support" => outside_support,
-      },
-      "occurrence" => %{
-        "size" => graphlet_size
-      }
-    }
-  ) do
+  defp valid_candidate?(%{
+         "schema" => "modal-lens/refinement-candidate",
+         "schema_version" => "1.0",
+         "candidate_id" => candidate_id,
+         "kind" => "exact_induced_graphlet_exclusion",
+         "status" => "candidate",
+         "origin" => %{
+           "cluster_support" => cluster_support,
+           "outside_support" => outside_support
+         },
+         "occurrence" => %{
+           "size" => graphlet_size
+         }
+       }) do
     is_binary(candidate_id) and
       String.trim(candidate_id) != "" and
       is_number(cluster_support) and

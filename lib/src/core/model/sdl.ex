@@ -30,7 +30,6 @@ defmodule Src.Core.Model.SDL do
           raw_text: String.t()
         }
 
-
   @enforce_keys [:cardinality]
 
   defstruct [

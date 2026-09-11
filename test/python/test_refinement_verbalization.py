@@ -10,6 +10,7 @@ from verbalization.base import GenerationResult, Verbalizer
 from verbalization.facts import build_verbalization_facts, verbalization_facts_sha256
 from verbalization.pipeline import _render_refinement_summary_markdown, run_verbalization, write_verbalization_result
 from verbalization.prompt import (
+    INTERPRETIVE_REFINEMENT_SYSTEM_MESSAGE,
     REFINEMENT_SYSTEM_MESSAGE,
     build_verbalization_messages,
     render_refinement_user_message,
@@ -83,6 +84,10 @@ def refinement_report() -> dict:
         "applied_refinement_count": 2,
         "initial": {
             "theory_path": "/tmp/input.thy",
+            "theory": {
+                "path": "/tmp/input.thy",
+                "content": "theory Input imports Main begin end",
+            },
             "run_id": "run-0",
             "output_dir": "/tmp/run-0",
             "enumeration": {"status": "max_models_reached", "model_count": 2},
@@ -90,6 +95,10 @@ def refinement_report() -> dict:
         "iteration": iterations,
         "final": {
             "theory_path": "/tmp/round-2.thy",
+            "theory": {
+                "path": "/tmp/round-2.thy",
+                "content": "theory Round2 imports Round1 begin end",
+            },
             "run_id": "run-2",
             "output_dir": "/tmp/run-2",
             "enumeration": {"status": "exhausted", "model_count": 0},
@@ -125,6 +134,7 @@ def test_projects_all_refinement_rounds_with_round_scoped_evidence() -> None:
     assert facts["source"] == {
         "report_schema": "modal-lens/refinement-report",
         "report_schema_version": "1.0",
+        "verbalization_mode": "grounded",
     }
     assert by_id["refinement.stop_reason"]["value"] == "max_rounds"
     assert by_id["initial.enumeration.status"]["value"] == "max_models_reached"
@@ -159,6 +169,25 @@ def test_refinement_prompt_requires_rounds_and_limits_claims() -> None:
     assert "constitute a proof" in REFINEMENT_SYSTEM_MESSAGE
     assert "global validity" in REFINEMENT_SYSTEM_MESSAGE
     assert build_verbalization_messages(facts)[0]["content"] == REFINEMENT_SYSTEM_MESSAGE
+
+
+def test_interpretive_refinement_prompt_uses_theory_sources() -> None:
+    facts = build_verbalization_facts(
+        refinement_report(),
+        verbalization_mode="interpretive",
+    )
+    by_id = {fact["id"]: fact for fact in facts["facts"]}
+
+    messages = build_verbalization_messages(
+        facts,
+        verbalization_mode="interpretive",
+    )
+
+    assert by_id["initial.theory.content"]["value"].startswith("theory Input")
+    assert by_id["final.theory.content"]["value"].startswith("theory Round2")
+    assert messages[0]["content"] == INTERPRETIVE_REFINEMENT_SYSTEM_MESSAGE
+    assert "local Kripke semantics" in messages[0]["content"]
+    assert "strengthens the preceding theory" in messages[1]["content"]
 
 
 def test_refinement_summary_validation_requires_existing_round_scoped_evidence() -> None:

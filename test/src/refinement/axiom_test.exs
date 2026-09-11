@@ -7,6 +7,7 @@ defmodule Src.Refinement.AxiomTest do
 
   test "renders every internal relation and valuation with distinct witnesses" do
     formula = Axiom.occurrence_formula(TestSupport.candidate())
+
     expected = ~S"""
     \<exists>u1 u2.
       distinct [u1, u2] \<and>
@@ -19,6 +20,7 @@ defmodule Src.Refinement.AxiomTest do
       \<not> (p u2) \<and>
       \<not> (q u2)
     """
+
     assert normalize(formula) == normalize(expected)
     refute formula =~ ~S(\<forall>)
     refute formula =~ "UNIV"
@@ -26,9 +28,12 @@ defmodule Src.Refinement.AxiomTest do
 
   test "supports a third world and an empty proposition signature" do
     candidate = TestSupport.candidate(size: 3)
-    candidate = update_in(candidate, ["occurrence", "worlds"], fn worlds ->
-      Enum.map(worlds, &Map.put(&1, "valuations", %{}))
-    end)
+
+    candidate =
+      update_in(candidate, ["occurrence", "worlds"], fn worlds ->
+        Enum.map(worlds, &Map.put(&1, "valuations", %{}))
+      end)
+
     formula = Axiom.occurrence_formula(candidate)
     assert formula =~ ~S(\<exists>u1 u2 u3.)
     assert formula =~ "distinct [u1, u2, u3]"
@@ -45,6 +50,7 @@ defmodule Src.Refinement.AxiomTest do
   test "rejects missing and duplicate cells instead of weakening an induced pattern" do
     candidate = TestSupport.candidate()
     cells = candidate["occurrence"]["relation_cells"]
+
     for invalid <- [Enum.drop(cells, 1), [hd(cells) | Enum.drop(cells, -1)]] do
       assert_raise ArgumentError, fn ->
         Axiom.occurrence_formula(put_in(candidate, ["occurrence", "relation_cells"], invalid))
@@ -55,6 +61,7 @@ defmodule Src.Refinement.AxiomTest do
   test "rejects unequal valuation signatures and non-distinct world IDs" do
     candidate = TestSupport.candidate()
     [first, second] = candidate["occurrence"]["worlds"]
+
     for worlds <- [
           [first, Map.put(second, "valuations", %{"p" => false})],
           [first, Map.put(second, "id", first["id"])]
@@ -67,12 +74,17 @@ defmodule Src.Refinement.AxiomTest do
 
   test "rejects mixed relations and unsafe proposition identifiers" do
     candidate = TestSupport.candidate()
-    mixed = update_in(candidate, ["occurrence", "relation_cells"], fn [first | rest] ->
-      [Map.put(first, "relation", "S") | rest]
-    end)
-    unsafe = update_in(candidate, ["occurrence", "worlds"], fn worlds ->
-      Enum.map(worlds, &Map.put(&1, "valuations", %{"p) OR True" => true}))
-    end)
+
+    mixed =
+      update_in(candidate, ["occurrence", "relation_cells"], fn [first | rest] ->
+        [Map.put(first, "relation", "S") | rest]
+      end)
+
+    unsafe =
+      update_in(candidate, ["occurrence", "worlds"], fn worlds ->
+        Enum.map(worlds, &Map.put(&1, "valuations", %{"p) OR True" => true}))
+      end)
+
     for invalid <- [mixed, unsafe] do
       assert_raise ArgumentError, fn -> Axiom.refinement_axiom(invalid) end
     end

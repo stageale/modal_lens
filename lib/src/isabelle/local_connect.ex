@@ -21,7 +21,7 @@ defmodule Src.Isabelle.LocalConnect do
     run(["version"], opts)
   end
 
-@doc "Builds the generated Isabelle session in `workdir`."
+  @doc "Builds the generated Isabelle session in `workdir`."
   @spec build(Path.t(), %{required(:theory_name) => String.t()}) :: result()
   @spec build(Path.t(), %{required(:theory_name) => String.t()}, keyword()) :: result()
   def build(workdir, spec, opts \\ []) do
@@ -94,20 +94,22 @@ defmodule Src.Isabelle.LocalConnect do
         {:ok, output}
 
       {output, status} when is_integer(status) ->
-        {:error, %{
-          status: status,
-          output: output,
-          command: [isabelle | args]
-        }}
+        {:error,
+         %{
+           status: status,
+           output: output,
+           command: [isabelle | args]
+         }}
 
       {:failed_to_start, exception} ->
-        {:error, %{
-          status: :failed_to_start,
-          output:
-            "Could not start Isabelle executable. " <>
-              "Tried: #{inspect(isabelle)}. " <>
-              "Error: #{Exception.message(exception)}"
-        }}
+        {:error,
+         %{
+           status: :failed_to_start,
+           output:
+             "Could not start Isabelle executable. " <>
+               "Tried: #{inspect(isabelle)}. " <>
+               "Error: #{Exception.message(exception)}"
+         }}
     end
   end
 
@@ -137,17 +139,18 @@ defmodule Src.Isabelle.LocalConnect do
       |> Enum.uniq()
       |> Enum.flat_map(fn path -> ["-f", path] end)
 
-    args = [
-      "process_theories",
-      "-O",
-      "-U",
-      "-l",
-      logic,
-      "-o",
-      "system_heaps=false",
-      "-o",
-      "threads=#{threads}",
-    ] ++ file_args
+    args =
+      [
+        "process_theories",
+        "-O",
+        "-U",
+        "-l",
+        logic,
+        "-o",
+        "system_heaps=false",
+        "-o",
+        "threads=#{threads}"
+      ] ++ file_args
 
     run(args, opts)
   end

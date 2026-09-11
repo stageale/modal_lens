@@ -23,9 +23,9 @@ defmodule Src.TPTP.Document do
   A parsed TPTP document with optional source information.
   """
   @type t :: %__MODULE__{
-    source: String.t() | nil,
-    entries: [entry()]
-  }
+          source: String.t() | nil,
+          entries: [entry()]
+        }
 
   @doc """
   Creates a TPTP document.

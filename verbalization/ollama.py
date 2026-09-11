@@ -14,16 +14,20 @@ class OllamaError(RuntimeError):
 
 
 class OllamaVerbalizer(Verbalizer):
-    def __init__(self, model_id: str, *, base_url: str = "http://localhost:11434", timeout: float = 300.0) -> None:
+    def __init__(self, model_id: str, *, base_url: str = "http://localhost:11434", timeout: float = 300.0, reasoning: bool = False) -> None:
         if not model_id.strip():
             raise ValueError("Ollama model_id must not be empty.")
         
         if timeout <= 0:
             raise ValueError("Ollama timeout must be positive.")
+
+        if not isinstance(reasoning, bool):
+            raise ValueError("reasoning must be a boolean.")
         
         self._model_id = model_id.strip()
         self._base_url = base_url.rstrip("/")
-        self._timeout = timeout 
+        self._timeout = timeout
+        self._reasoning = reasoning
         
     @property
     def backend(self) -> str:
@@ -133,7 +137,7 @@ class OllamaVerbalizer(Verbalizer):
             "messages": [dict(message) for message in request.messages],
             "stream": False,
             "format": "json",
-            "think": False,
+            "think": self._reasoning,
             "options": {
                 "temperature": 0,
                 "top_k": 1,
@@ -165,6 +169,7 @@ class OllamaVerbalizer(Verbalizer):
         metadata = {
             "ollama_version": ollama_version,
             **model_metadata,
+            "reasoning_enabled": self._reasoning,
             "created_at": response.get("created_at"),
             "done": response.get("done"),
             "done_reason": response.get("done_reason"),

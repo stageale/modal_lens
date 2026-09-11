@@ -12,7 +12,6 @@ defmodule Src.Enumeration do
 
   @default_input_theory "../data/Input.thy"
 
-
   @doc """
   Enumerates models using the bundled default input theory.
 
@@ -22,7 +21,6 @@ defmodule Src.Enumeration do
   def enumerate(opts) when is_list(opts) do
     enumerate(default_input_theory_path(), opts)
   end
-
 
   @doc """
   Enumerates distinct countermodels for one fixed base theory.
@@ -46,12 +44,11 @@ defmodule Src.Enumeration do
   All remaining options are forwarded to `run_iteration/2`.
   """
   @spec enumerate(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
-  def enumerate(base_theory_path, opts)
-      when is_binary(base_theory_path) and is_list(opts) do
-
+  def enumerate(base_theory_path, opts) when is_binary(base_theory_path) and is_list(opts) do
     base_theory_path = Path.expand(base_theory_path)
 
     mode = Keyword.fetch!(opts, :mode)
+    cardinalities = Keyword.get(opts, :cardinalities, [2])
 
     max_models =
       case mode do
@@ -67,21 +64,79 @@ defmodule Src.Enumeration do
       )
       |> Path.expand()
 
-    search_theory_dir =
-      opts
-      |> Keyword.get(:search_theory_dir,Path.join(output_root, "search_theories"))
-      |> Path.expand()
+    with :ok <- validate_base_theory(base_theory_path),
+         :ok <- validate_cardinalities(cardinalities),
+         :ok <- validate_max_models(max_models),
+         :ok <- ensure_output_dir(output_root) do
+      enumerate_cardinalities(
+        base_theory_path,
+        cardinalities,
+        max_models,
+        output_root,
+        opts
+      )
+    end
+  end
 
-    enumeration_opts =
+  defp enumerate_cardinalities(base_theory_path, cardinalities, max_models, output_root, opts) do
+    cardinalities
+    |> Enum.reduce_while({:ok, []}, fn cardinality, {:ok, results} ->
+      case enumerate_cardinality(
+             base_theory_path,
+             cardinality,
+             cardinalities,
+             max_models,
+             output_root,
+             opts
+           ) do
+        {:ok, result} -> {:cont, {:ok, [result | results]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, results} ->
+        results = Enum.reverse(results)
+
+        {:ok, merge_cardinality_results(base_theory_path, output_root, results)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp enumerate_cardinality(
+         base_theory_path,
+         cardinality,
+         cardinalities,
+         max_models,
+         output_root,
+         opts
+       ) do
+    cardinality_output_dir = cardinality_output_dir(output_root, cardinality, cardinalities)
+
+    search_theory_dir =
+      cardinality_search_theory_dir(opts, cardinality_output_dir, cardinality, cardinalities)
+
+    cardinality_opts =
       opts
-      |> Keyword.put(:output_dir, output_root)
+      |> Keyword.put(:cardinality, cardinality)
+      |> Keyword.put(:output_dir, cardinality_output_dir)
       |> Keyword.put(:search_theory_dir, search_theory_dir)
 
-    with :ok <- validate_base_theory(base_theory_path),
-         :ok <- validate_max_models(max_models),
-         :ok <- ensure_output_dir(output_root),
-        {:ok, initial_search_theory} <- SearchTheory.write(base_theory_path, [], enumeration_opts) do
-      enumerate(base_theory_path, initial_search_theory.theory_path, [], [], 1, max_models, output_root, enumeration_opts)
+    with :ok <- ensure_output_dir(cardinality_output_dir),
+         {:ok, initial_search_theory} <-
+           SearchTheory.write(base_theory_path, [], cardinality_opts) do
+      enumerate_cardinality_iterations(
+        base_theory_path,
+        initial_search_theory.theory_path,
+        [],
+        [],
+        1,
+        max_models,
+        cardinality,
+        cardinality_output_dir,
+        cardinality_opts
+      )
     end
   end
 
@@ -113,13 +168,14 @@ defmodule Src.Enumeration do
     |> String.trim("_")
   end
 
-  defp enumerate(
+  defp enumerate_cardinality_iterations(
          base_theory_path,
          current_theory_path,
          blocking_axioms,
          completed_models,
          iteration,
          max_models,
+         cardinality,
          output_root,
          opts
        ) do
@@ -132,6 +188,7 @@ defmodule Src.Enumeration do
     iteration_opts =
       opts
       |> Keyword.put(:iteration, iteration)
+      |> Keyword.put(:cardinality, cardinality)
       |> Keyword.put(:base_theory_file, base_theory_path)
       |> Keyword.put(:output_dir, iteration_dir)
       |> Keyword.put(:workdir, Path.dirname(current_theory_path))
@@ -143,17 +200,22 @@ defmodule Src.Enumeration do
     case Iteration.run(current_theory_path, iteration_opts) do
       {:ok, %{status: status} = terminal_iteration}
       when status in [:no_countermodel, :no_model] ->
+        terminal_iteration = Map.put(terminal_iteration, :cardinality, cardinality)
+
         {:ok,
          enumeration_result(
            :exhausted,
            base_theory_path,
            output_root,
            completed_models,
-           terminal_iteration
+           terminal_iteration,
+           cardinality
          )}
 
       {:ok, %{status: status} = model_result}
       when status in [:countermodel_found, :model_found] ->
+        model_result = Map.put(model_result, :cardinality, cardinality)
+
         if iteration >= max_models do
           {:ok,
            enumeration_result(
@@ -161,7 +223,8 @@ defmodule Src.Enumeration do
              base_theory_path,
              output_root,
              completed_models ++ [model_result],
-             nil
+             nil,
+             cardinality
            )}
         else
           updated_blocking_axioms =
@@ -180,13 +243,14 @@ defmodule Src.Enumeration do
                   next_search_theory.theory_path
                 )
 
-              enumerate(
+              enumerate_cardinality_iterations(
                 base_theory_path,
                 next_search_theory.theory_path,
                 updated_blocking_axioms,
                 completed_models ++ [completed_model],
                 iteration + 1,
                 max_models,
+                cardinality,
                 output_root,
                 opts
               )
@@ -197,8 +261,8 @@ defmodule Src.Enumeration do
                 %{
                   iteration: iteration,
                   reason: reason,
-                  completed_countermodels:
-                    completed_models ++ [model_result]
+                  completed_countermodels: completed_models ++ [model_result],
+                  cardinality: cardinality
                 }}}
           end
         end
@@ -210,14 +274,23 @@ defmodule Src.Enumeration do
             iteration: iteration,
             search_theory_file: current_theory_path,
             reason: reason,
-            completed_countermodels: completed_models
+            completed_countermodels: completed_models,
+            cardinality: cardinality
           }}}
     end
   end
 
-  defp enumeration_result(status, base_theory_path, output_root, entries, terminal_iteration) do
+  defp enumeration_result(
+         status,
+         base_theory_path,
+         output_root,
+         entries,
+         terminal_iteration,
+         cardinality
+       ) do
     %{
       status: status,
+      cardinality: cardinality,
       base_theory_file: base_theory_path,
       output_dir: output_root,
       model_count: length(entries),
@@ -246,47 +319,155 @@ defmodule Src.Enumeration do
     }
   end
 
+  defp merge_cardinality_results(base_theory_path, output_root, cardinality_results) do
+    models =
+      Enum.flat_map(cardinality_results, & &1.models)
+
+    terminal_iterations =
+      cardinality_results
+      |> Enum.map(& &1.terminal_iteration)
+      |> Enum.reject(&is_nil/1)
+
+    %{
+      status: overall_enumeration_status(cardinality_results),
+      base_theory_file: base_theory_path,
+      output_dir: output_root,
+      model_count: length(models),
+      models: models,
+      svg_files: merge_artifact_files(cardinality_results, :svg_files),
+      tikz_files: merge_artifact_files(cardinality_results, :tikz_files),
+      pdf_files: merge_artifact_files(cardinality_results, :pdf_files),
+      blocking_axiom_files: merge_artifact_files(cardinality_results, :blocking_axiom_files),
+      search_theory_files: merge_artifact_files(cardinality_results, :search_theory_files),
+      terminal_iteration:
+        case cardinality_results do
+          [result] -> result.terminal_iteration
+          _results -> nil
+        end,
+      terminal_iterations: terminal_iterations,
+      cardinality_results: cardinality_results
+    }
+  end
+
+  defp merge_artifact_files(results, key) do
+    Enum.flat_map(results, &Map.get(&1, key, []))
+  end
+
+  defp overall_enumeration_status(results) do
+    if Enum.any?(results, &(&1.status == :max_models_reached)) do
+      :max_models_reached
+    else
+      :exhausted
+    end
+  end
+
+  defp cardinality_output_dir(output_root, _cardinality, [_single_cardinality]) do
+    output_root
+  end
+
+  defp cardinality_output_dir(output_root, cardinality, _cardinalities) do
+    Path.join(output_root, cardinality_directory_name(cardinality))
+  end
+
+  defp cardinality_search_theory_dir(opts, cardinality_output_dir, cardinality, cardinalities) do
+    case Keyword.fetch(opts, :search_theory_dir) do
+      {:ok, directory} ->
+        directory = Path.expand(directory)
+
+        case cardinalities do
+          [_single] ->
+            directory
+
+          _multiple ->
+            Path.join(directory, cardinality_directory_name(cardinality))
+        end
+
+      :error ->
+        Path.join(cardinality_output_dir, "search_theories")
+    end
+  end
+
+  defp cardinality_directory_name(cardinality) do
+    cardinality
+    |> Integer.to_string()
+    |> String.pad_leading(3, "0")
+    |> then(&"cardinality_#{&1}")
+  end
+
+  defp validate_cardinalities(cardinalities) when is_list(cardinalities) do
+    valid? =
+      cardinalities != [] and
+        Enum.all?(cardinalities, &(is_integer(&1) and &1 > 0)) and
+        cardinalities ==
+          cardinalities
+          |> Enum.uniq()
+          |> Enum.sort()
+
+    if valid? do
+      :ok
+    else
+      {:error,
+       {:invalid_cardinalities,
+        %{
+          expected: :non_empty_sorted_unique_positive_integers,
+          received: cardinalities
+        }}}
+    end
+  end
+
+  defp validate_cardinalities(cardinalities) do
+    {:error,
+     {:invalid_cardinalities,
+      %{
+        expected: :non_empty_sorted_unique_positive_integers,
+        received: cardinalities
+      }}}
+  end
+
   defp validate_base_theory(path) do
     cond do
       not File.regular?(path) ->
         {:error,
-          {:base_theory_not_found,
-            %{
-              path: path
-            }}}
+         {:base_theory_not_found,
+          %{
+            path: path
+          }}}
+
       Path.extname(path) != ".thy" ->
         {:error,
-          {:invalid_base_theory_extension,
-            %{
-              path: path,
-              expected: ".thy"
-            }}}
+         {:invalid_base_theory_extension,
+          %{
+            path: path,
+            expected: ".thy"
+          }}}
 
-        true ->
-          with {:ok, source} <- File.read(path) do
-            case Regex.run(~r/^\s*theory\s+([A-Za-z0-9_'.]+)/m, source, capture: :all_but_first) do
-              [declared_name] ->
-                expected_name =
-                  Path.basename(path, ".thy")
-                if declared_name == expected_name do
-                  :ok
-                else
-                  {:error,
-                    {:theory_name_mismatch,
-                      %{
-                        path: path,
-                        declared: declared_name,
-                        expected: expected_name
-                      }}}
-                end
-              nil ->
+      true ->
+        with {:ok, source} <- File.read(path) do
+          case Regex.run(~r/^\s*theory\s+([A-Za-z0-9_'.]+)/m, source, capture: :all_but_first) do
+            [declared_name] ->
+              expected_name =
+                Path.basename(path, ".thy")
+
+              if declared_name == expected_name do
+                :ok
+              else
                 {:error,
-                  {:missing_theory_declaration,
-                    %{
-                      path: path
-                    }}}
-            end
+                 {:theory_name_mismatch,
+                  %{
+                    path: path,
+                    declared: declared_name,
+                    expected: expected_name
+                  }}}
+              end
+
+            nil ->
+              {:error,
+               {:missing_theory_declaration,
+                %{
+                  path: path
+                }}}
           end
+        end
     end
   end
 

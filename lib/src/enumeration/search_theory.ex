@@ -8,23 +8,24 @@ defmodule Src.Enumeration.SearchTheory do
   """
 
   @template_dir Path.expand("../../data/mod", __DIR__)
-
   @blocking_marker "(* MODAL_LENS_BLOCKS *)"
   @search_theory_placeholder "MODAL_LENS_SEARCH"
   @input_theory_placeholder "MODAL_LENS_INPUT"
+  @nitpick_cardinality_pattern ~r/\bcard\s+i\s*=\s*\d+\b/
 
   @type mode :: :countermodels | :satisfying_models | :consistency_check
 
   @type t :: %{
-    mode: mode(),
-    theory_name: String.t(),
-    theory_path: String.t(),
-    template_path: String.t(),
-    base_theory_path: String.t(),
-    base_theory_name: String.t(),
-    block_count: non_neg_integer(),
-    blocking_axioms: [String.t()]
-  }
+          mode: mode(),
+          cardinality: pos_integer(),
+          theory_name: String.t(),
+          theory_path: String.t(),
+          template_path: String.t(),
+          base_theory_path: String.t(),
+          base_theory_name: String.t(),
+          block_count: non_neg_integer(),
+          blocking_axioms: [String.t()]
+        }
 
   @doc """
   Writes an Isabelle search theory for `base_theory_path`.
@@ -35,15 +36,13 @@ defmodule Src.Enumeration.SearchTheory do
   """
   @spec write(String.t(), [String.t()], keyword()) ::
           {:ok, t()} | {:error, term()}
-  def write(base_theory_path, blocking_axioms, opts) when is_binary(base_theory_path) and is_list(blocking_axioms) and is_list(opts) do
+  def write(base_theory_path, blocking_axioms, opts)
+      when is_binary(base_theory_path) and is_list(blocking_axioms) and is_list(opts) do
     base_theory_path = Path.expand(base_theory_path)
     mode = Keyword.fetch!(opts, :mode)
-
-    base_theory_name =
-      Path.basename(base_theory_path, ".thy")
-
+    cardinality = Keyword.get(opts, :cardinality, 2)
+    base_theory_name = Path.basename(base_theory_path, ".thy")
     block_count = length(blocking_axioms)
-
     theory_name = search_theory_name(base_theory_name, block_count)
 
     theory_dir =
@@ -52,31 +51,47 @@ defmodule Src.Enumeration.SearchTheory do
       |> Path.expand()
 
     theory_path = Path.join(theory_dir, "#{theory_name}.thy")
-
     template_path = template_path(mode)
 
     with :ok <- validate_blocking_axioms(blocking_axioms),
-        {:ok, template} <- read_template(template_path),
+         :ok <- validate_cardinality(cardinality),
+         {:ok, template} <- read_template(template_path),
          :ok <- ensure_blocking_marker(template, template_path),
+         :ok <- ensure_cardinality_entry(template, template_path),
          :ok <- create_directory(theory_dir),
-         source = generate_source(template, theory_name, base_theory_path, theory_dir, blocking_axioms),
+         source =
+           generate_source(
+             template,
+             theory_name,
+             base_theory_path,
+             theory_dir,
+             blocking_axioms,
+             cardinality
+           ),
          :ok <- write_theory(theory_path, source) do
-          {:ok,
-            %{
-              mode: mode,
-              theory_name: theory_name,
-              theory_path: theory_path,
-              template_path: template_path,
-              base_theory_path: base_theory_path,
-              base_theory_name: base_theory_name,
-              block_count: block_count,
-              blocking_axioms: blocking_axioms
-            }
-          }
-         end
+      {:ok,
+       %{
+         mode: mode,
+         cardinality: cardinality,
+         theory_name: theory_name,
+         theory_path: theory_path,
+         template_path: template_path,
+         base_theory_path: base_theory_path,
+         base_theory_name: base_theory_name,
+         block_count: block_count,
+         blocking_axioms: blocking_axioms
+       }}
+    end
   end
 
-  defp generate_source(template, theory_name, base_theory_path, theory_dir, blocking_axioms) do
+  defp generate_source(
+         template,
+         theory_name,
+         base_theory_path,
+         theory_dir,
+         blocking_axioms,
+         cardinality
+       ) do
     base_theory_import =
       base_theory_path
       |> Path.rootname()
@@ -87,6 +102,7 @@ defmodule Src.Enumeration.SearchTheory do
     template
     |> String.replace(@search_theory_placeholder, theory_name, global: false)
     |> String.replace(@input_theory_placeholder, base_theory_import, global: false)
+    |> String.replace(@nitpick_cardinality_pattern, "card i = #{cardinality}", global: false)
     |> insert_blocking_axioms(blocking_axioms)
   end
 
@@ -174,13 +190,11 @@ defmodule Src.Enumeration.SearchTheory do
 
       {:error, reason} ->
         {:error,
-          {:cannot_read_search_theory_template,
-            %{
-              path: path,
-              reason: reason
-            }
-          }
-        }
+         {:cannot_read_search_theory_template,
+          %{
+            path: path,
+            reason: reason
+          }}}
     end
   end
 
@@ -189,13 +203,11 @@ defmodule Src.Enumeration.SearchTheory do
       :ok
     else
       {:error,
-        {:missing_blocking_marker,
-          %{
-            path: path,
-            expected_marker: @blocking_marker
-          }
-        }
-      }
+       {:missing_blocking_marker,
+        %{
+          path: path,
+          expected_marker: @blocking_marker
+        }}}
     end
   end
 
@@ -211,11 +223,26 @@ defmodule Src.Enumeration.SearchTheory do
     if valid? do
       :ok
     else
+      {:error, {:invalid_blocking, blocking_axioms}}
+    end
+  end
+
+  defp validate_cardinality(cardinality) when is_integer(cardinality) and cardinality > 0, do: :ok
+
+  defp validate_cardinality(cardinality) do
+    {:error, {:invalid_cardinality, %{expected: :positive_integer, received: cardinality}}}
+  end
+
+  defp ensure_cardinality_entry(source, path) do
+    if Regex.match?(@nitpick_cardinality_pattern, source) do
+      :ok
+    else
       {:error,
-        {:invalid_blocking,
-          blocking_axioms
-        }
-      }
+       {:missing_nitpick_cardinality,
+        %{
+          path: path,
+          expected: "card i = <positive integer>"
+        }}}
     end
   end
 
@@ -226,29 +253,26 @@ defmodule Src.Enumeration.SearchTheory do
 
       {:error, reason} ->
         {:error,
-          {:cannot_create_output_directory,
-            %{
-              path: path,
-              reason: reason
-            }
-          }
-        }
+         {:cannot_create_output_directory,
+          %{
+            path: path,
+            reason: reason
+          }}}
     end
   end
 
   defp write_theory(path, source) do
     case File.write(path, source) do
-      :ok -> :ok
+      :ok ->
+        :ok
 
       {:error, reason} ->
         {:error,
-          {:cannot_write_search_theory,
-            %{
-              path: path,
-              reason: reason
-            }
-          }
-        }
+         {:cannot_write_search_theory,
+          %{
+            path: path,
+            reason: reason
+          }}}
     end
   end
 end

@@ -131,7 +131,7 @@ defmodule Src.Core.BlockingAxiom do
   """
   @spec exact_structure_formula(model()) :: formula()
   @spec exact_structure_formula(model(), structure_options()) :: formula()
-  def exact_structure_formula( %{} = model, opts \\ []) do
+  def exact_structure_formula(%{} = model, opts \\ []) do
     validate_model!(model)
 
     include_atoms =
@@ -235,7 +235,6 @@ defmodule Src.Core.BlockingAxiom do
   @spec blocking_axiom(model()) :: String.t()
   @spec blocking_axiom(model(), blocking_axiom_options()) :: String.t()
   def blocking_axiom(model, opts \\ []) do
-
     requested_name = Keyword.get(opts, :name)
     axiom_name = sanitize_name(requested_name || source_stem(model))
 
@@ -444,11 +443,11 @@ defmodule Src.Core.BlockingAxiom do
     designated_world = Model.designated_world(model)
 
     if designated_world < cardinality do
-        :ok
+      :ok
     else
       raise ArgumentError,
-        "designated world #{inspect(designated_world)} " <>
-          "is outside cardinality #{inspect(cardinality)}"
+            "designated world #{inspect(designated_world)} " <>
+              "is outside cardinality #{inspect(cardinality)}"
     end
   end
 
@@ -460,7 +459,7 @@ defmodule Src.Core.BlockingAxiom do
         validate_isabelle_identifier!(predicate, :predicate)
 
         unless length(values) == model.cardinality and
-                  Enum.all?(values, &is_boolean/1) do
+                 Enum.all?(values, &is_boolean/1) do
           raise ArgumentError,
                 "valuation #{inspect(predicate)} must contain " <>
                   "exactly #{model.cardinality} Boolean values, " <>

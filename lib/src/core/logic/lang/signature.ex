@@ -11,9 +11,9 @@ defmodule Src.Core.Logic.Lang.Signature do
   @type symbol_key :: Symbol.key()
   @type conflict :: term()
   @type t :: %__MODULE__{
-    symbols: %{optional(symbol_key()) => Symbol.t()},
-    metadata: map()
-  }
+          symbols: %{optional(symbol_key()) => Symbol.t()},
+          metadata: map()
+        }
 
   defstruct symbols: %{},
             metadata: %{}

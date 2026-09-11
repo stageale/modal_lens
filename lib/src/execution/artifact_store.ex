@@ -12,7 +12,8 @@ defmodule Src.Execution.ArtifactStore do
   @doc """
   Writes deterministic JSON and registers it as an artifact.
   """
-  @spec write_json(Run.t(), Run.name(), String.t(), term()) :: {:ok, Run.t(), String.t()} | {:error, term()}
+  @spec write_json(Run.t(), Run.name(), String.t(), term()) ::
+          {:ok, Run.t(), String.t()} | {:error, term()}
   def write_json(%Run{} = run, name, relative_path, value) do
     case Jason.encode(value, pretty: true) do
       {:ok, json} -> write_artifact(run, name, relative_path, json <> "\n")
@@ -23,7 +24,8 @@ defmodule Src.Execution.ArtifactStore do
   @doc """
   Writes text and registers it as an artifact.
   """
-  @spec write_text(Run.t(), Run.name(), String.t(), binary()) :: {:ok, Run.t(), String.t()} | {:error, term()}
+  @spec write_text(Run.t(), Run.name(), String.t(), binary()) ::
+          {:ok, Run.t(), String.t()} | {:error, term()}
   def write_text(%Run{} = run, name, relative_path, content) do
     if is_binary(content) do
       write_artifact(run, name, relative_path, content)
@@ -40,7 +42,7 @@ defmodule Src.Execution.ArtifactStore do
     with {:ok, absolute_path, relative_path} <- resolve_path(run, path),
          true <- File.regular?(absolute_path),
          {:ok, updated_run} <- Run.put_artifact(run, name, relative_path) do
-           {:ok, updated_run, absolute_path}
+      {:ok, updated_run, absolute_path}
     else
       false -> {:error, {:artifact_not_found, path}}
       {:error, _reason} = error -> error
@@ -55,8 +57,8 @@ defmodule Src.Execution.ArtifactStore do
     path = manifest_path(run)
 
     with {:ok, json} <- Jason.encode(Run.to_map(run), pretty: true),
-          :ok <- write_file(path, json <> "\n") do
-            {:ok, path}
+         :ok <- write_file(path, json <> "\n") do
+      {:ok, path}
     else
       {:error, %Jason.EncodeError{} = reason} -> {:error, {:json_encoding_failed, reason}}
       {:error, reason} -> {:error, reason}
@@ -87,9 +89,10 @@ defmodule Src.Execution.ArtifactStore do
 
   def read_manifest(output_dir) when is_binary(output_dir) do
     path = manifest_path(output_dir)
+
     with {:ok, content} <- File.read(path),
          {:ok, manifest} <- Jason.decode(content) do
-           {:ok, manifest}
+      {:ok, manifest}
     else
       {:error, %Jason.DecodeError{} = reason} -> {:error, {:invalid_manifest, path, reason}}
       {:error, reason} -> {:error, {:cannot_read_manifest, path, reason}}
@@ -107,14 +110,14 @@ defmodule Src.Execution.ArtifactStore do
   def artifact_path(%Run{} = run, name) do
     with {:ok, relative_path} <- Run.fetch_artifact(run, name),
          {:ok, absolute_path, _relative_path} <- resolve_path(run, relative_path) do
-           {:ok, absolute_path}
-         end
+      {:ok, absolute_path}
+    end
   end
 
   defp write_artifact(%Run{} = run, name, relative_path, content) do
     with {:ok, absolute_path, relative_path} <- resolve_path(run, relative_path),
          {:ok, updated_run} <- Run.put_artifact(run, name, relative_path),
-          :ok <- write_file(absolute_path, content) do
+         :ok <- write_file(absolute_path, content) do
       {:ok, updated_run, absolute_path}
     end
   end
@@ -125,7 +128,8 @@ defmodule Src.Execution.ArtifactStore do
     case File.mkdir_p(directory) do
       :ok ->
         case File.write(path, content) do
-          :ok -> :ok
+          :ok ->
+            :ok
 
           {:error, reason} ->
             {:error, {:cannot_write_file, path, reason}}
@@ -142,8 +146,8 @@ defmodule Src.Execution.ArtifactStore do
     relative_path = Path.relative_to(absolute_path, output_dir)
 
     if Path.type(relative_path) == :absolute or
-          relative_path == ".." or
-          String.starts_with?(relative_path, "../") do
+         relative_path == ".." or
+         String.starts_with?(relative_path, "../") do
       {:error, {:artifact_outside_output_directory, path}}
     else
       {:ok, absolute_path, relative_path}

@@ -33,6 +33,8 @@ def _request() -> dict:
         "report_path": "report.json",
         "output_directory": "output",
         "seed": 42,
+        "verbalization_mode": "grounded",
+        "reasoning": False,
     }
 
 
@@ -67,6 +69,46 @@ def test_launch_verbalization_job_validates_contract_and_writes_artifacts(
         Path(result["artifacts"]["summary_json"]).read_text(encoding="utf-8")
     )
     assert summary["schema"] == "modal-lens/verbalization-summary"
+
+
+def test_launcher_forwards_interpretive_reasoning(
+    tmp_path: Path,
+    monkeypatch,
+    sample_report: dict,
+    sample_summary: dict,
+) -> None:
+    (tmp_path / "report.json").write_text(
+        json.dumps(sample_report),
+        encoding="utf-8",
+    )
+    request = _request()
+    request["verbalization_mode"] = "interpretive"
+    request["reasoning"] = True
+    request["max_new_tokens"] = 2048
+    request_path = tmp_path / "request.json"
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    create_options = {}
+
+    def create_fake(**options):
+        create_options.update(options)
+        return FakeVerbalizer(sample_summary)
+
+    monkeypatch.setattr(
+        "verbalization.launcher.create_verbalizer",
+        create_fake,
+    )
+
+    result = launch_verbalization_job(request_path)
+
+    assert create_options["reasoning"] is True
+    assert result["verbalization_mode"] == "interpretive"
+    assert result["reasoning"] is True
+
+    provenance = json.loads(
+        Path(result["artifacts"]["provenance"]).read_text(encoding="utf-8")
+    )
+    assert provenance["verbalization_mode"] == "interpretive"
+    assert provenance["reasoning_enabled"] is True
 
 
 @pytest.mark.parametrize(

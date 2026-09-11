@@ -5,10 +5,12 @@ defmodule Src.Explanation.Verbal.LauncherTest do
 
   test "writes a request and returns the last valid Python response" do
     root = tmp_dir()
-    fake_uv = executable(root, "uv", """
-    echo 'diagnostic output'
-    echo '{"status":"completed","artifacts":{}}'
-    """)
+
+    fake_uv =
+      executable(root, "uv", """
+      echo 'diagnostic output'
+      echo '{"status":"completed","artifacts":{}}'
+      """)
 
     assert {:ok, launch} =
              Launcher.launch(
@@ -17,7 +19,9 @@ defmodule Src.Explanation.Verbal.LauncherTest do
                "transformers",
                "Test/Model",
                uv_executable: fake_uv,
-               project_root: root
+               project_root: root,
+               verbalization_mode: :interpretive,
+               reasoning: true
              )
 
     assert launch.response["status"] == "completed"
@@ -26,6 +30,8 @@ defmodule Src.Explanation.Verbal.LauncherTest do
 
     request = launch.request_path |> File.read!() |> Jason.decode!()
     assert request["schema"] == "modal-lens/verbalization-request"
+    assert request["verbalization_mode"] == "interpretive"
+    assert request["reasoning"] == true
   end
 
   test "returns structured errors for failing and malformed launchers" do

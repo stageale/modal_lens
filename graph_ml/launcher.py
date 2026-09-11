@@ -25,6 +25,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--output", required=True, help="Target report.json")
     parser.add_argument("--feature-method", default="combined", choices=("raw", "wl", "graphlet", "combined"))
     parser.add_argument("--graphlet-size", type=int, default=2)
+    parser.add_argument("--cardinality-feature", action="store_true", help="Include model world cardinality as an explicit structural feature.")
     arguments = parser.parse_args(argv)
 
     try:
@@ -33,7 +34,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             theory_path=arguments.theory,
             output_path=arguments.output,
             feature_method=arguments.feature_method,
-            graphlet_size=arguments.graphlet_size
+            graphlet_size=arguments.graphlet_size,
+            include_cardinality_feature=arguments.cardinality_feature
         )
     except Exception as error:
         print(
@@ -57,28 +59,50 @@ def launch_analysis(
     theory_path: str | Path,
     output_path: str | Path,
     feature_method: str = "combined",
-    graphlet_size: int = 2
+    graphlet_size: int = 2,
+    include_cardinality_feature: bool = False
 ) -> dict[str, Any]:
     if not model_paths:
         raise ValueError("At least one model JSON file is required.")
     if graphlet_size < 1:
         raise ValueError("Graphlet size must be positive.")
     
-    graphs = []
+    parsed_models = []
     
     for graph_index, model_path in enumerate(model_paths):
         model_path = Path(model_path).resolve()
         metadata, graph = parse_model(model_path)
-        
-        iteration = metadata.get("iteration")
-        
-        graph.graph["model_id"] = str(metadata.get("run_id") or f"model-{int(iteration):03d}" if iteration is not None else model_path.parent.name)
+
+        parsed_models.append((graph_index, model_path, metadata, graph))
+
+    cardinalities = {
+        metadata.get("cardinality")
+        for _, _, metadata, _ in parsed_models
+        if metadata.get("cardinality") is not None
+    }
+
+    multi_cardinality = len(cardinalities) > 1
+
+    graphs = []
+
+    for graph_index, model_path, metadata, graph in parsed_models:
+        graph.graph["model_id"] = _analysis_model_id(
+            metadata,
+            model_path,
+            multi_cardinality=multi_cardinality,
+        )
         graph.graph["graph_index"] = graph_index
         graphs.append(graph)
         
     occurrences_by_graph = [pattern_occurrences(graph, size=graphlet_size) for graph in graphs]        
     vectors = [
-        feature_vector(graph, method=feature_method, graphlet_size=graphlet_size, graphlet_occurrences=occurrences_by_graph[graph_index]) 
+        _analysis_feature_vector(
+            graph,
+            feature_method=feature_method,
+            graphlet_size=graphlet_size,
+            graphlet_occurrences=occurrences_by_graph[graph_index],
+            include_cardinality_feature=include_cardinality_feature,
+        )
         for graph_index, graph in enumerate(graphs)
     ]
     matrix = feature_matrix(vectors)
@@ -105,14 +129,49 @@ def launch_analysis(
         "model_count": report["analysis"]["model_count"],
         "cluster_count": report["analysis"]["cluster_count"],
         "feature_method": feature_method,
-        "graphlet_size": graphlet_size
+        "graphlet_size": graphlet_size,
+        "include_cardinality_feature": include_cardinality_feature
     }
-    
-def _pattern_highlights(
-    graphs,
-    cluster_labels,
-    pattern_results,
+
+def _analysis_model_id(metadata, model_path: Path, *, multi_cardinality: bool) -> str:
+    run_id = metadata.get("run_id")
+
+    if run_id is not None:
+        return str(run_id)
+
+    iteration = metadata.get("iteration")
+
+    if iteration is None:
+        return model_path.parent.name
+
+    cardinality = metadata.get("cardinality")
+
+    if multi_cardinality and cardinality is not None:
+        return f"cardinality-{int(cardinality):03d}-model-{int(iteration):03d}"
+
+    return f"model-{int(iteration):03d}"
+
+def _analysis_feature_vector(
+    graph,
+    *,
+    feature_method: str,
+    graphlet_size: int,
+    graphlet_occurrences,
+    include_cardinality_feature: bool,
 ):
+    vector = feature_vector(
+        graph,
+        method=feature_method,
+        graphlet_size=graphlet_size,
+        graphlet_occurrences=graphlet_occurrences,
+    )
+
+    if not include_cardinality_feature:
+        vector.pop("worlds", None)
+
+    return vector
+    
+def _pattern_highlights(graphs, cluster_labels, pattern_results):
     highlights = []
 
     for graph_index, graph in enumerate(graphs):

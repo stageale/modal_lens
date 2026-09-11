@@ -16,7 +16,9 @@ defmodule Src.Refinement.LoopTest do
   end
 
   test "automatic mode applies two rounds to the previously refined theory", context do
-    assert {:ok, loop} = Loop.run(context.run, context.theory, max_rounds: 2, decision: :automatic)
+    assert {:ok, loop} =
+             Loop.run(context.run, context.theory, max_rounds: 2, decision: :automatic)
+
     assert [first, second] = loop.iterations
     assert {first.round, second.round} == {1, 2}
     assert first.input_theory_path == context.theory
@@ -26,16 +28,22 @@ defmodule Src.Refinement.LoopTest do
     assert loop.stop_reason == :max_rounds
     assert first.run.id != second.run.id
     assert first.run.output_dir != second.run.output_dir
-    assert TestSupport.calls(context, "graph") == [context.theory,
-      first.refined_theory.theory_path, second.refined_theory.theory_path]
+
+    assert TestSupport.calls(context, "graph") == [
+             context.theory,
+             first.refined_theory.theory_path,
+             second.refined_theory.theory_path
+           ]
   end
 
   test "a callback receives the candidate and current pipeline result", context do
     parent = self()
+
     decision = fn round, candidate, result ->
       send(parent, {:decision, round, candidate, result})
       if round == 1, do: :apply, else: :stop
     end
+
     assert {:ok, loop} = Loop.run(context.run, context.theory, max_rounds: 3, decision: decision)
     assert [iteration] = loop.iterations
     assert loop.stop_reason == :decision_stop
@@ -67,20 +75,28 @@ defmodule Src.Refinement.LoopTest do
 
   test "reports invalid callback results without applying the candidate", context do
     assert {:error, {:invalid_decision, :unexpected}, run} =
-      Loop.run(context.run, context.theory, decision: fn _, _, _ -> :unexpected end)
+             Loop.run(context.run, context.theory, decision: fn _, _, _ -> :unexpected end)
+
     assert run.status == :completed
     assert TestSupport.calls(context, "graph") == [context.theory]
   end
 
   test "rejects invalid options before starting the pipeline", context do
-    assert {:error, {:invalid_max_rounds, -1}, _} = Loop.run(context.run, context.theory, max_rounds: -1)
-    assert {:error, {:invalid_decision, :unknown}, _} = Loop.run(context.run, context.theory, decision: :unknown)
+    assert {:error, {:invalid_max_rounds, -1}, _} =
+             Loop.run(context.run, context.theory, max_rounds: -1)
+
+    assert {:error, {:invalid_decision, :unknown}, _} =
+             Loop.run(context.run, context.theory, decision: :unknown)
+
     assert TestSupport.calls(context, "isabelle") == []
   end
 
   test "wraps an initial pipeline failure", context do
     File.touch!(Path.join(context.root, "fail-isabelle"))
-    assert {:error, {:initial_pipeline_failed, _reason}, run} = Loop.run(context.run, context.theory)
+
+    assert {:error, {:initial_pipeline_failed, _reason}, run} =
+             Loop.run(context.run, context.theory)
+
     assert run.status == :failed
   end
 end

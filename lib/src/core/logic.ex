@@ -19,15 +19,16 @@ defmodule Src.Core.Logic do
 
   @type operator_map :: %{optional(Operator.key()) => Operator.t()}
 
-  @type five_tuple :: {TypeTheory.t(), Signature.t(), operator_map(), ModelClass.t(), ProofSystem.t()}
+  @type five_tuple ::
+          {TypeTheory.t(), Signature.t(), operator_map(), ModelClass.t(), ProofSystem.t()}
 
   @type t :: %__MODULE__{
-    name: String.t(),
-    language: Lang.t(),
-    semantics: ModelClass.t(),
-    proof_system: ProofSystem.t(),
-    metadata: map()
-  }
+          name: String.t(),
+          language: Lang.t(),
+          semantics: ModelClass.t(),
+          proof_system: ProofSystem.t(),
+          metadata: map()
+        }
 
   @enforce_keys [:name, :language, :semantics, :proof_system]
   defstruct name: nil,
@@ -49,10 +50,10 @@ defmodule Src.Core.Logic do
   """
   @spec as_tuple(t()) :: five_tuple()
   def as_tuple(%__MODULE__{
-    language: %Lang{} = lang,
-    semantics: semantics,
-    proof_system: proof_sys
-  }) do
+        language: %Lang{} = lang,
+        semantics: semantics,
+        proof_system: proof_sys
+      }) do
     {
       lang.type_theory,
       lang.signature,

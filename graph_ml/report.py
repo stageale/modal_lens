@@ -223,6 +223,11 @@ def build_report(*,
     for graph_index, cluster_label in enumerate(cluster_labels):
         cluster_indices[cluster_label].append(graph_index)
 
+    cardinality_indices: dict[int, list[int]] = defaultdict(list)
+
+    for graph_index, graph in enumerate(graphs): 
+        cardinality_indices[graph.number_of_nodes()].append(graph_index)
+
     cluster_reports = []
     refinement_candidates = []
 
@@ -285,6 +290,20 @@ def build_report(*,
         for cluster in cluster_reports
     )
 
+    cardinality_reports = [
+        {
+            "cardinality": cardinality,
+            "model_count": len(indices),
+            "model_fraction": len(indices) / len(graphs) if graphs else 0.0,
+            "model_indices": indices,
+            "model_ids": [
+                _model_id(graphs[index], index)
+                for index in indices
+            ],
+        }
+        for cardinality, indices in sorted(cardinality_indices.items())
+    ]
+
     return {
         "schema": REPORT_SCHEMA,
         "schema_version": REPORT_SCHEMA_VERSION,
@@ -310,6 +329,7 @@ def build_report(*,
             "cluster_count": len(cluster_indices),
             "reported_pattern_count": (reported_pattern_count),
             "refinement_candidate_count": len(refinement_candidates),
+            "by_cardinality": cardinality_reports,
             "signature": {
                 "atoms": atoms,
                 "relation": relation,

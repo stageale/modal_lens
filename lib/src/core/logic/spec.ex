@@ -15,11 +15,11 @@ defmodule Src.Core.Logic.Spec do
   @type bridge :: struct()
 
   @type t :: %__MODULE__{
-    name: String.t(),
-    base: base(),
-    layers: [layer_entry()],
-    bridges: [bridge()]
-  }
+          name: String.t(),
+          base: base(),
+          layers: [layer_entry()],
+          bridges: [bridge()]
+        }
 
   @enforce_keys [:name]
 
@@ -44,10 +44,11 @@ defmodule Src.Core.Logic.Spec do
   @doc """
   Adds a semantic layer without replacing existing layers.
   """
-  @spec put_layer(t(), term(), term()) :: {:ok, t()}
-                                        | {:error, :invalid_layer_key}
-                                        | {:error, :invalid_layer}
-                                        | {:error, {:duplicate_layer, term()}}
+  @spec put_layer(t(), term(), term()) ::
+          {:ok, t()}
+          | {:error, :invalid_layer_key}
+          | {:error, :invalid_layer}
+          | {:error, {:duplicate_layer, term()}}
   def put_layer(%__MODULE__{} = spec, key, layer) do
     cond do
       not valid_layer_key?(key) -> {:error, :invalid_layer_key}
@@ -78,7 +79,8 @@ defmodule Src.Core.Logic.Spec do
 
   defp valid_layer_key?(key) when is_atom(key), do: true
 
-  defp valid_layer_key?({family, identifier}) when is_atom(family) and (is_atom(identifier) or is_binary(identifier)), do: true
+  defp valid_layer_key?({family, identifier})
+       when is_atom(family) and (is_atom(identifier) or is_binary(identifier)), do: true
 
   defp valid_layer_key?(_key), do: false
 end

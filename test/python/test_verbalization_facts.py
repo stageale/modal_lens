@@ -27,6 +27,7 @@ def test_build_verbalization_facts_extracts_report_evidence(
     assert result["schema_version"] == "1.0"
     assert result["source"] == {
         "report_schema_version": "1.1",
+        "verbalization_mode": "grounded",
     }
     assert facts["analysis.model_count"]["value"] == 2
     assert facts["cluster.0.model_count"]["value"] == 2
@@ -51,6 +52,17 @@ def test_build_verbalization_facts_excludes_volatile_and_theory_text(
     assert "theory.content" not in fact_ids
     assert "theory.name" in fact_ids
     assert "theory.source" in fact_ids
+
+
+def test_interpretive_facts_include_theory_content(sample_report):
+    result = build_verbalization_facts(
+        sample_report,
+        verbalization_mode="interpretive",
+    )
+    facts = _facts_by_id(result)
+
+    assert result["source"]["verbalization_mode"] == "interpretive"
+    assert facts["theory.content"]["value"] == sample_report["theory"]["content"]
 
 
 def test_build_verbalization_facts_sorts_fact_ids(
@@ -142,3 +154,11 @@ def test_build_verbalization_facts_rejects_duplicate_cluster_ids(
         match="Duplicate fact id: cluster.0.cluster_id",
     ):
         build_verbalization_facts(sample_report)
+
+
+def test_build_verbalization_facts_rejects_unknown_mode(sample_report):
+    with pytest.raises(ValueError, match="Unsupported verbalization mode"):
+        build_verbalization_facts(
+            sample_report,
+            verbalization_mode="expansive",
+        )

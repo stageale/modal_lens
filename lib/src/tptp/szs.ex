@@ -9,18 +9,19 @@ defmodule Src.TPTP.SZS do
   @typedoc """
   SZS status relevant to the current ModalLens reasoning pipeline.
   """
-  @type status :: :theorem
-                | :counter_satisfiable
-                | :satisfiable
-                | :unsatisfiable
-                | :contradictory_axioms
-                | :unknown
-                | :open
-                | :timeout
-                | :gave_up
-                | :input_error
-                | :syntax_error
-                | :type_error
+  @type status ::
+          :theorem
+          | :counter_satisfiable
+          | :satisfiable
+          | :unsatisfiable
+          | :contradictory_axioms
+          | :unknown
+          | :open
+          | :timeout
+          | :gave_up
+          | :input_error
+          | :syntax_error
+          | :type_error
 
   @typedoc """
   Error encountered while reading an SZS result.

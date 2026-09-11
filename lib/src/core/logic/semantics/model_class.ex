@@ -10,15 +10,15 @@ defmodule Src.Core.Logic.Semantics.ModelClass do
   alias Src.Core.Logic.Lang
 
   @type t :: %__MODULE__{
-    language: Lang.t(),
-    carriers: [term()],
-    parameters: [term()],
-    interpretations: %{optional(term()) => term()},
-    clauses: %{optional(term()) => term()},
-    constraints: [term()],
-    unresolved_parameters: [term()],
-    metadata: map()
-  }
+          language: Lang.t(),
+          carriers: [term()],
+          parameters: [term()],
+          interpretations: %{optional(term()) => term()},
+          clauses: %{optional(term()) => term()},
+          constraints: [term()],
+          unresolved_parameters: [term()],
+          metadata: map()
+        }
 
   @enforce_keys [:language]
   defstruct language: nil,

@@ -31,16 +31,16 @@ defmodule Src.Core.Model do
 
   @typedoc "A logic-independent summary of a parsed model."
   @type summary :: %{
-    required(:source) => String.t(),
-    required(:kind) => atom() | nil,
-    required(:model_logic) => model_logic(),
-    required(:cardinality) => non_neg_integer(),
-    required(:relation) => String.t() | nil,
-    required(:designated_world) => String.t(),
-    required(:edge_count) => non_neg_integer(),
-    required(:atoms) => [atom_name()],
-    required(:warnings) => [String.t()]
-  }
+          required(:source) => String.t(),
+          required(:kind) => atom() | nil,
+          required(:model_logic) => model_logic(),
+          required(:cardinality) => non_neg_integer(),
+          required(:relation) => String.t() | nil,
+          required(:designated_world) => String.t(),
+          required(:edge_count) => non_neg_integer(),
+          required(:atoms) => [atom_name()],
+          required(:warnings) => [String.t()]
+        }
 
   @typedoc "A string-keyed model representation prepared for serialization."
   @type export_map :: %{String.t() => term()}
@@ -157,6 +157,7 @@ defmodule Src.Core.Model do
   @spec warning_messages(model()) :: [String.t()]
   def warning_messages(%{warnings: warnings} = model) do
     assert_supported!(model)
+
     Enum.map(warnings, fn
       %{message: message} -> message
       warning when is_binary(warning) -> warning
@@ -188,6 +189,7 @@ defmodule Src.Core.Model do
   @spec self_loops(model()) :: MapSet.t(edge())
   def self_loops(%{edges: %MapSet{} = edges} = model) do
     assert_supported!(model)
+
     edges
     |> Enum.filter(fn {a, b} -> a == b end)
     |> MapSet.new()
@@ -199,6 +201,7 @@ defmodule Src.Core.Model do
   @spec proper_edges(model()) :: MapSet.t(edge())
   def proper_edges(%{edges: edges} = model) do
     assert_supported!(model)
+
     edges
     |> Enum.filter(fn {a, b} -> a != b end)
     |> MapSet.new()
@@ -217,6 +220,7 @@ defmodule Src.Core.Model do
 
   def label_for_world(%{valuations: valuations} = model, index, nil) do
     assert_supported!(model)
+
     atoms =
       valuations
       |> Map.keys()
@@ -262,6 +266,7 @@ defmodule Src.Core.Model do
   """
   def relation_matrix(%{edges: %MapSet{} = edges} = model) do
     assert_supported!(model)
+
     for a <- world_indices(model) do
       for b <- world_indices(model) do
         MapSet.member?(edges, {a, b})
@@ -353,7 +358,7 @@ defmodule Src.Core.Model do
             "index" => index,
             "name" => world_name(model, index)
           }
-      end)
+        end)
     }
   end
 

@@ -20,9 +20,6 @@ defmodule Src.Execution.OptionsTest do
     assert options.include_designated_world?
     assert options.verbalize?
     assert options.verbalization_model == "HuggingFaceTB/SmolLM3-3B"
-    assert options.verbalization_mode == :grounded
-    refute options.verbalization_reasoning?
-    assert options.verbalization_max_new_tokens == 768
   end
 
   test "normalizes safe string enums without creating atoms" do
@@ -30,20 +27,15 @@ defmodule Src.Execution.OptionsTest do
              Options.new(
                model_logic: " DDL ",
                graph_format: "TikZ",
-               max_parallel_renderers: 2,
+               max_parallel_renders: 2,
                palette: "Magma",
-               cardinality: "2-4",
-               verbalization_mode: " Interpretive ",
-               verbalization_reasoning?: "ON"
+               cardinality: "2-4"
              )
 
     assert options.model_logic == :ddl
     assert options.graph_format == :tikz
     assert options.palette == :magma
-    assert options.max_parallel_renderers == 2
     assert options.cardinalities == [2, 3, 4]
-    assert options.verbalization_mode == :interpretive
-    assert options.verbalization_reasoning?
   end
 
   test "normalizes single and sparse cardinality selections" do
@@ -94,10 +86,7 @@ defmodule Src.Execution.OptionsTest do
                include_designated_world?: false,
                cardinality: "2-4",
                include_cardinality_feature?: true,
-               verbalize?: false,
-               verbalization_mode: :interpretive,
-               verbalization_reasoning?: true,
-               verbalization_max_new_tokens: 2048
+               verbalize?: false
              )
 
     params = Options.to_run_params(options)
@@ -112,9 +101,6 @@ defmodule Src.Execution.OptionsTest do
     assert params.cardinalities == [2, 3, 4]
     assert params.include_cardinality_feature? == true
     assert params.verbalize? == false
-    assert params.verbalization_mode == :interpretive
-    assert params.verbalization_reasoning? == true
-    assert params.verbalization_max_new_tokens == 2048
 
     assert {:error, {:invalid_max_parallel_renderers, 0}} =
              Options.new(max_parallel_renderers: 0)
@@ -139,16 +125,6 @@ defmodule Src.Execution.OptionsTest do
     assert {:error, :invalid_atoms} = Options.new(atoms: "go")
     assert {:error, :invalid_boolean_option} = Options.new(verbalize?: :yes)
     assert {:error, :invalid_verbalization_model} = Options.new(verbalization_model: "")
-
-    assert {:error, {:invalid_verbalization_mode, "expansive"}} =
-             Options.new(verbalization_mode: "expansive")
-
-    assert {:error, {:invalid_verbalization_reasoning, "sometimes"}} =
-             Options.new(verbalization_reasoning?: "sometimes")
-
-    assert {:error, {:invalid_verbalization_max_new_tokens, 0}} =
-             Options.new(verbalization_max_new_tokens: 0)
-
     assert {:error, :invalid_options} = Options.new([:not_a_keyword])
   end
 end

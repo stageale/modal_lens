@@ -7,20 +7,19 @@ defmodule Src.Interface.Ui.Session do
   alias Src.Execution.Options
 
   @type variant :: %{
-    options: Options.t(),
-    run: Run.t(),
-    result: map()
-  }
+          options: Options.t(),
+          run: Run.t(),
+          result: map()
+        }
 
   @type t :: %__MODULE__{
-    theory_path: String.t(),
-    variants: [variant()]
-  }
+          theory_path: String.t(),
+          variants: [variant()]
+        }
 
   @enforce_keys :theory_path
 
   defstruct [:theory_path, variants: []]
-
 
   @doc "Creates a UI session for one Isabelle theory."
   @spec new(String.t()) :: {:ok, t()} | {:error, :invalid_theory_path}
@@ -39,16 +38,18 @@ defmodule Src.Interface.Ui.Session do
   @doc "Stores one calculated result in the session."
   @spec put_variant(t(), Options.t(), Run.t(), map()) :: t()
   def put_variant(
-    %__MODULE__{} = session,
-    %Options{} = options,
-    %Run{} = run,
-    result
-  ) when is_map(result) do
+        %__MODULE__{} = session,
+        %Options{} = options,
+        %Run{} = run,
+        result
+      )
+      when is_map(result) do
     variant = %{
       options: options,
       run: run,
       result: result
     }
+
     remaining_variants =
       session.variants
       |> Enum.reject(&(&1.options == options))

@@ -126,7 +126,8 @@ defmodule Src.Explanation.Visual.Palette do
   @spec normalize_score(number(), number(), boolean()) :: float()
   def normalize_score(score, scale \\ 1.0, include_negatives? \\ false)
 
-  def normalize_score(score, scale, include_negatives?) when is_number(score) and is_number(scale) and scale > 0 and is_boolean(include_negatives?) do
+  def normalize_score(score, scale, include_negatives?)
+      when is_number(score) and is_number(scale) and scale > 0 and is_boolean(include_negatives?) do
     if include_negatives? do
       normalize_signed_score(score, scale)
     else
@@ -171,15 +172,19 @@ defmodule Src.Explanation.Visual.Palette do
 
   defp stops(palette) do
     case Map.fetch(@palettes, palette) do
-      {:ok, colors} -> colors
+      {:ok, colors} ->
+        colors
+
       :error ->
         raise ArgumentError, "unsupported palette: #{inspect(palette)}"
     end
   end
 
-  defp interpolate_rgb({left_red, left_green, left_blue},
-                       {right_red, right_green, right_blue},
-                       factor) do
+  defp interpolate_rgb(
+         {left_red, left_green, left_blue},
+         {right_red, right_green, right_blue},
+         factor
+       ) do
     {
       interpolate_channel(left_red, right_red, factor),
       interpolate_channel(left_green, right_green, factor),

@@ -11,9 +11,9 @@ defmodule Src.Core.Logic.Type do
   @type expression :: term()
 
   @type t :: %__MODULE__{
-    theory: theory_id(),
-    expression: expression()
-  }
+          theory: theory_id(),
+          expression: expression()
+        }
 
   @enforce_keys [:theory, :expression]
   defstruct [:theory, :expression]

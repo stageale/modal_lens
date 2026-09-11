@@ -17,6 +17,11 @@ VERBALIZATION_REQUEST_SCHEMA = "modal-lens/verbalization-request"
 ANALYSIS_REPORT_SCHEMA = "modal-lens/analysis-report"
 ANALYSIS_REPORT_SCHEMA_VERSION = "1.1"
 
+SUPPORTED_VERBALIZATION_MODES = {
+    "grounded",
+    "interpretive"
+}
+
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Launch an Axiom Refiner verbalization job.")
@@ -56,10 +61,15 @@ def launch_verbalization_jobs(config_paths: Sequence[str | Path]) -> dict[str, A
     first = jobs[0]
     
     for job in jobs[1:]:
-        if job["backend"] != first["backend"] or job["model_id"] != first["model_id"] or job["backend_options"] != first["backend_options"]:
-            raise ValueError("Batched verbalization jobs must use the same backend and model configuration.")
+        if (
+            job["backend"] != first["backend"] 
+            or job["model_id"] != first["model_id"] 
+            or job["backend_options"] != first["backend_options"]
+            or job["reasoning"] != first["reasoning"]
+        ):
+            raise ValueError("Batched verbalization jobs must use the same backend, model and reasoning configuration.")
         
-    verbalizer = create_verbalizer(backend=first["backend"], model_id=first["model_id"], **first["backend_options"])
+    verbalizer = create_verbalizer(backend=first["backend"], model_id=first["model_id"], reasoning=first["reasoning"], **first["backend_options"])
     
     results = [
         _run_prepared_job(job, verbalizer)
@@ -86,7 +96,8 @@ def _prepare_job(config_path: str | Path) -> dict[str, Any]:
     
     backend = _require_string(job, "backend")
     model_id = _require_string(job, "model_id")
-    
+    verbalization_mode = _verbalization_mode(job)
+    reasoning = _reasoning(job)
     report_path = _resolve_path(job_path.parent, _require_string(job, "report_path"))
     
     output_directory = _resolve_path(job_path.parent, _require_string(job, "output_directory"))
@@ -100,6 +111,8 @@ def _prepare_job(config_path: str | Path) -> dict[str, Any]:
         "backend": backend,
         "model_id": model_id,
         "backend_options": _backend_options(job),
+        "verbalization_mode": verbalization_mode,
+        "reasoning": reasoning,
         "report": report,
         "output_directory": output_directory,
         "seed": job.get("seed", 42),
@@ -123,7 +136,14 @@ def _validate_report(report: Mapping[str, Any]) -> None:
         raise ValueError(f"Unsupported refinement report schema version: {schema_version!r}.")
     
 def _run_prepared_job(job: Mapping[str, Any], verbalizer) -> dict[str, Any]:
-    result = run_verbalization(job["report"], verbalizer, seed=job["seed"], max_new_tokens=job["max_new_tokens"])
+    result = run_verbalization(
+        job["report"], 
+        verbalizer, 
+        seed=job["seed"], 
+        max_new_tokens=job["max_new_tokens"],
+        verbalization_mode=job["verbalization_mode"],
+        reasoning=job["reasoning"]
+    )
     artifact_paths = write_verbalization_result(result, job["output_directory"])
     
     return {
@@ -131,6 +151,8 @@ def _run_prepared_job(job: Mapping[str, Any], verbalizer) -> dict[str, Any]:
         "request_path": str(job["request_path"]),
         "backend": verbalizer.backend,
         "model_id": verbalizer.model_id,
+        "verbalization_mode": job["verbalization_mode"],
+        "reasoning": job["reasoning"],
         "artifacts": {
             name: str(path.resolve())
             for name, path in artifact_paths.items()
@@ -183,6 +205,27 @@ def _backend_options(job: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("Job field 'backend_options' must be a JSON object.")
     
     return dict(value)
+
+def _verbalization_mode(job: Mapping[str, Any]) -> str:
+    value = job.get("verbalization_mode", "grounded")
+
+    if not isinstance(value, str):
+        raise ValueError("Job field 'verbalization_mode' must be a string.")
+
+    normalized = value.strip().lower()
+
+    if normalized not in SUPPORTED_VERBALIZATION_MODES:
+        raise ValueError("Job field 'verbalization_modes' must be 'grounded' or 'interpretive'.")
+
+    return normalized
+
+def _reasoning(job: Mapping[str, Any]) -> bool:
+    value = job.get("reasoning", False)
+
+    if not isinstance(value, bool):
+        raise ValueError("Job field 'reasoning' must be a boolean.")
+
+    return value
 
 def _validate_job_schema(job: Mapping[str, Any]) -> None:
     schema = _require_string(job, "schema")

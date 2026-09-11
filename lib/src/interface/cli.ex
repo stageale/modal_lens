@@ -22,13 +22,18 @@ defmodule Src.Interface.CLI do
     auto_atoms: :boolean,
     model_logic: :string,
     backend: :string,
+    cardinality: :string,
+    cardinality_feature: :boolean,
     max_models: :integer,
     out_dir: :string,
     render_graph: :boolean,
     graph_format: :string,
     palette: :string,
     verbalize: :boolean,
-    verbalization_model: :string
+    verbalization_model: :string,
+    verbalization_mode: :string,
+    verbalization_reasoning: :string,
+    verbalization_max_new_tokens: :integer
   ]
 
   @common_switches [
@@ -43,6 +48,7 @@ defmodule Src.Interface.CLI do
     input: :string,
     mode: :string,
     backend: :string,
+    cardinality: :string,
     max_models: :integer,
     out_dir: :string,
     search_theory_dir: :string,
@@ -113,24 +119,41 @@ defmodule Src.Interface.CLI do
       demo        Generate a small demo bundle with all outputs.
 
     Options:
-      --input PATH        Isabelle input theory.
-                          Default: lib/data/Input.thy
+      --input PATH                            Isabelle input theory.
+                                              Default: lib/data/Input.thy
 
-      --mode MODE         countermodels,
-                          satisfying-models,
-                          consistency-check
+      --mode MODE                             countermodels,
+                                              satisfying-models,
+                                              consistency-check
 
-      --no-verbalize      Disable cluster and refinement verbalization.
-                          Verbalization is enabled by default.
+      --no-verbalize                          Disable cluster and refinement verbalization.
+                                              Verbalization is enabled by default.
 
-      --no-render-graph   Do not generate DOT, SVG, TikZ, or PDF graph files.
+      --no-render-graph                       Do not generate DOT, SVG, TikZ, or PDF graph files.
 
-      --atoms LIST        Include the named atoms explicitly.
-      --no-auto-atoms     Do not detect additional unary predicates.
-                          Automatic detection is enabled by default.
-      --backend BACKEND   Isabelle execution backend:
-                          local or hpc_connect.
-                          Default: local.
+      --atoms LIST                            Include the named atoms explicitly.
+
+      --no-auto-atoms                         Do not detect additional unary predicates.
+                                              Automatic detection is enabled by default.
+
+      --backend BACKEND                       Isabelle execution backend:
+                                              local or hpc_connect.
+                                              Default: local.
+
+      --cardinality N|FIRST-LAST              World cardinality or inclusive range.
+                                              Default: 2.
+
+      --cardinality-feature                   Include world cardinality as an explicit
+                                              graph-analysis feature.
+
+      --verbalization-mode MODE               grounded or interpretive.
+                                              Default: grounded.
+
+      --verbalization-reasoning MODE          Extended model reasoning: on or off.
+                                              Default: off.
+
+      --verbalization-max-new-tokens N        Maximum generated tokens, including model reasoning.
+                                              Default: 768.
     """)
 
     0
@@ -147,6 +170,8 @@ defmodule Src.Interface.CLI do
           [
             model_logic: :model_logic,
             backend: :backend,
+            cardinality: :cardinality,
+            cardinality_feature: :include_cardinality_feature?,
             relation: :relation,
             atoms: :atoms,
             auto_atoms: :auto_atoms?,
@@ -156,7 +181,10 @@ defmodule Src.Interface.CLI do
             palette: :palette,
             verbalize: :verbalize?,
             verbalization_backend: :verbalization_backend,
-            verbalization_model: :verbalization_model
+            verbalization_model: :verbalization_model,
+            verbalization_mode: :verbalization_mode,
+            verbalization_reasoning: :verbalization_reasoning?,
+            verbalization_max_new_tokens: :verbalization_max_new_tokens
           ]
           |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
             case Keyword.fetch(opts, cli_key) do
@@ -230,9 +258,11 @@ defmodule Src.Interface.CLI do
         output_name: ".",
         project_root: Map.get(run.params, :project_root, File.cwd!()),
         uv_executable: Map.get(run.params, :uv_executable, "uv"),
-        seed: Map.get(run.params, :verbalization, 42),
+        seed: Map.get(run.params, :verbalization_seed, 42),
         max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 768),
-        backend_options: Map.get(run.params, :verbalization_backend_options, %{})
+        backend_options: Map.get(run.params, :verbalization_backend_options, %{}),
+        verbalization_mode: Map.get(run.params, :verbalization_mode, :grounded),
+        reasoning: Map.get(run.params, :verbalization_reasoning?, false)
       ]
 
       case VerbalLauncher.launch(
@@ -310,7 +340,8 @@ defmodule Src.Interface.CLI do
          :ok <- reject_enumeration_positionals(positional_args),
          {:ok, mode} <- parse_enumeration_mode(Keyword.get(opts, :mode)),
          {:ok, model_logic} <- parse_model_logic(Keyword.get(opts, :model_logic, "sdl")),
-         {:ok, backend} <- parse_backend(Keyword.get(opts, :backend, "local")) do
+         {:ok, backend} <- parse_backend(Keyword.get(opts, :backend, "local")),
+         {:ok, cardinalities} <- parse_cardinalities(Keyword.get(opts, :cardinality, "2")) do
       input_path =
         Keyword.get(opts, :input)
 
@@ -320,6 +351,7 @@ defmodule Src.Interface.CLI do
         |> Keyword.put(:mode, mode)
         |> Keyword.put(:model_logic, model_logic)
         |> Keyword.put(:backend, backend)
+        |> Keyword.put(:cardinalities, cardinalities)
         |> maybe_put(:output_dir, Keyword.get(opts, :out_dir))
 
       enumeration_result =
@@ -350,6 +382,21 @@ defmodule Src.Interface.CLI do
         IO.puts(:stderr, "[ERROR] #{message}")
 
         2
+    end
+  end
+
+  defp parse_cardinalities(value) do
+    case Options.new(cardinality: value) do
+      {:ok, options} ->
+        {:ok, options.cardinalities}
+
+      {:error, {:invalid_cardinality, invalid}} ->
+        {:error,
+         "Invalid cardinality #{inspect(invalid)}." <>
+           "Use a postive integer or inclusive range such as 2 or 2-4."}
+
+      {:error, reason} ->
+        {:error, "Invalid cardinality option: #{inspect(reason)}"}
     end
   end
 
@@ -525,6 +572,8 @@ defmodule Src.Interface.CLI do
           [
             model_logic: :model_logic,
             backend: :backend,
+            cardinality: :cardinality,
+            cardinality_feature: :include_cardinality_feature?,
             relation: :relation,
             atoms: :atoms,
             auto_atoms: :auto_atoms?,
@@ -533,7 +582,10 @@ defmodule Src.Interface.CLI do
             graph_format: :graph_format,
             palette: :palette,
             verbalize: :verbalize?,
-            verbalization_model: :verbalization_model
+            verbalization_model: :verbalization_model,
+            verbalization_mode: :verbalization_mode,
+            verbalization_reasoning: :verbalization_reasoning?,
+            verbalization_max_new_tokens: :verbalization_max_new_tokens
           ]
           |> Enum.reduce(%{}, fn {cli_key, option_key}, options ->
             case Keyword.fetch(opts, cli_key) do

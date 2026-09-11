@@ -14,12 +14,12 @@ defmodule Src.Core.Logic.Semantics.Contribution do
   @type constraint :: term()
 
   @type t :: %__MODULE__{
-    carriers: [carrier_declaration()],
-    parameters: [parameter_declaration()],
-    clauses: %{optional(clause_key()) => semantic_clause()},
-    constraints: [constraint()],
-    metadata: map()
-  }
+          carriers: [carrier_declaration()],
+          parameters: [parameter_declaration()],
+          clauses: %{optional(clause_key()) => semantic_clause()},
+          constraints: [constraint()],
+          metadata: map()
+        }
 
   defstruct carriers: [],
             parameters: [],
