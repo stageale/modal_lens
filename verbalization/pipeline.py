@@ -9,7 +9,7 @@ from typing import Any
 from .base import GenerationRequest, Verbalizer
 from .facts import REFINEMENT_REPORT_SCHEMA, build_verbalization_facts, verbalization_facts_sha256
 from .prompt import build_verbalization_messages
-from .summary_schema import REFINEMENT_SUMMARY_SCHEMA_VERSION, parse_and_validate_summary_json
+from .summary_schema import REFINEMENT_SUMMARY_SCHEMA_VERSION, SummarySchemaError, parse_and_validate_summary_json
 
 
 VERBALIZATION_SUMMARY_SCHEMA = "modal-lens/verbalization-summary"
@@ -72,12 +72,21 @@ def write_verbalization_result(result: Mapping[str, Any], output_directory: str 
         encoding="utf-8"
     )
 
-    return {
+    artifact_paths = {
         "raw_output": raw_output_path,
         "summary_json": summary_json_path,
         "summary_markdown": summary_markdown_path,
-        "provenance": provenance_path
+        "provenance": provenance_path,
     }
+
+    if "invalid_raw_output" in result:
+        invalid_raw_output_path = (output_path / "raw_output.invalid-attempt-1.txt")
+
+        invalid_raw_output_path.write_text(str(result["invalid_raw_output"]), encoding="utf-8",)
+
+        artifact_paths["invalid_raw_output"] = (invalid_raw_output_path)
+
+    return artifact_paths
 
 def run_verbalization(
         report: Mapping[str, Any],
@@ -101,9 +110,47 @@ def run_verbalization(
 
     generation = verbalizer.generate(request)
 
-    summary = parse_and_validate_summary_json(generation.raw_text, verbalization_facts=verbalization_facts)
+    attempt_records: list[dict[str, Any]] = [
+        {
+            "attempt": 1,
+            "messages_sha256": _messages_sha256(request.messages),
+            "raw_output_sha256": _sha256_text(generation.raw_text)
+        }
+    ]
 
-    return {
+    invalid_raw_output: str | None = None
+    try:
+        summary = parse_and_validate_summary_json(generation.raw_text, verbalization_facts=verbalization_facts)
+    except SummarySchemaError as error:
+        invalid_raw_output = generation.raw_text
+        attempt_records[0]["validation_error"] = str(error)
+
+        correction_messages = _schema_correction_messages(
+            messages,
+            invalid_raw_output=generation.raw_text,
+            schema_error=error,
+            verbalization_facts=verbalization_facts
+        )
+
+        correction_request = GenerationRequest(
+            messages=correction_messages,
+            seed=seed,
+            max_new_tokens=max_new_tokens
+        )
+
+        generation = verbalizer.generate(correction_request)
+
+        attempt_records.append(
+            {
+                "attempt": 2,
+                "messages_sha256": _messages_sha256(correction_request.messages),
+                "raw_output_sha256": _sha256_text(generation.raw_text)
+            }
+        )
+
+        summary = parse_and_validate_summary_json(generation.raw_text, verbalization_facts=verbalization_facts)
+
+    result: dict[str, Any] = {
         "report_schema": report.get("schema"),
         "summary": summary,
         "raw_output": generation.raw_text,
@@ -117,9 +164,67 @@ def run_verbalization(
             "verbalization_facts_sha256": verbalization_facts_sha256(verbalization_facts),
             "messages_sha256": _messages_sha256(messages),
             "raw_output_sha256": _sha256_text(generation.raw_text),
-            "backend_metadata": dict(generation.metadata)
+            "backend_metadata": dict(generation.metadata),
+            "schema_correction": {
+                "applied": invalid_raw_output is not None,
+                "attempt_count": len(attempt_records),
+                "attempts": attempt_records,
+            }
         }
     }
+
+    if invalid_raw_output is not None:
+        result["invalid_raw_output"] = invalid_raw_output
+
+    return result
+
+def _schema_correction_messages(
+        original_messages: tuple[Mapping[str, str], ...],
+        *,
+        invalid_raw_output: str,
+        schema_error: SummarySchemaError,
+        verbalization_facts: Mapping[str, Any],
+    ) -> tuple[Mapping[str, str], ...]:
+    """Request one bounded correction of a schema-invalid response."""
+    evidence_ids = sorted(
+        str(fact["id"])
+        for fact in verbalization_facts["facts"]
+    )
+
+    correction_message = f"""
+    Your previous JSON response failed validation:
+
+    {schema_error}
+
+    Return one corrected JSON object that satisfies the original output contract.
+    Preserve the substantive explanation unless a schema correction requires a
+    change.
+
+    Every required evidence array must be non-empty and may contain only exact
+    identifiers from the list below. Do not invent identifiers.
+
+    For a cluster summary with cluster_id N, prefer identifiers beginning with
+    "cluster.N.". For a refinement round N, use only identifiers beginning with
+    "round.N.".
+
+    Return no Markdown, reasoning trace, or text outside the corrected JSON object.
+
+    ALLOWED EVIDENCE IDENTIFIERS:
+
+    {json.dumps(evidence_ids, ensure_ascii=False, indent=2)}
+        """.strip()
+
+    return (
+        *original_messages,
+        {
+            "role": "assistant",
+            "content": invalid_raw_output,
+        },
+        {
+            "role": "user",
+            "content": correction_message,
+        },
+    )
 
 def _render_refinement_summary_markdown(summary: Mapping[str, Any]) -> str:
     """Render a refinement overview and its applied rounds with evidence."""

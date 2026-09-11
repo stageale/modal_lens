@@ -175,6 +175,45 @@ def build_verbalization_messages(verbalization_facts: Mapping[str, Any], *, verb
             verbalization_mode=mode,
         )
 
+        if mode == "interpretive":
+            system_message += """
+
+        EXPLANATION CONTRACT:
+        Worlds are nodes. Atoms such as go and tell are propositions evaluated
+        at worlds. Accessibility edges belong to R. Never describe atoms as
+        worlds or as edge labels. Cardinality counts worlds, not atoms.
+
+        Explain patterns primarily from the structured occurrence.worlds and
+        occurrence.relation_cells records inside refinement_candidate.
+        Describe both true and false valuations, edge directions, and self-loops.
+        An absent edge concerns the specified pair, not every other world.
+
+        A recorded pattern describes an observed configuration.
+        A refinement candidate proposes excluding it.
+        An APPLIED axiom of the form NOT EXISTS forbids that configuration;
+        it does not assert its existence. Keep these three roles distinct.
+
+        For each summary:
+        1. Describe the actual configuration in understandable prose.
+        2. Explain a local semantic consequence supported by that configuration.
+        3. Connect it to the supplied theory where its definitions justify this.
+        4. For an applied refinement, explain exactly what is excluded.
+        5. Mention support statistics briefly, after the explanation.
+
+        Example of the required reasoning, NOT facts about the current input:
+        If p holds at world A, p is false at world B, and A accesses B,
+        then p is true at A but is not necessary at A: B witnesses its failure.
+        This does not establish that B is A's only accessible world.
+
+        The reader must understand the explanation without looking up IDs.
+        Place exact supporting fact IDs in the evidence arrays.
+        If no pattern is supplied, describe the representative model explicitly
+        as an example and return an empty notable_patterns array.
+        A request about one cluster does not imply the entire analysis has one
+        cluster. Contrast compares support inside and outside the cluster.
+        Return only the original required JSON structure.
+        """
+
     return (
         {
             "role": "system",

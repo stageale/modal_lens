@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from verbalization.pipeline import (
     run_verbalization,
     write_verbalization_result,
 )
+from verbalization.summary_schema import SummarySchemaError
 
 
 class FakeVerbalizer(Verbalizer):
@@ -35,6 +37,25 @@ class FakeVerbalizer(Verbalizer):
             backend=self.backend,
             model_id=self.model_id,
             raw_text=self.raw_text,
+            metadata={"device": "test"},
+        )
+
+
+class SequencedFakeVerbalizer(FakeVerbalizer):
+    def __init__(self, raw_texts: list[str]):
+        super().__init__(raw_texts[0])
+        self.raw_texts = raw_texts
+        self.requests: list[GenerationRequest] = []
+
+    def generate(self, request: GenerationRequest) -> GenerationResult:
+        self.requests.append(request)
+        self.last_request = request
+        raw_text = self.raw_texts[len(self.requests) - 1]
+
+        return GenerationResult(
+            backend=self.backend,
+            model_id=self.model_id,
+            raw_text=raw_text,
             metadata={"device": "test"},
         )
 
@@ -133,6 +154,57 @@ def test_run_verbalization_rejects_invalid_model_output(sample_report: dict) -> 
         run_verbalization(sample_report, verbalizer)
 
 
+def test_run_verbalization_corrects_one_schema_invalid_response(
+    sample_report: dict,
+    sample_summary: dict,
+) -> None:
+    invalid_summary = deepcopy(sample_summary)
+    invalid_summary["cluster_summaries"][0]["evidence"] = []
+    invalid_raw_output = json.dumps(invalid_summary)
+    corrected_raw_output = json.dumps(sample_summary)
+    verbalizer = SequencedFakeVerbalizer(
+        [invalid_raw_output, corrected_raw_output]
+    )
+
+    result = run_verbalization(sample_report, verbalizer)
+
+    assert result["summary"] == sample_summary
+    assert result["raw_output"] == corrected_raw_output
+    assert result["invalid_raw_output"] == invalid_raw_output
+
+    correction = result["provenance"]["schema_correction"]
+    assert correction["applied"] is True
+    assert correction["attempt_count"] == 2
+    assert "should be non-empty" in (
+        correction["attempts"][0]["validation_error"]
+    )
+
+    assert len(verbalizer.requests) == 2
+    correction_messages = verbalizer.requests[1].messages
+    assert correction_messages[-2] == {
+        "role": "assistant",
+        "content": invalid_raw_output,
+    }
+    assert "cluster.0.model_count" in correction_messages[-1]["content"]
+
+
+def test_run_verbalization_attempts_schema_correction_only_once(
+    sample_report: dict,
+    sample_summary: dict,
+) -> None:
+    invalid_summary = deepcopy(sample_summary)
+    invalid_summary["cluster_summaries"][0]["evidence"] = []
+    invalid_raw_output = json.dumps(invalid_summary)
+    verbalizer = SequencedFakeVerbalizer(
+        [invalid_raw_output, invalid_raw_output]
+    )
+
+    with pytest.raises(SummarySchemaError, match="should be non-empty"):
+        run_verbalization(sample_report, verbalizer)
+
+    assert len(verbalizer.requests) == 2
+
+
 def test_write_verbalization_result_creates_versioned_artifacts(
     tmp_path: Path,
     sample_summary: dict,
@@ -187,3 +259,27 @@ def test_write_verbalization_result_rejects_non_mapping_provenance(
             },
             tmp_path,
         )
+
+
+def test_write_verbalization_result_preserves_invalid_first_attempt(
+    tmp_path: Path,
+    sample_summary: dict,
+) -> None:
+    result = {
+        "summary": sample_summary,
+        "raw_output": json.dumps(sample_summary),
+        "invalid_raw_output": '{"evidence": []}',
+        "provenance": {
+            "backend": "fake",
+            "model_id": "fake/model",
+        },
+    }
+
+    paths = write_verbalization_result(result, tmp_path / "verbalization")
+
+    assert paths["invalid_raw_output"].name == (
+        "raw_output.invalid-attempt-1.txt"
+    )
+    assert paths["invalid_raw_output"].read_text(
+        encoding="utf-8"
+    ) == result["invalid_raw_output"]

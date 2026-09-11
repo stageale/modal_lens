@@ -56,8 +56,10 @@ def test_interpretive_messages_request_semantic_analysis(sample_report):
         verbalization_mode="interpretive",
     )
 
-    assert messages[0]["content"] == INTERPRETIVE_SYSTEM_MESSAGE
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"].startswith(INTERPRETIVE_SYSTEM_MESSAGE)
     assert "local semantic meaning" in messages[0]["content"]
+    assert messages[1]["role"] == "user"
     assert "theory.content" in messages[1]["content"]
     assert "Detailed prose is allowed" in messages[1]["content"]
     assert '"limitations" must always be a JSON array' in messages[1]["content"]
