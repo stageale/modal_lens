@@ -12,6 +12,14 @@ text \<open>
 abbreviation actual_world :: i where
   "actual_world \<equiv> aw"
 
+(* Parent and van der Torre's frame conditions for layered models. *)
+axiomatization where
+  R_total:
+    "\<forall>x y. x R y \<or> y R x"
+and
+  R_transitive:
+    "\<forall> x y z. x R y \<and> y R z \<longrightarrow> x R z"
+
 
 section \<open>Chisholm scenario\<close>
 
@@ -53,7 +61,6 @@ and
   chisholm_3: "\<lfloor>D3\<rfloor>"
 and
   chisholm_4: "\<lfloor>D4\<rfloor>\<^sub>l"
-
 
 section \<open>Axiom Refiner query\<close>
 
