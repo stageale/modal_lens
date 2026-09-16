@@ -122,16 +122,16 @@ def graphlet_features(graphs, size=3):
     for graph in graphs:
         graphlet_counts = Counter()
         atoms = _model_atoms(graph)
-        
-        for nodes in combinations(graph.nodes, size):
-            subgraph = graph.subgraph(nodes)
-            
-            if not nx.is_weakly_connected(subgraph):
-                continue
-            
-            graphlet = _canonical_graphlet(graph, nodes, atoms)
-            
-            graphlet_counts[("graphlet", size, graphlet)] += 1
+        for graphlet_size in range(2, size + 1):
+            for nodes in combinations(graph.nodes, graphlet_size):
+                subgraph = graph.subgraph(nodes)
+
+                if not nx.is_weakly_connected(subgraph):
+                    continue
+                
+                graphlet = _canonical_graphlet(graph, nodes, atoms)
+
+                graphlet_counts[("graphlet", size, graphlet)] += 1
         
         features.append(dict(graphlet_counts))
     
