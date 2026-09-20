@@ -93,3 +93,53 @@ def test_write_report_json_is_atomic_and_requires_json_suffix(tmp_path: Path) ->
 
     with pytest.raises(TypeError, match="mapping"):
         write_report_json([], output)
+
+
+def test_parse_multimodal_model_preserves_modal_edge_labels(tmp_path: Path) -> None:
+    document = _model_document()
+    document["model"] = {
+        "logic": "ed_stit",
+        "kind": "countermodel",
+        "cardinality": 2,
+        "designated_world": {
+            "index": 0,
+            "name": "i1",
+            "role": "actual_world",
+        },
+        "agents": ["provider"],
+        "modalities": [
+            {
+                "id": "settledness",
+                "symbol": "RBox",
+                "kind": "settledness",
+                "agent": None,
+                "accessibility": [[0, 1]],
+            },
+            {
+                "id": "belief:provider",
+                "symbol": "RBel",
+                "kind": "belief",
+                "agent": "provider",
+                "accessibility": [[0, 1]],
+            },
+        ],
+        "atoms": ["p"],
+        "valuations": {"p": [True, False]},
+        "warnings": [],
+    }
+
+    model_file = tmp_path / "ed-stit.json"
+    model_file.write_text(json.dumps(document), encoding="utf-8")
+
+    _, graph = parse_model(model_file)
+
+    assert graph.graph["relation"] is None
+    assert graph.graph["modalities"] == (
+        "belief:provider",
+        "settledness",
+    )
+    assert graph.graph["agents"] == ("provider",)
+    assert graph.edges[0, 1]["label"] == (
+        "belief:provider",
+        "settledness",
+    )

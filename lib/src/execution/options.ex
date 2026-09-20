@@ -5,7 +5,7 @@ defmodule Src.Execution.Options do
 
   alias Src.Explanation.Visual.Palette
 
-  @model_logics [:sdl, :ddl]
+  @model_logics [:sdl, :ddl, :ed_stit]
   @graph_formats [:svg, :tikz]
   @backends [:local, :hpc_connect]
   @default_palette Palette.default()
@@ -13,7 +13,7 @@ defmodule Src.Execution.Options do
   @verbalization_modes [:grounded, :interpretive]
   @default_verbalization_max_new_tokens 768
 
-  @type model_logic :: :sdl | :ddl
+  @type model_logic :: :sdl | :ddl | :ed_stit
   @type graph_format :: :svg | :tikz
   @type backend :: :local | :hpc_connect
   @type cardinality :: pos_integer()
@@ -204,16 +204,16 @@ defmodule Src.Execution.Options do
          {:ok, verbalization_reasoning?} <-
            normalize_verbalization_reasoning(Map.get(attrs, :verbalization_reasoning?, false)) do
       {:ok,
-        attrs
-        |> Map.delete(:cardinality)
-        |> Map.put(:model_logic, model_logic)
-        |> Map.put(:backend, backend)
-        |> Map.put(:cardinalities, cardinalities)
-        |> Map.put(:graph_format, graph_format)
-        |> Map.put(:palette, palette)
-        |> Map.put(:verbalization_backend, verbalization_backend)
-        |> Map.put(:verbalization_mode, verbalization_mode)
-        |> Map.put(:verbalization_reasoning?, verbalization_reasoning?)}
+       attrs
+       |> Map.delete(:cardinality)
+       |> Map.put(:model_logic, model_logic)
+       |> Map.put(:backend, backend)
+       |> Map.put(:cardinalities, cardinalities)
+       |> Map.put(:graph_format, graph_format)
+       |> Map.put(:palette, palette)
+       |> Map.put(:verbalization_backend, verbalization_backend)
+       |> Map.put(:verbalization_mode, verbalization_mode)
+       |> Map.put(:verbalization_reasoning?, verbalization_reasoning?)}
     end
   end
 
@@ -313,6 +313,8 @@ defmodule Src.Execution.Options do
     case value |> String.trim() |> String.downcase() do
       "sdl" -> {:ok, :sdl}
       "ddl" -> {:ok, :ddl}
+      "ed_stit" -> {:ok, :ed_stit}
+      "ed-stit" -> {:ok, :ed_stit}
       _other -> {:error, {:invalid_model_logic, value}}
     end
   end

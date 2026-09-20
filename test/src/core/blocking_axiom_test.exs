@@ -3,6 +3,8 @@ defmodule Src.Core.BlockingAxiomTest do
 
   alias Src.Core.BlockingAxiom
   alias Src.Core.Model.DDL
+  alias Src.Core.Model.EDSTIT, as: EDSTITModel
+  alias Src.Core.Model.Modality
   alias Src.Core.Model.SDL
 
   defp sdl_model do
@@ -66,6 +68,33 @@ defmodule Src.Core.BlockingAxiomTest do
       )
 
     assert ddl_formula =~ "(aw = u1)"
+  end
+
+  test "renders ED-STIT modalities with quantified active agents" do
+    model = %EDSTITModel{
+      kind: :countermodel,
+      cardinality: 2,
+      actual_world: 0,
+      agents: ["provider"],
+      modalities: [
+        Modality.new!("RBox", :settledness, [{0, 0}, {0, 1}]),
+        Modality.new!("RStit", :stit, [{0, 1}], agent: "provider"),
+        Modality.new!("ROught", :ought, [{1, 1}], agent: "provider"),
+        Modality.new!("RBel", :belief, [{0, 1}], agent: "provider")
+      ],
+      valuations: %{"p" => [true, false]}
+    }
+
+    formula = BlockingAxiom.exact_structure_formula(model)
+
+    assert formula =~ ~S|\<exists>u1 u2 a1.|
+    assert formula =~ "(Agent a1)"
+    assert formula =~ "(RBox u1 u2)"
+    assert formula =~ "(RStit a1 u1 u2)"
+    assert formula =~ "(ROught a1 u2 u2)"
+    assert formula =~ "(RBel a1 u1 u2)"
+    assert formula =~ ~S|\<not>(RStit a1 u1 u1)|
+    refute formula =~ ~S|\<forall>a.|
   end
 
   test "wraps the negated structure as a named axiom" do

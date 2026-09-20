@@ -8,14 +8,19 @@ from graph_ml.features import _canonical_graphlet, _model_atoms
 def pattern_occurrences(graph, size=3):
     atoms = _model_atoms(graph)
     occurrences = defaultdict(list)
-    
-    for worlds in combinations(graph.nodes, size):
-        substructure = graph.subgraph(worlds)
-        
-        if nx.is_weakly_connected(substructure):
-            pattern = ("graphlet", size, _canonical_graphlet(graph, worlds, atoms))
-            occurrences[pattern].append(tuple(worlds))
-    
+
+    for graphlet_size in range(2, size + 1):
+        for worlds in combinations(graph.nodes, graphlet_size):
+            substructure = graph.subgraph(worlds)
+
+            if nx.is_weakly_connected(substructure):
+                pattern = (
+                    "graphlet",
+                    graphlet_size,
+                    _canonical_graphlet(graph, worlds, atoms),
+                )
+                occurrences[pattern].append(tuple(worlds))
+
     return dict(occurrences)
 
 def graph_patterns(graph, size=3):

@@ -439,9 +439,11 @@ defmodule Src.Interface.CLI do
 
   defp parse_model_logic("sdl"), do: {:ok, :sdl}
   defp parse_model_logic("ddl"), do: {:ok, :ddl}
+  defp parse_model_logic("ed_stit"), do: {:ok, :ed_stit}
+  defp parse_model_logic("ed-stit"), do: {:ok, :ed_stit}
 
   defp parse_model_logic(logic),
-    do: {:error, "Unknown model logic #{inspect(logic)}. Use sdl or ddl."}
+    do: {:error, "Unknown model logic #{inspect(logic)}. Use sdl, ddl or ed_stit."}
 
   defp maybe_put(opts, _key, nil) do
     opts
@@ -650,10 +652,20 @@ defmodule Src.Interface.CLI do
   end
 
   defp print_text_summary(summary) do
-    IO.puts(
-      "#{summary.source}: #{summary.kind}, card=#{summary.cardinality}, " <>
-        "relation=#{summary.relation}, edges=#{summary.edge_count}, atoms=#{inspect(summary.atoms)}"
-    )
+    IO.puts(format_summary(summary))
+  end
+
+  defp format_summary(%{model_logic: :ed_stit} = summary) do
+    "modalities=#{summary.modality_count}, " <>
+      "accessibility=#{summary.accessibility_count}, " <>
+      "agents=#{inspect(summary.agents)}, " <>
+      "atoms=#{inspect(summary.atoms)}"
+  end
+
+  defp format_summary(summary) do
+    "relation=#{summary.relation}, " <>
+      "edges=#{summary.edge_count}, " <>
+      "atoms=#{inspect(summary.atoms)}"
   end
 
   defp print_warnings(file, warnings) do

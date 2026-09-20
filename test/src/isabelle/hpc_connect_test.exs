@@ -121,7 +121,10 @@ defmodule Src.Isabelle.HPCConnectTest do
 
     batch_script = decode_batch_script(job_command)
     assert batch_script =~ "module load isabelle"
-    assert batch_script =~ "exec '/home/users/astage/opt/Isabelle2025-2/bin/isabelle' process_theories"
+
+    assert batch_script =~
+             "exec '/home/users/astage/opt/Isabelle2025-2/bin/isabelle' process_theories"
+
     assert batch_script =~ "-l 'HOL'"
     assert batch_script =~ "-o 'threads=6'"
     assert batch_script =~ "-f 'Remote.thy'"

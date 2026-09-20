@@ -94,7 +94,9 @@ defmodule Src.TPTP.Backend.Leo3 do
   defp extract_proof(output) do
     case Regex.run(
            ~r/%\s*SZS\s+output\s+(?:start|begin)[^\n]*\n(.*?)%\s*SZS\s+output\s+end[^\n]*/s,
-           output, capture: :all_but_first) do
+           output,
+           capture: :all_but_first
+         ) do
       [proof] -> String.trim(proof)
       nil -> nil
     end

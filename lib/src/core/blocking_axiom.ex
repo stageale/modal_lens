@@ -26,10 +26,11 @@ defmodule Src.Core.BlockingAxiom do
 
   alias Src.Core.Model
   alias Src.Core.Model.DDL
+  alias Src.Core.Model.EDSTIT
   alias Src.Core.Model.SDL
 
   @typedoc "A finite model supported by blocking-axiom generation."
-  @type model :: SDL.t() | DDL.t()
+  @type model :: SDL.t() | DDL.t() | EDSTIT.t()
 
   @typedoc "An Isabelle/HOL formula fragment."
   @type formula :: String.t()
@@ -161,11 +162,14 @@ defmodule Src.Core.BlockingAxiom do
         world_prefix
       )
 
+    agents =
+      agent_variables(model)
+
     structural_clauses =
       [
         distinct_clause(worlds),
         domain_closure_clause(worlds)
-      ]
+      ] ++ agent_clauses(model, agents)
 
     initial_clauses =
       designated_world_clauses(
@@ -176,7 +180,7 @@ defmodule Src.Core.BlockingAxiom do
       )
 
     relation_clauses =
-      relation_clauses(model, worlds)
+      relation_clauses(model, worlds, agents)
 
     valuation_clauses =
       valuation_clauses(
@@ -193,7 +197,7 @@ defmodule Src.Core.BlockingAxiom do
       |> and_clauses(2)
 
     quantified_worlds =
-      Enum.join(worlds, " ")
+      Enum.join(worlds ++ agents, " ")
 
     """
     #{@isabelle_exists}#{quantified_worlds}.
@@ -259,6 +263,19 @@ defmodule Src.Core.BlockingAxiom do
     end
   end
 
+  @spec agent_variables(model()) :: [String.t()]
+  defp agent_variables(%EDSTIT{agents: agents}) do
+    agents
+    |> Enum.with_index(1)
+    |> Enum.map(fn {_agent, index} ->
+      "a#{index}"
+    end)
+  end
+
+  defp agent_variables(_model) do
+    []
+  end
+
   @spec distinct_clause([world_variable()]) :: formula()
   defp distinct_clause(worlds) do
     "distinct [#{Enum.join(worlds, ", ")}]"
@@ -278,8 +295,35 @@ defmodule Src.Core.BlockingAxiom do
     "(#{@isabelle_forall}x. #{alternatives})"
   end
 
-  @spec relation_clauses(model(), [world_variable()]) :: [formula()]
-  defp relation_clauses(%{} = model, worlds) do
+  @spec agent_clauses(model(), [String.t()]) :: [formula()]
+  defp agent_clauses(%EDSTIT{}, agents) do
+    distinct =
+      case agents do
+        [_first, _second | _rest] ->
+          ["distinct [#{Enum.join(agents, ", ")}]"]
+
+        _ ->
+          []
+      end
+
+    active =
+      Enum.map(agents, fn agent ->
+        "(Agent #{agent})"
+      end)
+
+    distinct ++ active
+  end
+
+  defp agent_clauses(_model, _agents) do
+    []
+  end
+
+  @spec relation_clauses(model(), [world_variable()], [String.t()]) :: [formula()]
+  defp relation_clauses(%EDSTIT{} = model, worlds, agents) do
+    ed_stit_relation_clauses(model, worlds, agents)
+  end
+
+  defp relation_clauses(%{} = model, worlds, _agents) do
     for source_index <-
           0..(model.cardinality - 1),
         target_index <-
@@ -301,6 +345,125 @@ defmodule Src.Core.BlockingAxiom do
 
       literal(proposition, truth)
     end
+  end
+
+  defp ed_stit_relation_clauses(
+         %EDSTIT{} = model,
+         worlds,
+         agent_variables
+       ) do
+    agent_map =
+      model.agents
+      |> Enum.zip(agent_variables)
+      |> Map.new()
+
+    model.modalities
+    |> Enum.flat_map(fn modality ->
+      modality_clauses(
+        modality,
+        model.cardinality,
+        worlds,
+        agent_map
+      )
+    end)
+  end
+
+  defp modality_clauses(
+         %{kind: :settledness} = modality,
+         cardinality,
+         worlds,
+         _agent_map
+       ) do
+    modality_accessibility_clauses(
+      modality,
+      cardinality,
+      worlds,
+      nil
+    )
+  end
+
+  defp modality_clauses(
+         %{agent: agent} = modality,
+         cardinality,
+         worlds,
+         agent_map
+       ) do
+    agent_variable =
+      Map.fetch!(
+        agent_map,
+        agent
+      )
+
+    modality_accessibility_clauses(
+      modality,
+      cardinality,
+      worlds,
+      agent_variable
+    )
+  end
+
+  defp modality_accessibility_clauses(
+         modality,
+         cardinality,
+         worlds,
+         agent_variable
+       ) do
+    for source_index <-
+          0..(cardinality - 1),
+        target_index <-
+          0..(cardinality - 1) do
+      source_world =
+        Enum.at(
+          worlds,
+          source_index
+        )
+
+      target_world =
+        Enum.at(
+          worlds,
+          target_index
+        )
+
+      proposition =
+        modality_proposition(
+          modality,
+          agent_variable,
+          source_world,
+          target_world
+        )
+
+      truth =
+        MapSet.member?(
+          modality.accessibility,
+          {
+            source_index,
+            target_index
+          }
+        )
+
+      literal(
+        proposition,
+        truth
+      )
+    end
+  end
+
+  defp modality_proposition(
+         %{kind: :settledness, symbol: symbol},
+         nil,
+         source_world,
+         target_world
+       ) do
+    "(#{symbol} #{source_world} #{target_world})"
+  end
+
+  defp modality_proposition(
+         %{symbol: symbol},
+         agent,
+         source_world,
+         target_world
+       ) do
+    "(#{symbol} #{agent} #{source_world} #{target_world})"
   end
 
   @spec relation_proposition(model(), world_variable(), world_variable()) :: formula()
@@ -470,6 +633,21 @@ defmodule Src.Core.BlockingAxiom do
   end
 
   @spec validate_relation_name!(model()) :: :ok
+  defp validate_relation_name!(%EDSTIT{} = model) do
+    Enum.each(model.modalities, fn modality ->
+      validate_isabelle_identifier!(modality.symbol, :modality)
+
+      if modality.kind != :settledness and modality.agent not in model.agents do
+        raise ArgumentError,
+              "modality #{inspect(modality.symbol)}" <>
+                "references unknown agent " <>
+                inspect(modality.agent)
+      end
+    end)
+
+    :ok
+  end
+
   defp validate_relation_name!(%{relation_name: relation_name}) do
     validate_isabelle_identifier!(relation_name, :relation)
   end

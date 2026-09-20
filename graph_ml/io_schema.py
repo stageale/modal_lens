@@ -67,9 +67,24 @@ def _dict_to_nx_graph(model: Mapping[str, Any]) -> nx.DiGraph:
     nx.set_node_attributes(graph, False, "designated")
     graph.nodes[designated_index]["designated"] = True
 
-    relation = model.get("relation", "R")
+    relation = model.get("relation")
 
-    graph.add_edges_from((source, target, {"label": relation}) for source, target in model["edges"])
+    if "modalities" in model:
+        edge_labels = {}
+        for modality in model["modalities"]:
+            label = str(modality["id"])
+
+            for source, target in modality.get("accessibility", []):
+                edge_labels.setdefault((source, target), set()).add(label)
+
+        graph.add_edges_from((source, target, {"label": tuple(sorted(labels))}) for (source, target), labels in edge_labels.items())
+        graph.graph["modalities"] = tuple(sorted(str(modality["id"]) for modality in model["modalities"]))
+
+        graph.graph["agents"] = tuple(sorted(str(agent) for agent in model.get("agents", [])))
+    else:
+        relation = relation or "R"
+        
+        graph.add_edges_from((source, target, {"label": relation}) for source, target in model["edges"])
 
     graph.graph["logic"] = model.get("logic")
     graph.graph["kind"] = model.get("kind")

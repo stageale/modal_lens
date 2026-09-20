@@ -70,24 +70,36 @@ def triangle3():
     )
 
 
-def test_pattern_occurrences_keeps_only_weakly_connected_induced_subgraphs():
-    pattern = ("graphlet", 3, 2)
-
+def test_pattern_occurrences_keeps_weakly_connected_graphlets_up_to_max_size():
     assert mining.pattern_occurrences(path4()) == {
-        pattern: [
+        ("graphlet", 2, 1): [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+        ],
+        ("graphlet", 3, 2): [
             (0, 1, 2),
             (1, 2, 3),
-        ]
+        ],
     }
 
 
-def test_pattern_occurrences_returns_empty_when_size_exceeds_node_count():
-    assert mining.pattern_occurrences(path3(), size=4) == {}
+def test_pattern_occurrences_keeps_smaller_graphlets_when_max_size_exceeds_node_count():
+    assert mining.pattern_occurrences(path3(), size=4) == {
+        ("graphlet", 2, 1): [
+            (0, 1),
+            (1, 2),
+        ],
+        ("graphlet", 3, 2): [
+            (0, 1, 2),
+        ],
+    }
 
 
-def test_graph_patterns_returns_only_pattern_keys():
+def test_graph_patterns_returns_pattern_keys_up_to_max_size():
     assert mining.graph_patterns(path4()) == {
-        ("graphlet", 3, 2)
+        ("graphlet", 2, 1),
+        ("graphlet", 3, 2),
     }
 
 
@@ -106,7 +118,8 @@ def test_frequent_patterns_counts_graph_support_not_number_of_occurrences():
     # Das Pfadmuster kommt in path4() zweimal vor.
     # Trotzdem trägt der Graph nur einmal zum Support bei.
     assert result == {
-        ("graphlet", 3, 2): pytest.approx(2 / 3)
+        ("graphlet", 2, 1): pytest.approx(1.0),
+        ("graphlet", 3, 2): pytest.approx(2 / 3),
     }
 
 

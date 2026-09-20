@@ -129,6 +129,68 @@ def test_build_report_does_not_infer_designated_as_an_atom() -> None:
     assert report["clusters"][0]["representative_model"]["atoms"] == ["p"]
 
 
+
+def test_build_report_preserves_multimodal_signature() -> None:
+    graph = nx.DiGraph()
+    graph.add_node(0, p=True, designated=True)
+    graph.add_node(1, p=False, designated=False)
+    graph.add_edge(
+        0,
+        1,
+        label=("belief:provider", "settledness"),
+    )
+    graph.graph.update(
+        {
+            "logic": "ed_stit",
+            "kind": "countermodel",
+            "relation": None,
+            "modalities": (
+                "belief:provider",
+                "settledness",
+            ),
+            "agents": ("provider",),
+            "atoms": ("p",),
+            "designated_world": 0,
+            "model_id": "ed-stit-0",
+        }
+    )
+
+    report = build_report(
+        theory="theory Example imports Main begin end",
+        graphs=[graph],
+        cluster_labels=[0],
+        cluster_pattern_results={0: []},
+        highlights=[],
+    )
+
+    assert report["analysis"]["signature"] == {
+        "atoms": ["p"],
+        "relation": None,
+        "modalities": [
+            "belief:provider",
+            "settledness",
+        ],
+    }
+    assert report["analysis"]["refinement_candidate_count"] == 0
+
+    representative = report["clusters"][0]["representative_model"]
+    assert representative["modalities"] == [
+        "belief:provider",
+        "settledness",
+    ]
+    assert representative["agents"] == ["provider"]
+    assert representative["edges"] == [
+        {
+            "source": 0,
+            "target": 1,
+            "label": [
+                "belief:provider",
+                "settledness",
+            ],
+        }
+    ]
+
+
 def test_build_report_validates_parallel_inputs() -> None:
     with pytest.raises(ValueError, match="must match"):
         build_report(

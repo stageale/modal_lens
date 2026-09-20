@@ -62,27 +62,40 @@ def _graph_atoms(graph: nx.DiGraph) -> list[str]:
         
     return sorted(atoms)
 
-def _analysis_signature(graphs: Sequence[nx.DiGraph]) -> tuple[list[str], str | None]:
+def _analysis_signature(graphs: Sequence[nx.DiGraph]) -> tuple[list[str], str | None, list[str]]:
     signatures = {
         (
             tuple(_graph_atoms(graph)),
-            str(graph.graph.get("relation", "R"))
+            (
+                None
+                if graph.graph.get("relation") is None
+                else str(graph.graph["relation"])
+            ),
+            tuple(
+                sorted(
+                    str(modality)
+                    for modality in graph.graph.get(
+                        "modalities",
+                        ()
+                    )
+                )
+            )
         )
         for graph in graphs
     }
 
     if not signatures:
-        return [], None
+        return [], None, []
 
     if len(signatures) != 1:
         raise ValueError(
             "All analyzed models must use the same proposition "
-            "and relation signature."
+            "and modal signature."
         )
 
-    atoms, relation = next(iter(signatures))
+    atoms, relation, modalities = next(iter(signatures))
 
-    return list(atoms), relation
+    return (list(atoms), relation, list(modalities),)
 
 def _designated_world(graph: nx.DiGraph) -> Any:
     designated_world = graph.graph.get("designated_world")
@@ -96,7 +109,8 @@ def _model_id(graph: nx.DiGraph, graph_index: int) -> str:
 
 def _model_report(graph: nx.DiGraph, graph_index: int) -> dict[str, Any]:
     atoms = _graph_atoms(graph)
-    relation = str(graph.graph.get("relation", "R"))
+    relation_value = graph.graph.get("relation")
+    relation = (None if relation_value is None else str(relation_value))
     
     worlds = []
     
@@ -116,8 +130,8 @@ def _model_report(graph: nx.DiGraph, graph_index: int) -> dict[str, Any]:
         
         label = attributes.get("label")
         
-        if label is not None and str(label) != relation:
-            edge["label"] = str(label)
+        if label is not None and (relation is None or str(label) != relation):
+            edge["label"] = _json_value(label)
             
         edges.append(edge)
         
@@ -133,6 +147,12 @@ def _model_report(graph: nx.DiGraph, graph_index: int) -> dict[str, Any]:
         "worlds": worlds,
         "edges": edges
     }
+
+    if graph.graph.get("modalities"):
+        model["modalities"] = _json_value(graph.graph["modalities"])
+
+    if graph.graph.get("agents"):
+        model["agents"] = _json_value(graph.graph["agents"])
     
     if "verification" in graph.graph:
         model["verification"] = _json_value(graph.graph["verification"])
@@ -154,9 +174,6 @@ def _pattern_report(pattern_data: Mapping[str, Any], *, cluster_label: int, rank
     refinement_candidate = None
 
     if occurrence_models: 
-        if relation is None:
-            raise ValueError("A pattern occurrence requires a relation signature.")
-
         graph_index = occurrence_models[0]
         first_occurrence = occurrences[graph_index][0]
 
@@ -166,18 +183,16 @@ def _pattern_report(pattern_data: Mapping[str, Any], *, cluster_label: int, rank
                 graph_index,
             ),
             "graph_index": graph_index,
-            "worlds": _json_value(
-                first_occurrence
-            ),
+            "worlds": _json_value(first_occurrence)
         }
-
-        refinement_candidate = derive_exclusion_candidate(
-            pattern_data,
-            cluster_id=cluster_label,
-            rank=rank,
-            atoms=atoms,
-            relation=relation
-        )
+        if relation is not None:
+            refinement_candidate = derive_exclusion_candidate(
+                pattern_data,
+                cluster_id=cluster_label,
+                rank=rank,
+                atoms=atoms,
+                relation=relation
+            )
 
     return {
         "pattern_id": pattern_id,
@@ -206,7 +221,7 @@ def build_report(*,
     """
     graphs = list(graphs)
 
-    atoms, relation = _analysis_signature(graphs)
+    atoms, relation, modalities = _analysis_signature(graphs)
 
     cluster_labels = [int(label) for label in cluster_labels]
 
@@ -304,6 +319,14 @@ def build_report(*,
         for cardinality, indices in sorted(cardinality_indices.items())
     ]
 
+    signature = {
+        "atoms": atoms,
+        "relation": relation
+    }
+
+    if modalities:
+        signature["modalities"] = modalities
+
     return {
         "schema": REPORT_SCHEMA,
         "schema_version": REPORT_SCHEMA_VERSION,
@@ -330,10 +353,7 @@ def build_report(*,
             "reported_pattern_count": (reported_pattern_count),
             "refinement_candidate_count": len(refinement_candidates),
             "by_cardinality": cardinality_reports,
-            "signature": {
-                "atoms": atoms,
-                "relation": relation,
-            }
+            "signature": signature
         },
         "refinement_candidates": refinement_candidates,
         "clusters": cluster_reports,

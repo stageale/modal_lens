@@ -2,6 +2,8 @@ defmodule Src.Explanation.Visual.RenderTest do
   use ExUnit.Case, async: true
 
   alias Src.Core.Model.DDL
+  alias Src.Core.Model.EDSTIT, as: EDSTITModel
+  alias Src.Core.Model.Modality
   alias Src.Core.Model.SDL
   alias Src.Explanation.Visual.Highlight
   alias Src.Explanation.Visual.Palette
@@ -76,6 +78,53 @@ defmodule Src.Explanation.Visual.RenderTest do
     assert content =~ "\\node[world] (w0)"
     assert content =~ "i1: go"
     assert content =~ "\\path[->,loop above] (w0) edge (w0);"
+  end
+
+
+  test "writes ED-STIT modalities as labelled DOT edges" do
+    model = %EDSTITModel{
+      kind: :countermodel,
+      cardinality: 2,
+      actual_world: 0,
+      agents: ["provider"],
+      modalities: [
+        Modality.new!("RBox", :settledness, [{0, 1}]),
+        Modality.new!("RBel", :belief, [{0, 1}], agent: "provider"),
+        Modality.new!("ROught", :ought, [{1, 1}], agent: "provider")
+      ],
+      valuations: %{"p" => [true, false]}
+    }
+
+    path = Render.write_dot(model, tmp_path("ed_stit.dot"), atoms: ["p"])
+    content = File.read!(path)
+
+    assert content =~ "digraph EDSTITModel"
+    assert content =~ "init -> w0"
+    assert content =~ ~s(label="settled")
+    assert content =~ ~s|label="Belief(provider)"|
+    assert content =~ ~s|label="Ought(provider)"|
+  end
+
+  test "writes ED-STIT modalities as TikZ edges" do
+    model = %EDSTITModel{
+      kind: :countermodel,
+      cardinality: 2,
+      actual_world: 0,
+      agents: ["provider"],
+      modalities: [
+        Modality.new!("RStit", :stit, [{0, 1}], agent: "provider"),
+        Modality.new!("RBel", :belief, [{0, 1}], agent: "provider")
+      ],
+      valuations: %{}
+    }
+
+    path = Render.write_tikz(model, tmp_path("ed_stit.tex"))
+    content = File.read!(path)
+
+    assert content =~ "STIT(provider)"
+    assert content =~ "Belief(provider)"
+    assert content =~ "bend left=12"
+    assert content =~ "bend left=24"
   end
 
   test "reports missing external renderers" do

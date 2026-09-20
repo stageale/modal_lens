@@ -18,14 +18,16 @@ defmodule Src.Core.Parser do
   """
 
   alias Src.Core.Model.DDL, as: DDLModel
+  alias Src.Core.Model.EDSTIT, as: EDSTITModel
+  alias Src.Core.Parser.EDSTIT, as: EDSTITParser
   alias Src.Core.Model.SDL, as: SDLModel
   alias Src.Core.ParseWarning
 
   @typedoc "A model representation produced by the parser."
-  @type model :: SDLModel.t() | DDLModel.t()
+  @type model :: SDLModel.t() | DDLModel.t() | EDSTITModel.t()
 
   @typedoc "A supported model logic."
-  @type model_logic :: :sdl | :ddl
+  @type model_logic :: :sdl | :ddl | :ed_stit
 
   @typedoc "The kind of finite structure reported by Nitpick."
   @type result_kind :: :model | :countermodel
@@ -134,6 +136,17 @@ defmodule Src.Core.Parser do
   """
   @spec parse_nitpick_text(String.t(), keyword()) :: model()
   def parse_nitpick_text(text, opts \\ []) do
+    case Keyword.get(opts, :model_logic, :sdl) do
+      :ed_stit ->
+        EDSTITParser.parse(text, opts)
+
+      _ ->
+        parse_unimodal_nitpick_text(text, opts)
+    end
+  end
+
+  @spec parse_unimodal_nitpick_text(String.t(), keyword()) :: model()
+  defp parse_unimodal_nitpick_text(text, opts) do
     text = isolate_last_nitpick_result(text)
 
     model_logic = Keyword.get(opts, :model_logic, :sdl)
@@ -280,7 +293,7 @@ defmodule Src.Core.Parser do
           non_neg_integer()
         ) :: MapSet.t(edge())
   defp parse_flat_relation_edges(text, relation, cardinality) do
-    case extract_assignment_block(text, relation, true) do
+    case extract_assignment_block(text, relation) do
       nil ->
         MapSet.new()
 
@@ -301,7 +314,7 @@ defmodule Src.Core.Parser do
           non_neg_integer()
         ) :: MapSet.t(edge())
   defp parse_nested_relation_edges(text, relation, cardinality) do
-    case extract_assignment_block(text, relation, true) do
+    case extract_assignment_block(text, relation) do
       nil ->
         MapSet.new()
 
@@ -326,7 +339,7 @@ defmodule Src.Core.Parser do
           non_neg_integer()
         ) :: valuation() | nil
   defp parse_unary_predicate(text, atom, cardinality) do
-    case extract_assignment_block(text, atom, true) do
+    case extract_assignment_block(text, atom) do
       nil ->
         nil
 
@@ -364,20 +377,11 @@ defmodule Src.Core.Parser do
         do: {name, val}
   end
 
-  @spec extract_assignment_block(
-          String.t(),
-          String.t(),
-          boolean()
-        ) :: String.t() | nil
-  defp extract_assignment_block(text, name, allow_parenthesized) do
+  @spec extract_assignment_block(String.t(), String.t()) :: String.t() | nil
+  defp extract_assignment_block(text, name) do
     escaped = Regex.escape(name)
 
-    lhs =
-      if allow_parenthesized do
-        "(?:\\(#{escaped}\\)|#{escaped})"
-      else
-        escaped
-      end
+    lhs = "(?:\\(#{escaped}\\)|#{escaped})"
 
     start_pattern = Regex.compile!("(?:^|\\n)\\s*#{lhs}\\s*=")
 
@@ -386,22 +390,41 @@ defmodule Src.Core.Parser do
         nil
 
       [{start_pos, length}] ->
-        rest = binary_part(text, start_pos, byte_size(text) - start_pos)
+        rest =
+          binary_part(
+            text,
+            start_pos,
+            byte_size(text) - start_pos
+          )
+
         search_offset = length
-        text_after_match = binary_part(rest, search_offset, byte_size(rest) - search_offset)
+
+        text_after_match =
+          binary_part(
+            rest,
+            search_offset,
+            byte_size(rest) - search_offset
+          )
 
         next_assign_pattern =
           Regex.compile!(
             "\\n\\s*(?:#{@identifier}|\\(#{@identifier}\\)|λx\\.\\s*\\?\\?\\.[^=]+)\\s*="
           )
 
-        case Regex.run(next_assign_pattern, text_after_match, return: :index) do
+        case Regex.run(
+               next_assign_pattern,
+               text_after_match,
+               return: :index
+             ) do
           nil ->
             rest
 
-          [{next_start, _}] ->
-            block_end = search_offset + next_start
-            binary_part(rest, 0, block_end)
+          [{next_pos, _next_length}] ->
+            binary_part(
+              rest,
+              0,
+              search_offset + next_pos
+            )
         end
     end
   end

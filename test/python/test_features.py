@@ -319,7 +319,8 @@ def test_graphlet_counts_connected_kripke_structure(
         size=3,
     )
 
-    assert sum(features.values()) == 1
+    assert sum(features.values()) == 3
+    assert {feature[1] for feature in features} == {2, 3}
 
 
 def test_graphlet_ignores_disconnected_node_sets():
@@ -337,7 +338,8 @@ def test_graphlet_ignores_disconnected_node_sets():
         size=3,
     )
 
-    assert features == {}
+    assert sum(features.values()) == 1
+    assert {feature[1] for feature in features} == {2}
 
 
 def test_graphlet_treats_designated_world_like_other_worlds(
@@ -441,6 +443,28 @@ def test_graphlet_distinguishes_relation_labels():
         graphlet_feature_vector(first, size=2)
         != graphlet_feature_vector(second, size=2)
     )
+
+
+def test_graphlet_preserves_multimodal_edge_labels():
+    graph = nx.DiGraph()
+    graph.graph["atoms"] = ("p",)
+    graph.add_node(0, p=True)
+    graph.add_node(1, p=False)
+    graph.add_edge(
+        0,
+        1,
+        label=("settledness", "belief:provider"),
+    )
+
+    features = graphlet_feature_vector(graph, size=2)
+    [(pattern, count)] = features.items()
+
+    assert count == 1
+    assert pattern[1] == 2
+    assert (
+        "belief:provider",
+        "settledness",
+    ) in {cell[1] for cell in pattern[2][1] if cell[0] == 1}
 
 
 def test_graphlet_matches_renamed_kripke_structure():

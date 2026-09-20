@@ -131,7 +131,7 @@ def graphlet_features(graphs, size=3):
                 
                 graphlet = _canonical_graphlet(graph, nodes, atoms)
 
-                graphlet_counts[("graphlet", size, graphlet)] += 1
+                graphlet_counts[("graphlet", graphlet_size, graphlet)] += 1
         
         features.append(dict(graphlet_counts))
     
@@ -147,14 +147,26 @@ def graphlet_feature_vector(graph, size=3, occurrences=None):
 def _world_valuation(attributes, atoms):
     return tuple(atom for atom in atoms if attributes.get(atom, False))
 
+def _canonical_edge_label(label):
+    if isinstance(label, (tuple, list)):
+        return tuple(sorted(str(item) for item in label))
+
+    return str(label)
+
+
 def _canonical_graphlet(graph, nodes, atoms):
     representations = []
     
     for ordering in permutations(nodes):
         node_labels = tuple(_world_valuation(graph.nodes[world], atoms) for world in ordering)
         
-        edges = tuple((1, str(_edge_label(graph, source, target))) if graph.has_edge(source, target) else (0, None) for source in ordering
-                                                                                                                    for target in ordering)
+        edges = tuple(
+            (1, _canonical_edge_label(_edge_label(graph, source, target)))
+            if graph.has_edge(source, target)
+            else (0, None)
+            for source in ordering
+            for target in ordering
+        )
         
         representations.append((node_labels, edges))
         

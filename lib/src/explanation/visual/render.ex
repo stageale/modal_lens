@@ -7,12 +7,36 @@ defmodule Src.Explanation.Visual.Render do
   """
 
   alias Src.Core.Model
+  alias Src.Core.Model.DDL
+  alias Src.Core.Model.EDSTIT, as: EDSTITModel
+  alias Src.Explanation.Visual.EDSTIT, as: EDSTITVisual
   alias Src.Explanation.Visual.Palette
+  alias Src.Explanation.Visual.PreferenceLayers
 
   @doc "Writes a model visualization as a GraphViz DOT file."
   @spec write_dot(Model.model(), Path.t()) :: String.t()
   @spec write_dot(Model.model(), Path.t(), keyword()) :: String.t()
-  def write_dot(model, path, opts \\ []) do
+  def write_dot(model, path, opts \\ [])
+
+  def write_dot(%EDSTITModel{} = model, path, opts) do
+    EDSTITVisual.write_dot(model, path, opts)
+  end
+
+  def write_dot(%DDL{} = model, path, opts) do
+    case preference_layers(model, opts) do
+      {:ok, layers} ->
+        write_preference_dot(model, layers, path, opts)
+
+      :generic ->
+        write_generic_dot(model, path, opts)
+    end
+  end
+
+  def write_dot(model, path, opts) do
+    write_generic_dot(model, path, opts)
+  end
+
+  def write_generic_dot(model, path, opts \\ []) do
     Model.assert_supported!(model)
 
     atoms = Keyword.get(opts, :atoms)
@@ -92,7 +116,27 @@ defmodule Src.Explanation.Visual.Render do
   @doc "Writes a model visualization as a standalone TikZ document."
   @spec write_tikz(Model.model(), Path.t()) :: String.t()
   @spec write_tikz(Model.model(), Path.t(), keyword()) :: String.t()
-  def write_tikz(model, path, opts \\ []) do
+  def write_tikz(model, path, opts \\ [])
+
+  def write_tikz(%EDSTITModel{} = model, path, opts) do
+    EDSTITVisual.write_tikz(model, path, opts)
+  end
+
+  def write_tikz(%DDL{} = model, path, opts) do
+    case preference_layers(model, opts) do
+      {:ok, layers} ->
+        write_preference_tikz(model, layers, path, opts)
+
+      :generic ->
+        write_generic_tikz(model, path, opts)
+    end
+  end
+
+  def write_tikz(model, path, opts) do
+    write_generic_tikz(model, path, opts)
+  end
+
+  def write_generic_tikz(model, path, opts \\ []) do
     Model.assert_supported!(model)
 
     d_world = Model.designated_world(model)
@@ -344,5 +388,268 @@ defmodule Src.Explanation.Visual.Render do
 
   defp tikz_rgb({red, green, blue}) do
     "{rgb,255:red,#{red};green,#{green};blue,#{blue}}"
+  end
+
+  defp preference_layers(%DDL{} = model, opts) do
+    case Keyword.get(opts, :preference_layers, :auto) do
+      false ->
+        :generic
+
+      :auto ->
+        case PreferenceLayers.from_model(model) do
+          {:ok, layers} ->
+            {:ok, layers}
+
+          {:error, _reason} ->
+            :generic
+        end
+
+      :required ->
+        case PreferenceLayers.from_model(model) do
+          {:ok, layers} ->
+            {:ok, layers}
+
+          {:error, reason} ->
+            raise ArgumentError,
+                  "DDL preference-layer visualization requires a finite" <>
+                    "total preorder, got: #{inspect(reason)}"
+        end
+
+      %PreferenceLayers{} = layers ->
+        {:ok, layers}
+
+      other ->
+        raise ArgumentError,
+              "invalid :preference_layers option: #{inspect(other)}"
+    end
+  end
+
+  defp write_preference_dot(%DDL{} = model, %PreferenceLayers{} = layers, path, opts) do
+    atoms = Keyword.get(opts, :atoms)
+    highlight = Keyword.get(opts, :highlight)
+    palette = Keyword.get(opts, :palette, Palette.default())
+    path = to_string(path)
+
+    mkdir_parent!(path)
+
+    lines =
+      [
+        "digraph #{Model.graph_name(model)} {",
+        "  rankdir=TB;",
+        "  compound=true;",
+        "  node [shape=circle, fontsize=10, fixedsize=true, width=1.35];",
+        ""
+      ] ++
+        dot_preference_layers(
+          model,
+          layers,
+          atoms,
+          highlight,
+          palette
+        ) ++
+        [
+          "",
+          "  init [shape=plaintext, label=\"actual\"];",
+          "  init -> w#{Model.designated_world(model)} [penwidth=2];",
+          ""
+        ] ++
+        dot_layer_constraints(layers) ++
+        ["}"]
+
+    File.write!(path, Enum.join(lines, "\n") <> "\n")
+    path
+  end
+
+  defp dot_preference_layers(
+         model,
+         %PreferenceLayers{layers: layers},
+         atoms,
+         highlight,
+         palette
+       ) do
+    layers
+    |> Enum.flat_map(fn %{rank: rank, worlds: worlds} ->
+      label =
+        if rank == 0 do
+          "Layer 0 — optimal"
+        else
+          "Layer #{rank}"
+        end
+
+      world_lines =
+        Enum.map(worlds, fn world ->
+          world_label =
+            model
+            |> Model.label_for_world(world, atoms)
+            |> dot_escape()
+
+          attrs =
+            dot_world_attributes(
+              world_label,
+              highlight,
+              palette,
+              world
+            )
+
+          "    w#{world} #{attrs};"
+        end)
+
+      [
+        "  subgraph cluster_layer_#{rank} {",
+        ~s/    label="#{label}";/,
+        "    rank=same;"
+      ] ++ world_lines ++ ["  }", ""]
+    end)
+  end
+
+  defp dot_layer_constraints(%PreferenceLayers{layers: layers}) do
+    layers
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.map(fn [
+                     %{worlds: [upper | _]},
+                     %{worlds: [lower | _]}
+                   ] ->
+      "  w#{upper} -> w#{lower} [style=invis, weight=100];"
+    end)
+  end
+
+  defp write_preference_tikz(
+         %DDL{} = model,
+         %PreferenceLayers{} = layers,
+         path,
+         opts
+       ) do
+    d_world = Model.designated_world(model)
+    atoms = Keyword.get(opts, :atoms)
+    highlight = Keyword.get(opts, :highlight)
+    palette = Keyword.get(opts, :palette, Palette.default())
+
+    world_spacing = Keyword.get(opts, :preference_world_spacing, 3.0)
+    layer_spacing = Keyword.get(opts, :preference_layer_spacing, 3.0)
+
+    path = to_string(path)
+
+    mkdir_parent!(path)
+
+    lines =
+      [
+        ~S(\documentclass[tikz,border=3mm]{standalone}),
+        ~S(\usetikzlibrary{calc,positioning,fit,backgrounds}),
+        ~S(\tikzset{world/.style={circle,draw,minimum size=1.5cm,inner sep=1pt,align=center,font=\small}}),
+        ~S(\tikzset{preference layer/.style={draw=gray!60,rounded corners=2pt,inner sep=7mm}}),
+        ~S(\tikzset{preference order/.style={->,densely dashed,gray!70}}),
+        "",
+        ~S(\begin{document}),
+        ~S(\begin{tikzpicture}[>=stealth]),
+        ""
+      ] ++
+        tikz_preference_world_lines(
+          model,
+          layers,
+          atoms,
+          highlight,
+          palette,
+          world_spacing,
+          layer_spacing
+        ) ++
+        [""] ++
+        tikz_preference_layer_boxes(layers) ++
+        [""] ++
+        tikz_preference_order_lines(layers) ++
+        [
+          "",
+          "  \\draw[->,thick] ($ (w#{d_world}.west)+(-8mm,0) $) -- (w#{d_world}.west);",
+          ~S(\end{tikzpicture}),
+          ~S(\end{document})
+        ]
+
+    File.write!(path, Enum.join(lines, "\n") <> "\n")
+    path
+  end
+
+  defp tikz_preference_world_lines(
+         model,
+         %PreferenceLayers{layers: layers},
+         atoms,
+         highlight,
+         palette,
+         world_spacing,
+         layer_spacing
+       ) do
+    Enum.flat_map(layers, fn %{rank: rank, worlds: worlds} ->
+      count = length(worlds)
+      y = -rank * layer_spacing
+
+      worlds
+      |> Enum.with_index()
+      |> Enum.map(fn {world, index} ->
+        x =
+          (index - (count - 1) / 2) *
+            world_spacing
+
+        label =
+          model
+          |> Model.label_for_world(world, atoms)
+          |> latex_escape()
+
+        options =
+          tikz_world_options(
+            highlight,
+            palette,
+            world
+          )
+
+        "  \\node[#{options}] (w#{world}) " <>
+          "at (#{format_float(x)},#{format_float(y)}) " <>
+          "{#{label}};"
+      end)
+    end)
+  end
+
+  defp tikz_preference_layer_boxes(%PreferenceLayers{layers: layers}) do
+    [
+      ~S(  \begin{scope}[on background layer])
+    ] ++
+      Enum.map(layers, fn %{rank: rank, worlds: worlds} ->
+        fit_nodes =
+          worlds
+          |> Enum.map_join("", fn world ->
+            "(w#{world})"
+          end)
+
+        label =
+          if rank == 0 do
+            "Layer 0 (optimal)"
+          else
+            "Layer #{rank}"
+          end
+
+        "    \\node[preference layer,fit=#{fit_nodes}," <>
+          "label={[font=\\small]above:{#{label}}}] " <>
+          "(layer#{rank}) {};"
+      end) ++
+      [
+        ~S(  \end{scope})
+      ]
+  end
+
+  defp tikz_preference_order_lines(%PreferenceLayers{layers: layers}) do
+    layers
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.map(fn [
+                     %{rank: better_rank},
+                     %{rank: worse_rank}
+                   ] ->
+      label =
+        if better_rank == 0 do
+          " node[right,font=\\scriptsize]{less preferred}"
+        else
+          ""
+        end
+
+      "  \\draw[preference order] " <>
+        "(layer#{better_rank}.south) --#{label} " <>
+        "(layer#{worse_rank}.north);"
+    end)
   end
 end
