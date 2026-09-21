@@ -69,7 +69,7 @@ lemma contrary_to_duty_obligation:
 
 section \<open>Axiom Refiner query\<close>
 
-abbreviation axiom_refiner_query :: bool where
-  "axiom_refiner_query \<equiv> holds_at_actual (O tell)"
+abbreviation modal_lens_query :: bool where
+  "modal_lens_query \<equiv> holds_at_actual (O tell)"
 
 end

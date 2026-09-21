@@ -57,8 +57,8 @@ and
 
 section \<open>Axiom Refiner query\<close>
 
-abbreviation axiom_refiner_query :: bool where
-  "axiom_refiner_query \<equiv>
+abbreviation modal_lens_query :: bool where
+  "modal_lens_query \<equiv>
      \<lfloor>\<^bold>\<circle><\<^bold>\<not>tell>\<rfloor>\<^sub>l"
 
 end

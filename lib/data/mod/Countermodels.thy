@@ -5,7 +5,7 @@ begin
 (* MODAL_LENS_BLOCKS *)
 
 lemma modal_lens_probe:
-    "axiom_refiner_query"
+    "modal_lens_query"
     nitpick [
         user_axioms,
         card i = 2,
