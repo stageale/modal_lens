@@ -339,6 +339,28 @@ defmodule Src.Isabelle.Client do
   defp local_import_files(nil), do: []
 
   defp local_import_files(theory_path) do
+    collect_local_imports(Path.expand(theory_path), MapSet.new())
+  end
+
+  defp collect_local_imports(theory_path, visited) do
+    if MapSet.member?(visited, theory_path) do
+      []
+    else
+      visited = MapSet.put(visited, theory_path)
+
+      direct_imports = direct_local_import_files(theory_path)
+
+      transitive_imports =
+        Enum.flat_map(direct_imports, fn import_path ->
+          collect_local_imports(import_path, visited)
+        end)
+
+        (transitive_imports ++ direct_imports)
+        |> Enum.uniq()
+    end
+  end
+
+  defp direct_local_import_files(theory_path) do
     with {:ok, source} <- File.read(theory_path),
          [imports] <- Regex.run(~r/\bimports\s+(.*?)\bbegin\b/s, source, capture: :all_but_first) do
       imports
