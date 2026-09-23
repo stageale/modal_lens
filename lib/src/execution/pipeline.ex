@@ -184,8 +184,17 @@ defmodule Src.Execution.Pipeline do
           "transformers"
         )
 
+      execution_backend =
+        case backend do
+          "ollama" ->
+            :local
+
+          _other ->
+            Map.get(run.params, :backend, :local)
+        end
+
       launcher_options = [
-        execution_backend: Map.get(run.params, :backend, :local),
+        execution_backend: execution_backend,
         project_root: Map.get(run.params, :project_root, File.cwd!()),
         uv_executable: Map.get(run.params, :uv_executable, "uv"),
         output_name: ".",
@@ -446,12 +455,20 @@ defmodule Src.Execution.Pipeline do
       report_path
     ]
 
-    feature_arguments =
+    cardinality_feature_arguments =
       if Map.get(run.params, :include_cardinality_feature?, false) do
         ["--cardinality-feature"]
       else
         []
       end
+
+    feature_arguments =
+      [
+        "--feature-method",
+        Map.get(run.params, :feature_method, "graphlet"),
+        "--graphlet-size",
+        Integer.to_string(Map.get(run.params, :graphlet_size, 3))
+      ] ++ cardinality_feature_arguments
 
     base_arguments ++
       feature_arguments ++

@@ -1,4 +1,4 @@
-theory AIActArticle20_EDSTIT
+theory AIAct_Article20_EDSTIT
     imports Epistemic_Deontic_STIT
 begin
 
@@ -32,22 +32,21 @@ text \<open>
 \<close>
 
 axiomatization where
-    article20_corrective:
-        "\<lfloor>
-            believes provider (\<^bold>\<not> conform)
-        \<rfloor>\<^sub>a"
+  article20_corrective:
+    "\<lfloor>(believes provider (\<^bold>\<not> conform)) \<^bold>\<rightarrow> (ought provider corrective_action)\<rfloor>"
 
+axiomatization where
+  actual_provider_belief:
+    "\<lfloor>believes provider (\<^bold>\<not> conform)\<rfloor>\<^sub>a"
 
 section \<open>ModalLens query\<close>
 
 text \<open>
-    The query asks whether the triggered agentive obligation already
-    implies that the provider actually sees to it that corrective
-    action is taken.
+  We test whether the provider's triggered obligation already entails
+  that the provider actually sees to it that corrective action holds.
 \<close>
 
 abbreviation modal_lens_query :: bool where
-    "modal_lens_query" \<equiv>
-        \<lfloor>stit provider corrective_action\<rfloor>\<^sub>a"
+  "modal_lens_query \<equiv> \<lfloor>stit provider corrective_action\<rfloor>\<^sub>a"
 
 end

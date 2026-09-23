@@ -14,7 +14,7 @@ class OllamaError(RuntimeError):
 
 
 class OllamaVerbalizer(Verbalizer):
-    def __init__(self, model_id: str, *, base_url: str = "http://localhost:11434", timeout: float = 300.0, reasoning: bool = False) -> None:
+    def __init__(self, model_id: str, *, base_url: str = "http://localhost:11434", timeout: float = 1800.0, reasoning: bool = False) -> None:
         if not model_id.strip():
             raise ValueError("Ollama model_id must not be empty.")
         
@@ -142,7 +142,8 @@ class OllamaVerbalizer(Verbalizer):
                 "temperature": 0,
                 "top_k": 1,
                 "seed": request.seed,
-                "num_predict": request.max_new_tokens
+                "num_predict": request.max_new_tokens,
+                "num_ctx": 16_384
             }
         }
         

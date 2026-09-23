@@ -79,39 +79,49 @@ defmodule Src.Enumeration do
   end
 
   defp enumerate_cardinalities(base_theory_path, cardinalities, max_models, output_root, opts) do
+    total_model_target =
+      length(cardinalities) * max_models
+
+    carry_model_budget? =
+      Keyword.fetch!(opts, :mode) != :consistency_check
+
     cardinalities
-    |> Enum.reduce_while({:ok, []}, fn cardinality, {:ok, results} ->
-      case enumerate_cardinality(
-             base_theory_path,
-             cardinality,
-             cardinalities,
-             max_models,
-             output_root,
-             opts
-           ) do
-        {:ok, result} -> {:cont, {:ok, [result | results]}}
-        {:error, reason} -> {:halt, {:error, reason}}
+    |> Enum.reduce_while(
+      {:ok, [], 0},
+      fn cardinality, {:ok, results, carried_budget} ->
+        cardinality_budget =
+          max_models + carried_budget
+
+        case enumerate_cardinality(base_theory_path, cardinality, cardinalities, cardinality_budget, output_root, opts) do
+          {:ok, result} ->
+            next_carried_budget =
+              if carry_model_budget? do
+                max(cardinality_budget - result.model_count, 0)
+              else
+                0
+              end
+
+            {:cont,
+             {:ok, [result | results], next_carried_budget}}
+
+          {:error, reason} ->
+            {:halt, {:error, reason}}
+        end
       end
-    end)
+    )
     |> case do
-      {:ok, results} ->
+      {:ok, results, _unused_budget} ->
         results = Enum.reverse(results)
 
-        {:ok, merge_cardinality_results(base_theory_path, output_root, results)}
+        {:ok,
+         merge_cardinality_results(base_theory_path, output_root, results, total_model_target)}
 
       {:error, reason} ->
         {:error, reason}
     end
   end
 
-  defp enumerate_cardinality(
-         base_theory_path,
-         cardinality,
-         cardinalities,
-         max_models,
-         output_root,
-         opts
-       ) do
+  defp enumerate_cardinality(base_theory_path, cardinality, cardinalities, max_models, output_root, opts) do
     cardinality_output_dir = cardinality_output_dir(output_root, cardinality, cardinalities)
 
     search_theory_dir =
@@ -319,7 +329,7 @@ defmodule Src.Enumeration do
     }
   end
 
-  defp merge_cardinality_results(base_theory_path, output_root, cardinality_results) do
+  defp merge_cardinality_results(base_theory_path, output_root, cardinality_results, total_model_target) do
     models =
       Enum.flat_map(cardinality_results, & &1.models)
 
@@ -329,7 +339,8 @@ defmodule Src.Enumeration do
       |> Enum.reject(&is_nil/1)
 
     %{
-      status: overall_enumeration_status(cardinality_results),
+      status: overall_enumeration_status(length(models), total_model_target),
+      target_model_count: total_model_target,
       base_theory_file: base_theory_path,
       output_dir: output_root,
       model_count: length(models),
@@ -353,12 +364,19 @@ defmodule Src.Enumeration do
     Enum.flat_map(results, &Map.get(&1, key, []))
   end
 
-  defp overall_enumeration_status(results) do
-    if Enum.any?(results, &(&1.status == :max_models_reached)) do
-      :max_models_reached
-    else
-      :exhausted
-    end
+  defp overall_enumeration_status(
+         model_count,
+         total_model_target
+       )
+       when model_count >= total_model_target do
+    :max_models_reached
+  end
+
+  defp overall_enumeration_status(
+         _model_count,
+         _total_model_target
+       ) do
+    :exhausted
   end
 
   defp cardinality_output_dir(output_root, _cardinality, [_single_cardinality]) do

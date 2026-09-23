@@ -67,15 +67,7 @@ defmodule Src.Core.Parser do
   @world_pair "\\(#{@world}\\s*,\\s*#{@world}\\)\\s*:?=\\s*(True|False)"
   @bool_assign "#{@world}\\s*:=\\s*(True|False)"
   @identifier ~S/[A-Za-z][A-Za-z0-9_'.?]*/
-  @nitpick_result_header ~r/
-    Nitpick\ found\
-    (?:
-      a\ counterexample\ for\ card\ i\s*=\s*\d+\s*: |
-      a\ model\ for\ card\ i\s*=\s*\d+\s*: |
-      no counterexample[^\n]* |
-      no model[^\n]*
-    )
-  /x
+  @nitpick_result_header ~r/Nitpick found (?:a counterexample for card i[ \t]*=[ \t]*\d+[ \t]*:|a model for card i[ \t]*=[ \t]*\d+[ \t]*:|no counterexample[^\n]*|no model[^\n]*)/
 
   @doc """
   Returns the regular expression used to parse Boolean relation assignments.

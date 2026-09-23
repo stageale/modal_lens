@@ -8,6 +8,7 @@ defmodule Src.Execution.Options do
   @model_logics [:sdl, :ddl, :ed_stit]
   @graph_formats [:svg, :tikz]
   @backends [:local, :hpc_connect]
+  @feature_methods ["graphlet"]
   @default_palette Palette.default()
   @verbalization_backends ["transformers", "ollama"]
   @verbalization_modes [:grounded, :interpretive]
@@ -17,6 +18,7 @@ defmodule Src.Execution.Options do
   @type graph_format :: :svg | :tikz
   @type backend :: :local | :hpc_connect
   @type cardinality :: pos_integer()
+  @type feature_method :: String.t()
   @type verbalization_mode :: :grounded | :interpretive
 
   @type t :: %__MODULE__{
@@ -34,6 +36,8 @@ defmodule Src.Execution.Options do
           include_atoms?: boolean(),
           include_designated_world?: boolean(),
           include_cardinality_feature?: boolean(),
+          feature_method: feature_method(),
+          graphlet_size: pos_integer(),
           verbalize?: boolean(),
           verbalization_backend: String.t(),
           verbalization_backend_options: map(),
@@ -57,6 +61,8 @@ defmodule Src.Execution.Options do
             include_atoms?: true,
             include_designated_world?: true,
             include_cardinality_feature?: false,
+            feature_method: "graphlet",
+            graphlet_size: 3,
             verbalize?: true,
             verbalization_backend: "transformers",
             verbalization_backend_options: %{},
@@ -109,6 +115,8 @@ defmodule Src.Execution.Options do
       include_atoms?: options.include_atoms?,
       include_designated_world?: options.include_designated_world?,
       include_cardinality_feature?: options.include_cardinality_feature?,
+      feature_method: options.feature_method,
+      graphlet_size: options.graphlet_size,
       verbalize?: options.verbalize?,
       verbalization_backend: options.verbalization_backend,
       verbalization_backend_options: options.verbalization_backend_options,
@@ -142,6 +150,12 @@ defmodule Src.Execution.Options do
 
       options.graph_format not in @graph_formats ->
         {:error, {:invalid_graph_format, options.graph_format}}
+
+      options.feature_method not in @feature_methods ->
+        {:error, {:invalid_feature_method, options.feature_method}}
+
+      options.graphlet_size != 3 ->
+        {:error, {:invalid_graphlet_size, options.graphlet_size}}
 
       not Palette.valid?(options.palette) ->
         {:error, {:invalid_palette, options.palette}}
@@ -196,6 +210,8 @@ defmodule Src.Execution.Options do
          {:ok, backend} <- normalize_backend(Map.get(attrs, :backend, :local)),
          {:ok, cardinalities} <- normalize_cardinalities(cardinality_value),
          {:ok, graph_format} <- normalize_graph_format(Map.get(attrs, :graph_format, :svg)),
+         {:ok, feature_method} <-
+           normalize_feature_method(Map.get(attrs, :feature_method, "graphlet")),
          {:ok, palette} <- normalize_palette(Map.get(attrs, :palette, @default_palette)),
          {:ok, verbalization_backend} <-
            normalize_verbalization_backend(Map.get(attrs, :verbalization_backend, "transformers")),
@@ -210,6 +226,7 @@ defmodule Src.Execution.Options do
        |> Map.put(:backend, backend)
        |> Map.put(:cardinalities, cardinalities)
        |> Map.put(:graph_format, graph_format)
+       |> Map.put(:feature_method, feature_method)
        |> Map.put(:palette, palette)
        |> Map.put(:verbalization_backend, verbalization_backend)
        |> Map.put(:verbalization_mode, verbalization_mode)
@@ -354,6 +371,25 @@ defmodule Src.Execution.Options do
 
   defp normalize_graph_format(value) do
     {:error, {:invalid_graph_format, value}}
+  end
+
+  defp normalize_feature_method(:graphlet), do: {:ok, "graphlet"}
+
+  defp normalize_feature_method(value) when is_binary(value) do
+    normalized =
+      value
+      |> String.trim()
+      |> String.downcase()
+
+    if normalized in @feature_methods do
+      {:ok, normalized}
+    else
+      {:error, {:invalid_feature_method, value}}
+    end
+  end
+
+  defp normalize_feature_method(value) do
+    {:error, {:invalid_feature_method, value}}
   end
 
   defp normalize_palette(value) when is_atom(value) do

@@ -6,7 +6,10 @@ import tempfile
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timezone
-from graph_ml.refinement import derive_exclusion_candidate
+from graph_ml.refinement import (
+    derive_exclusion_candidate,
+    derive_multimodal_exclusion_candidate,
+)
 from pathlib import Path
 from typing import Any
 
@@ -163,7 +166,16 @@ def _model_report(graph: nx.DiGraph, graph_index: int) -> dict[str, Any]:
     return model
 
 
-def _pattern_report(pattern_data: Mapping[str, Any], *, cluster_label: int, rank: int, graphs: Sequence[nx.DiGraph], atoms: Sequence[str], relation: str | None) -> dict[str, Any]:
+def _pattern_report(
+    pattern_data: Mapping[str, Any],
+    *,
+    cluster_label: int,
+    rank: int,
+    graphs: Sequence[nx.DiGraph],
+    atoms: Sequence[str],
+    relation: str | None,
+    modalities: Sequence[str],
+) -> dict[str, Any]:
     occurrences = pattern_data.get("occurrences", {})
 
     occurrence_models = sorted(int(graph_index) for graph_index in occurrences)
@@ -192,6 +204,16 @@ def _pattern_report(pattern_data: Mapping[str, Any], *, cluster_label: int, rank
                 rank=rank,
                 atoms=atoms,
                 relation=relation
+            )
+        elif modalities:
+            refinement_candidate = (
+                derive_multimodal_exclusion_candidate(
+                    pattern_data,
+                    cluster_id=cluster_label,
+                    rank=rank,
+                    atoms=atoms,
+                    modalities=modalities,
+                )
             )
 
     return {
@@ -258,7 +280,8 @@ def build_report(*,
                 rank=rank,
                 graphs=graphs,
                 atoms=atoms,
-                relation=relation
+                relation=relation,
+                modalities=modalities,
             )
             for rank, pattern_data in enumerate(
                 raw_patterns, start=1

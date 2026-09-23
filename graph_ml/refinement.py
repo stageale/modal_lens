@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from typing import Any, Literal, TypeAlias, TypedDict
+from typing import Any, Literal, NotRequired, TypeAlias, TypedDict
 
 EdgeCell: TypeAlias = tuple[int, str | None]
 NodeLabels: TypeAlias = tuple[tuple[str, ...], ...]
@@ -19,6 +19,7 @@ class RelationCell(TypedDict):
     source: str
     target: str
     relation: str
+    agent: NotRequired[str]
     holds: bool
 
 class OccurrenceSpec(TypedDict):
@@ -267,3 +268,192 @@ def derive_exclusion_candidate(pattern_data: Mapping[str, Any], *, cluster_id: i
             "operand": "occurrence"
         }
     }
+
+
+def _ed_stit_relation(modality: str) -> tuple[str, str | None]:
+    if modality == "settledness":
+        return "RBox", None
+
+    symbols = {
+        "stit": "RStit",
+        "ought": "ROught",
+        "belief": "RBel",
+    }
+
+    kind, separator, agent = modality.partition(":")
+
+    if not separator or not agent or kind not in symbols:
+        raise ValueError(
+            f"Unsupported ED-STIT modality ID: {modality!r}"
+        )
+
+    return symbols[kind], agent
+
+
+def derive_multimodal_exclusion_candidate(
+    pattern_data: Mapping[str, Any],
+    *,
+    cluster_id: int,
+    rank: int,
+    atoms: Sequence[str],
+    modalities: Sequence[str],
+) -> RefinementCandidate:
+    """Construct an exact induced exclusion over all ED-STIT modalities."""
+
+    normalized_modalities = tuple(
+        sorted(str(item) for item in modalities)
+    )
+
+    if (
+        not normalized_modalities
+        or len(set(normalized_modalities))
+        != len(normalized_modalities)
+    ):
+        raise ValueError(
+            "Modalities must be a non-empty sequence of unique IDs."
+        )
+
+    pattern = pattern_data.get("pattern")
+
+    if (
+        not isinstance(pattern, Sequence)
+        or isinstance(pattern, (str, bytes))
+        or len(pattern) != 3
+    ):
+        raise ValueError(
+            "A graphlet pattern must contain tag, size, and payload."
+        )
+
+    tag, size, payload = pattern
+
+    if (
+        not isinstance(payload, Sequence)
+        or isinstance(payload, (str, bytes))
+        or len(payload) != 2
+    ):
+        raise ValueError(
+            "Graphlet payload must contain node labels and edges."
+        )
+
+    node_labels, raw_edges = payload
+    union_edges = []
+    held_modalities_by_cell: list[set[str]] = []
+
+    for cell_index, raw_cell in enumerate(raw_edges):
+        if (
+            not isinstance(raw_cell, Sequence)
+            or isinstance(raw_cell, (str, bytes))
+            or len(raw_cell) != 2
+        ):
+            raise ValueError(
+                f"Relation cell {cell_index} must contain state and label."
+            )
+
+        state, label = raw_cell
+
+        if state == 0:
+            if label is not None:
+                raise ValueError(
+                    f"Negative relation cell {cell_index} "
+                    "must not carry a label."
+                )
+
+            held_modalities = set()
+            union_edges.append((0, None))
+
+        elif state == 1:
+            if (
+                not isinstance(label, Sequence)
+                or isinstance(label, (str, bytes))
+            ):
+                raise ValueError(
+                    f"Multimodal relation cell {cell_index} "
+                    "must carry modality IDs."
+                )
+
+            held_modalities = {
+                str(item)
+                for item in label
+            }
+
+            unknown = (
+                held_modalities
+                - set(normalized_modalities)
+            )
+
+            if not held_modalities or unknown:
+                raise ValueError(
+                    "Graphlet contains invalid modalities: "
+                    f"{sorted(unknown)!r}"
+                )
+
+            union_edges.append((1, "R"))
+
+        else:
+            raise ValueError(
+                f"Relation cell {cell_index} must have state 0 or 1."
+            )
+
+        held_modalities_by_cell.append(
+            held_modalities
+        )
+
+    union_pattern_data = dict(pattern_data)
+
+    union_pattern_data["pattern"] = (
+        tag,
+        size,
+        (
+            node_labels,
+            tuple(union_edges),
+        ),
+    )
+
+    candidate = derive_exclusion_candidate(
+        union_pattern_data,
+        cluster_id=cluster_id,
+        rank=rank,
+        atoms=atoms,
+        relation="R",
+    )
+
+    world_ids = [
+        world["id"]
+        for world in candidate["occurrence"]["worlds"]
+    ]
+
+    relation_cells: list[RelationCell] = []
+
+    for cell_index, held_modalities in enumerate(
+        held_modalities_by_cell
+    ):
+        source_index, target_index = divmod(
+            cell_index,
+            size,
+        )
+
+        for modality in normalized_modalities:
+            relation, agent = _ed_stit_relation(
+                modality
+            )
+
+            cell: RelationCell = {
+                "source": world_ids[source_index],
+                "target": world_ids[target_index],
+                "relation": relation,
+                "holds": (
+                    modality
+                    in held_modalities
+                ),
+            }
+
+            if agent is not None:
+                cell["agent"] = agent
+
+            relation_cells.append(cell)
+
+    candidate["occurrence"]["relation_cells"] = (
+        relation_cells
+    )
+
+    return candidate

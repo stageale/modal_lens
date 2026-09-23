@@ -24,6 +24,8 @@ defmodule Src.Interface.CLI do
     backend: :string,
     cardinality: :string,
     cardinality_feature: :boolean,
+    feature_method: :string,
+    graphlet_size: :integer,
     max_models: :integer,
     out_dir: :string,
     render_graph: :boolean,
@@ -172,6 +174,8 @@ defmodule Src.Interface.CLI do
             backend: :backend,
             cardinality: :cardinality,
             cardinality_feature: :include_cardinality_feature?,
+            feature_method: :feature_method,
+            graphlet_size: :graphlet_size,
             relation: :relation,
             atoms: :atoms,
             auto_atoms: :auto_atoms?,
@@ -253,8 +257,17 @@ defmodule Src.Interface.CLI do
   @spec maybe_verbalize_refinement(String.t(), Run.t()) :: non_neg_integer()
   defp maybe_verbalize_refinement(report_path, %Run{} = run) do
     if Map.get(run.params, :verbalize?, false) do
+      backend =
+        Map.fetch!(run.params, :verbalization_backend)
+
+      execution_backend =
+        case backend do
+          "ollama" -> :local
+          _other -> Map.get(run.params, :backend, :local)
+        end
+
       launcher_options = [
-        execution_backend: Map.get(run.params, :backend, :local),
+        execution_backend: execution_backend,
         output_name: ".",
         project_root: Map.get(run.params, :project_root, File.cwd!()),
         uv_executable: Map.get(run.params, :uv_executable, "uv"),
@@ -268,7 +281,7 @@ defmodule Src.Interface.CLI do
       case VerbalLauncher.launch(
              report_path,
              Path.join(run.output_dir, "verbalization/refinement"),
-             Map.fetch!(run.params, :verbalization_backend),
+             backend,
              Map.fetch!(run.params, :verbalization_model),
              launcher_options
            ) do
@@ -576,6 +589,8 @@ defmodule Src.Interface.CLI do
             backend: :backend,
             cardinality: :cardinality,
             cardinality_feature: :include_cardinality_feature?,
+            feature_method: :feature_method,
+            graphlet_size: :graphlet_size,
             relation: :relation,
             atoms: :atoms,
             auto_atoms: :auto_atoms?,

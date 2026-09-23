@@ -94,7 +94,14 @@ def launch_analysis(
         graph.graph["graph_index"] = graph_index
         graphs.append(graph)
         
-    occurrences_by_graph = [pattern_occurrences(graph, size=graphlet_size) for graph in graphs]        
+    occurrences_by_graph = [
+        pattern_occurrences(
+            graph,
+            size=graphlet_size,
+            exact_size=True,
+        )
+        for graph in graphs
+    ]
     vectors = [
         _analysis_feature_vector(
             graph,

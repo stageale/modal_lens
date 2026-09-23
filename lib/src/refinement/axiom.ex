@@ -43,10 +43,11 @@ defmodule Src.Refinement.Axiom do
 
   @typedoc "A validated cell of the induced relation matrix."
   @type relation_cell :: %{
-          source: id(),
-          target: id(),
-          relation: id(),
-          holds: boolean()
+          required(:source) => id(),
+          required(:target) => id(),
+          required(:relation) => id(),
+          optional(:agent) => id(),
+          required(:holds) => boolean()
         }
 
   @typedoc "The validated internal representation of a candidate."
@@ -167,9 +168,11 @@ defmodule Src.Refinement.Axiom do
             "occurrence world count must equal its declared size"
     end
 
-    if length(raw_cells) != size * size do
+    matrix_size = size * size
+
+    if raw_cells == [] or rem(length(raw_cells), matrix_size) != 0 do
       raise ArgumentError,
-            "occurrence must contain exactly size² relation cells"
+            "occurrence must contain one complete size² matrix per relation"
     end
 
     worlds = Enum.map(raw_worlds, &normalize_world!/1)
@@ -253,7 +256,7 @@ defmodule Src.Refinement.Axiom do
 
   @spec normalize_relation_cell!(term(), [id()]) :: relation_cell()
   defp normalize_relation_cell!(
-         %{
+         cell = %{
            "source" => source,
            "target" => target,
            "relation" => relation,
@@ -266,6 +269,17 @@ defmodule Src.Refinement.Axiom do
     validate_identifier!(source, "source world")
     validate_identifier!(target, "target world")
     validate_identifier!(relation, "relation")
+
+    agent = Map.get(cell, "agent")
+
+    if agent != nil and not is_binary(agent) do
+      raise ArgumentError,
+            "relation agent must be an Isabelle-compatible identifier"
+    end
+
+    if agent != nil do
+      validate_identifier!(agent, "relation agent")
+    end
 
     unless source in world_ids do
       raise ArgumentError,
@@ -281,6 +295,7 @@ defmodule Src.Refinement.Axiom do
       source: source,
       target: target,
       relation: relation,
+      agent: agent,
       holds: holds
     }
   end
@@ -292,37 +307,31 @@ defmodule Src.Refinement.Axiom do
 
   @spec validate_relation_matrix!([relation_cell()], [id()]) :: :ok
   defp validate_relation_matrix!(relation_cells, world_ids) do
-    relations =
-      relation_cells
-      |> Enum.map(& &1.relation)
-      |> Enum.uniq()
-
-    if length(relations) != 1 do
-      raise ArgumentError,
-            "the current refinement contract requires exactly one relation"
-    end
-
-    actual_pairs =
-      Enum.map(
-        relation_cells,
-        &{&1.source, &1.target}
-      )
-
-    if length(Enum.uniq(actual_pairs)) != length(actual_pairs) do
-      raise ArgumentError,
-            "the induced relation matrix contains duplicate cells"
-    end
-
     expected_pairs =
       for source <- world_ids,
           target <- world_ids do
         {source, target}
       end
 
-    if MapSet.new(actual_pairs) != MapSet.new(expected_pairs) do
-      raise ArgumentError,
-            "the induced relation matrix is incomplete"
-    end
+    relation_cells
+    |> Enum.group_by(&{&1.relation, &1.agent})
+    |> Enum.each(fn {_relation_identity, cells} ->
+      actual_pairs =
+        Enum.map(
+          cells,
+          &{&1.source, &1.target}
+        )
+
+      if length(Enum.uniq(actual_pairs)) != length(actual_pairs) do
+        raise ArgumentError,
+              "an induced relation matrix contains duplicate cells"
+      end
+
+      if MapSet.new(actual_pairs) != MapSet.new(expected_pairs) do
+        raise ArgumentError,
+              "an induced relation matrix is incomplete"
+      end
+    end)
 
     :ok
   end
@@ -336,6 +345,8 @@ defmodule Src.Refinement.Axiom do
 
     Enum.sort_by(relation_cells, fn cell ->
       {
+        cell.relation,
+        cell.agent || "",
         Map.fetch!(positions, cell.source),
         Map.fetch!(positions, cell.target)
       }
@@ -385,8 +396,21 @@ defmodule Src.Refinement.Axiom do
   @spec relation_clauses([relation_cell()]) :: [formula()]
   defp relation_clauses(relation_cells) do
     Enum.map(relation_cells, fn cell ->
+      relation =
+        if cell.relation == "R" do
+          "(R)"
+        else
+          cell.relation
+        end
+
       application =
-        "#{cell.relation} #{cell.source} #{cell.target}"
+        case cell.agent do
+          nil ->
+            "#{relation} #{cell.source} #{cell.target}"
+
+          agent ->
+            "#{relation} #{agent} #{cell.source} #{cell.target}"
+        end
 
       if cell.holds do
         application

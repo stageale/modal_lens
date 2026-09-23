@@ -5,11 +5,13 @@ import networkx as nx
 
 from graph_ml.features import _canonical_graphlet, _model_atoms
 
-def pattern_occurrences(graph, size=3):
+def pattern_occurrences(graph, size=3, *, exact_size=False):
     atoms = _model_atoms(graph)
     occurrences = defaultdict(list)
 
-    for graphlet_size in range(2, size + 1):
+    graphlet_sizes = (size,) if exact_size else range(2, size + 1)
+
+    for graphlet_size in graphlet_sizes:
         for worlds in combinations(graph.nodes, graphlet_size):
             substructure = graph.subgraph(worlds)
 

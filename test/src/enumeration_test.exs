@@ -134,6 +134,70 @@ defmodule Src.EnumerationTest do
     end
   end
 
+  test "carries unused model budget into higher cardinalities" do
+    dir = tmp_dir("cardinality_budget_carry")
+
+    isabelle =
+      write_executable(
+        dir,
+        "isabelle",
+        ~S"""
+        theory=""
+
+        for argument in "$@"; do
+          if [ -f "$argument" ] && grep -q 'card i = ' "$argument"; then
+            theory="$argument"
+          fi
+        done
+
+        if grep -q 'card i = 3' "$theory"; then
+          printf 'Nitpick found a counterexample for card i = 3:\n'
+          exit 0
+        fi
+
+        blocking_count=$(
+          grep -c 'Automatically generated blocking axiom' "$theory" ||
+            true
+        )
+
+        if [ "$blocking_count" -ge 1 ]; then
+          printf 'Nitpick found no counterexample\n'
+        else
+          printf 'Nitpick found a counterexample for card i = 2:\n'
+        fi
+        """
+      )
+
+    base_theory = write_theory(dir, "Cardinality_Budget_Carry")
+    output_dir = Path.join(dir, "out")
+
+    assert {:ok, result} =
+             Enumeration.enumerate(base_theory,
+               mode: :countermodels,
+               model_logic: :sdl,
+               cardinalities: [2, 3],
+               max_models: 2,
+               render_graph: false,
+               output_dir: output_dir,
+               isabelle_bin: isabelle
+             )
+
+    # Gesamtziel: 2 Kardinalitäten × Grundquote 2 = 4 Modelle.
+    assert result.model_count == 4
+    assert result.status == :max_models_reached
+    assert Enum.map(result.models, & &1.cardinality) == [2, 3, 3, 3]
+
+    assert [cardinality_2, cardinality_3] =
+             result.cardinality_results
+
+    assert cardinality_2.status == :exhausted
+    assert cardinality_2.model_count == 1
+
+    # Das bei Kardinalität 2 ungenutzte Modell wird auf 3 übertragen.
+    assert cardinality_3.status == :max_models_reached
+    assert cardinality_3.model_count == 3
+  end
+
   defp write_theory(dir, name) do
     path = Path.join(dir, "#{name}.thy")
     File.write!(path, "theory #{name}\nimports Main\nbegin\nend\n")

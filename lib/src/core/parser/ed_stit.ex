@@ -22,7 +22,7 @@ defmodule Src.Core.Parser.EDSTIT do
   alias Src.Core.ParseWarning
 
   @world ~S/i(?:⇩|\\<\^sub>)(\d+)/
-  @agent ~S/ag(?:⇩|\\<\^sub>)(\d+)/
+  @agent ~S/a(?:g)?(?:⇩|\\<\^sub>)(\d+)/
 
   @identifier ~S/[A-Za-z][A-Za-z0-9_'.?]*/
 
@@ -32,16 +32,12 @@ defmodule Src.Core.Parser.EDSTIT do
 
   @agent_bool_assign "#{@agent}\\s*:=\\s*(True|False)"
 
-  @flat_agent_relation (
-    "\\(#{@agent}\\s*,\\s*#{@world}\\s*,\\s*#{@world}\\)" <>
-      "\\s*:?=\\s*(True|False)"
-  )
+  @flat_agent_relation "\\(#{@agent}\\s*,\\s*#{@world}\\s*,\\s*#{@world}\\)" <>
+                         "\\s*:?=\\s*(True|False)"
 
-  @nested_agent_relation (
-    "\\(\\s*\\(#{@agent}\\s*,\\s*#{@world}\\)\\s*," <>
-      "\\s*#{@world}\\s*\\)" <>
-      "\\s*:?=\\s*(True|False)"
-  )
+  @nested_agent_relation "\\(\\s*\\(#{@agent}\\s*,\\s*#{@world}\\)\\s*," <>
+                           "\\s*#{@world}\\s*\\)" <>
+                           "\\s*:?=\\s*(True|False)"
 
   @agent_predicate "Agent"
 
@@ -55,12 +51,11 @@ defmodule Src.Core.Parser.EDSTIT do
   @nitpick_result_header ~r/
     Nitpick\ found\
     (?:
-      a\ counterexample\ for\ card\ i\s*=\s*\d+\s*: |
-      a\ model\ for\ card\ i\s*=\s*\d+\s*: |
+      (?:a\ counterexample|a\ model)\ for\ card\ i\s*=\s*\d+.*?: |
       no\ counterexample[^\n]* |
       no\ model[^\n]*
     )
-  /x
+  /xs
 
   @doc """
   Parses an Epistemic Deontic STIT model from Nitpick output.
