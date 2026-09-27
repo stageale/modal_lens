@@ -12,6 +12,7 @@ defmodule Src.Explanation.Visual.Render do
   alias Src.Explanation.Visual.EDSTIT, as: EDSTITVisual
   alias Src.Explanation.Visual.Palette
   alias Src.Explanation.Visual.PreferenceLayers
+  alias Src.Explanation.Visual.WorldLabel
 
   @doc "Writes a model visualization as a GraphViz DOT file."
   @spec write_dot(Model.model(), Path.t()) :: String.t()
@@ -50,7 +51,7 @@ defmodule Src.Explanation.Visual.Render do
       [
         "digraph #{Model.graph_name(model)} {",
         "  rankdir=LR;",
-        "  node [shape=circle, fontsize=10, fixedsize=true, width=1.35];",
+        "  node [shape=circle, fontsize=10, fixedsize=false, width=1.35, margin=0.08];",
         ""
       ] ++
         dot_world_lines(model, atoms, highlight, palette) ++
@@ -217,8 +218,9 @@ defmodule Src.Explanation.Visual.Render do
     for i <- Model.world_indices(model) do
       label =
         model
-        |> Model.label_for_world(i, atoms)
-        |> dot_escape()
+        |> WorldLabel.lines(i, atoms)
+        |> Enum.map(&dot_escape/1)
+        |> Enum.join("\\n")
 
       attrs =
         dot_world_attributes(label, highlight, palette, i)
@@ -270,8 +272,9 @@ defmodule Src.Explanation.Visual.Render do
 
       label =
         model
-        |> Model.label_for_world(i, atoms)
-        |> latex_escape()
+        |> WorldLabel.lines(i, atoms)
+        |> Enum.map(&latex_escape/1)
+        |> Enum.join("\\\\")
 
       options = tikz_world_options(highlight, palette, i)
 
@@ -437,7 +440,7 @@ defmodule Src.Explanation.Visual.Render do
         "digraph #{Model.graph_name(model)} {",
         "  rankdir=TB;",
         "  compound=true;",
-        "  node [shape=circle, fontsize=10, fixedsize=true, width=1.35];",
+        "  node [shape=circle, fontsize=10, fixedsize=false, width=1.35, margin=0.08];",
         ""
       ] ++
         dot_preference_layers(
@@ -480,8 +483,9 @@ defmodule Src.Explanation.Visual.Render do
         Enum.map(worlds, fn world ->
           world_label =
             model
-            |> Model.label_for_world(world, atoms)
-            |> dot_escape()
+            |> WorldLabel.lines(world, atoms)
+            |> Enum.map(&dot_escape/1)
+            |> Enum.join("\\n")
 
           attrs =
             dot_world_attributes(
@@ -589,8 +593,9 @@ defmodule Src.Explanation.Visual.Render do
 
         label =
           model
-          |> Model.label_for_world(world, atoms)
-          |> latex_escape()
+          |> WorldLabel.lines(world, atoms)
+          |> Enum.map(&latex_escape/1)
+          |> Enum.join("\\\\")
 
         options =
           tikz_world_options(

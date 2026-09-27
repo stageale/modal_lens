@@ -8,9 +8,9 @@ defmodule Src.Enumeration.Iteration do
 
   alias Src.Core.BlockingAxiom
   alias Src.Core.Model
+  alias Src.Core.Model.EDSTIT, as: EDSModel
   alias Src.Core.Parser
-  alias Src.Explanation.Visual.Palette
-  alias Src.Explanation.Visual.Render
+  alias Src.Explanation.Visual.{GraphViewExport, Palette, Render}
   alias Src.Serialization, as: Serial
   alias Src.Isabelle.Client
 
@@ -19,6 +19,7 @@ defmodule Src.Enumeration.Iteration do
            required(:graph_svg_file) => String.t() | nil,
            required(:graph_tikz_file) => String.t() | nil,
            required(:graph_pdf_file) => String.t() | nil,
+           required(:graph_views) => map() | nil,
            required(:model_json_file) => String.t(),
            required(:blocking_axiom) => String.t(),
            required(:blocking_axiom_file) => String.t()
@@ -149,29 +150,15 @@ defmodule Src.Enumeration.Iteration do
     end
   end
 
-  @spec write_countermodel_artifacts(
-          Model.model(),
-          String.t(),
-          map(),
-          String.t(),
-          pos_integer(),
-          keyword()
-        ) ::
+  @spec write_countermodel_artifacts(Model.model(), String.t(), map(), String.t(), pos_integer(), keyword()) ::
           {:ok, artifacts()}
           | {:error,
-             {:artifact_generation_failed,
-              %{
-                required(:output_dir) => String.t(),
-                required(:message) => String.t()
-              }}}
-  defp write_countermodel_artifacts(
-         model,
-         base_theory_file,
-         isabelle_run,
-         output_dir,
-         iteration,
-         opts
-       ) do
+              {:artifact_generation_failed,
+                %{
+                  required(:output_dir) => String.t(),
+                  required(:message) => String.t()
+                }}}
+  defp write_countermodel_artifacts(model, base_theory_file, isabelle_run, output_dir, iteration, opts) do
     try do
       {graph_dot_file, graph_svg_file, graph_tikz_file, graph_pdf_file} =
         if Keyword.get(opts, :render_graph, true) do
@@ -230,6 +217,22 @@ defmodule Src.Enumeration.Iteration do
           }
         else
           {nil, nil, nil, nil}
+        end
+
+      graph_views =
+        if match?(%EDSModel{}, model) and is_binary(graph_svg_file) do
+          GraphViewExport.write_all(
+            model,
+            output_dir,
+            atoms: Keyword.get(opts, :render_atoms),
+            existing_full: %{
+              graph_dot_file: graph_dot_file,
+              graph_svg_file: graph_svg_file,
+              graph_tikz_file: graph_tikz_file
+            }
+          )
+        else
+          nil
         end
 
       blocking_name =
@@ -300,7 +303,8 @@ defmodule Src.Enumeration.Iteration do
               if is_binary(graph_pdf_file) do
                 Path.basename(graph_pdf_file)
               end,
-            "blocking_axiom" => Path.basename(blocking_axiom_file)
+            "blocking_axiom" => Path.basename(blocking_axiom_file),
+            "graph_views" => graph_views_json(graph_views, output_dir)
           },
           "model" =>
             model
@@ -316,6 +320,7 @@ defmodule Src.Enumeration.Iteration do
          graph_svg_file: graph_svg_file,
          graph_tikz_file: graph_tikz_file,
          graph_pdf_file: graph_pdf_file,
+         graph_views: graph_views,
          model_json_file: model_json_file,
          blocking_axiom: blocking_axiom,
          blocking_axiom_file: blocking_axiom_file
@@ -331,31 +336,9 @@ defmodule Src.Enumeration.Iteration do
     end
   end
 
-  @spec model_result(
-          Model.model(),
-          artifacts(),
-          String.t(),
-          map(),
-          String.t(),
-          pos_integer(),
-          keyword()
-        ) :: map()
-  defp model_result(
-         model,
-         artifacts,
-         base_theory_file,
-         isabelle_run,
-         output_dir,
-         iteration,
-         opts
-       ) do
-    result_metadata(
-      base_theory_file,
-      isabelle_run,
-      output_dir,
-      iteration,
-      opts
-    )
+  @spec model_result(Model.model(), artifacts(), String.t(), map(), String.t(), pos_integer(), keyword()) :: map()
+  defp model_result(model, artifacts, base_theory_file, isabelle_run, output_dir, iteration, opts) do
+    result_metadata(base_theory_file, isabelle_run, output_dir, iteration, opts)
     |> Map.merge(%{
       status: model_status(model.kind),
       model_kind: model.kind,
@@ -367,6 +350,7 @@ defmodule Src.Enumeration.Iteration do
       graph_svg_file: artifacts.graph_svg_file,
       graph_tikz_file: artifacts.graph_tikz_file,
       graph_pdf_file: artifacts.graph_pdf_file,
+      graph_views: artifacts.graph_views,
       model_json_file: artifacts.model_json_file,
       blocking_axiom: artifacts.blocking_axiom,
       blocking_axiom_file: artifacts.blocking_axiom_file,
@@ -374,20 +358,8 @@ defmodule Src.Enumeration.Iteration do
     })
   end
 
-  defp no_model_result(
-         base_theory_file,
-         isabelle_run,
-         output_dir,
-         iteration,
-         opts
-       ) do
-    result_metadata(
-      base_theory_file,
-      isabelle_run,
-      output_dir,
-      iteration,
-      opts
-    )
+  defp no_model_result(base_theory_file, isabelle_run, output_dir, iteration, opts) do
+    result_metadata(base_theory_file, isabelle_run, output_dir, iteration, opts)
     |> Map.merge(%{
       status: no_model_status(Keyword.fetch!(opts, :mode)),
       model: nil,
@@ -395,19 +367,34 @@ defmodule Src.Enumeration.Iteration do
       graph_svg_file: nil,
       graph_tikz_file: nil,
       graph_pdf_file: nil,
+      graph_views: nil,
       model_json_file: nil,
       blocking_axiom: nil,
       blocking_axiom_file: nil
     })
   end
 
-  defp result_metadata(
-         base_theory_file,
-         isabelle_run,
-         output_dir,
-         iteration,
-         opts
-       ) do
+  defp graph_views_json(nil, _output_dir), do: nil
+
+  defp graph_views_json(graph_views, output_dir) do
+    %{
+      "filter_keys" => graph_views.filter_keys,
+      "default_view" => graph_views.default_view,
+      "views" =>
+        Map.new(graph_views.views, fn {id, view} ->
+          {id,
+            %{
+              "modalities" => view.modalities,
+              "dot" => Path.relative_to(view.graph_dot_file, output_dir),
+              "svg" => Path.relative_to(view.graph_svg_file, output_dir),
+              "tikz" => Path.relative_to(view.graph_tikz_file, output_dir)
+            }
+          }
+        end)
+    }
+  end
+
+  defp result_metadata(base_theory_file, isabelle_run, output_dir, iteration, opts) do
     %{
       iteration: iteration,
       cardinality: Keyword.get(opts, :cardinality, 2),
@@ -476,10 +463,7 @@ defmodule Src.Enumeration.Iteration do
     end
   end
 
-  defp default_output_dir(
-         base_theory_file,
-         iteration
-       ) do
+  defp default_output_dir(base_theory_file, iteration) do
     theory_name =
       base_theory_file
       |> Path.basename(".thy")

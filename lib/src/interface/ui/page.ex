@@ -353,6 +353,37 @@ defmodule Src.Interface.Ui.Page do
           background: white;
         }
 
+        .modality-filter {
+          margin: 0 0 0.75rem;
+          padding: 0.6rem 0.75rem;
+          border: 1px solid var(--border);
+        }
+
+        .modality-filter legend {
+          padding: 0 0.25rem;
+          font-size: 0.82rem;
+          font-weight: 600;
+        }
+
+        .modality-options {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.35rem 1rem;
+        }
+
+        .modality-options label {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          font-size: 0.85rem;
+          cursor: pointer;
+        }
+
+        .modality-options input {
+          margin: 0;
+          accent-color: var(--accent);
+        }
+
         .tikz-preview {
           width: 100%;
           height: 28rem;
@@ -682,7 +713,84 @@ defmodule Src.Interface.Ui.Page do
               const tikzSelected =
                 variant.options.graph_format === "tikz";
 
-              if (tikzSelected && model.graph_pdf_file) {
+              const graphViews = model.graph_views;
+              const hasGraphViews = Boolean(
+                graphViews?.views && Array.isArray(graphViews.filter_keys)
+              );
+
+              if (hasGraphViews) {
+                const image = document.createElement("img");
+                const selectedInputs = new Map();
+
+                const links = document.createElement("div");
+                links.className = "graph-links";
+
+                const sourceLink = document.createElement("a");
+                sourceLink.textContent = "Open selected TikZ source";
+                sourceLink.target = "_blank";
+                sourceLink.rel = "noopener";
+                links.appendChild(sourceLink);
+
+                const updateGraph = () => {
+                  const selected = graphViews.filter_keys.filter(
+                    key => selectedInputs.get(key).checked
+                  );
+
+                  const viewId =
+                    selected.length > 0 ? selected.join("+") : "none";
+
+                  const view = graphViews.views[viewId];
+
+                  if (!view) {
+                    return;
+                  }
+
+                  image.src = view.graph_svg_file;
+                  image.alt =
+                    selected.length === 0
+                      ? "Worlds without modal relations for model " + model.iteration
+                      : "Modal graph for model " +
+                        model.iteration +
+                        ": " +
+                        selected.join(", ");
+
+                  sourceLink.href = view.graph_tikz_file || "#";
+                  sourceLink.hidden = !view.graph_tikz_file;
+                };
+
+                if (graphViews.filter_keys.length > 0) {
+                  const filter = document.createElement("fieldset");
+                  filter.className = "modality-filter";
+
+                  const legend = document.createElement("legend");
+                  legend.textContent = "Visible modalities";
+                  filter.appendChild(legend);
+
+                  const options = document.createElement("div");
+                  options.className = "modality-options";
+
+                  graphViews.filter_keys.forEach(key => {
+                    const label = document.createElement("label");
+                    const input = document.createElement("input");
+
+                    input.type = "checkbox";
+                    input.value = key;
+                    input.checked = true;
+                    input.addEventListener("change", updateGraph);
+
+                    selectedInputs.set(key, input);
+                    label.append(input, document.createTextNode(key));
+                    options.appendChild(label);
+                  });
+
+                  filter.appendChild(options);
+                  article.appendChild(filter);
+                }
+
+                article.appendChild(image);
+                article.appendChild(links);
+                updateGraph();
+              } else if (tikzSelected && model.graph_pdf_file) {
                 const preview = document.createElement("object");
 
                 preview.data = model.graph_pdf_file;
@@ -701,12 +809,13 @@ defmodule Src.Interface.Ui.Page do
                 const image = document.createElement("img");
 
                 image.src = model.graph_svg_file;
-                image.alt = "Heatmap for model " + model.iteration;
+                image.alt = "Graph for model " + model.iteration;
 
                 article.appendChild(image);
               }
 
               if (
+                !hasGraphViews &&
                 tikzSelected &&
                 (model.graph_pdf_file || model.graph_tikz_file)
               ) {
@@ -840,10 +949,79 @@ defmodule Src.Interface.Ui.Page do
   end
 
   defp copy_model_graphs(model, run_id, assets_dir, html_dir) do
-    [:graph_svg_file, :graph_tikz_file, :graph_pdf_file]
-    |> Enum.reduce(model, fn key, current_model ->
-      copy_model_artifact(current_model, key, run_id, assets_dir, html_dir)
-    end)
+    model =
+      [:graph_svg_file, :graph_tikz_file, :graph_pdf_file]
+      |> Enum.reduce(model, fn key, current_model ->
+        copy_model_artifact(current_model, key, run_id, assets_dir, html_dir)
+      end)
+
+    copy_graph_views(model, run_id, assets_dir, html_dir)
+  end
+
+  defp copy_graph_views(
+         %{graph_views: %{views: views} = graph_views} = model,
+         run_id,
+         assets_dir,
+         html_dir
+       ) do
+    copied_views =
+      Map.new(views, fn {id, view} ->
+        {svg_file, tikz_file} =
+          if id == graph_views.default_view do
+            {model.graph_svg_file, model.graph_tikz_file}
+          else
+            {
+              copy_graph_view_file(
+                view.graph_svg_file,
+                run_id,
+                model.iteration,
+                assets_dir,
+                html_dir
+              ),
+              copy_graph_view_file(
+                view.graph_tikz_file,
+                run_id,
+                model.iteration,
+                assets_dir,
+                html_dir
+              )
+            }
+          end
+
+        {id,
+         %{
+           modalities: view.modalities,
+           graph_svg_file: svg_file,
+           graph_tikz_file: tikz_file
+         }}
+      end)
+
+    Map.put(model, :graph_views, %{
+      filter_keys: graph_views.filter_keys,
+      default_view: graph_views.default_view,
+      views: copied_views
+    })
+  end
+
+  defp copy_graph_views(model, _run_id, _assets_dir, _html_dir), do: model
+
+  defp copy_graph_view_file(source, run_id, iteration, assets_dir, html_dir) do
+    source_id =
+      :crypto.hash(:sha256, source)
+      |> Base.encode16(case: :lower)
+      |> binary_part(0, 12)
+
+    target =
+      Path.join(
+        assets_dir,
+        "#{run_id}-model-#{iteration}-#{source_id}-#{Path.basename(source)}"
+      )
+
+    File.cp!(source, target)
+
+    target
+    |> Path.relative_to(html_dir)
+    |> String.replace("\\", "/")
   end
 
   defp copy_model_artifact(model, key, run_id, assets_dir, html_dir) do

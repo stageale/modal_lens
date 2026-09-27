@@ -94,7 +94,7 @@ run_experiment \
   "05_article36_edstit" \
   "input/AIAct_Article36_EDSTIT.thy" \
   "ed_stit" \
-  "meets_requirements,investigate"
+  "meets_requirements,investigate,designation_suspended,inform_providers"
 
 echo
 echo "All experiments completed."

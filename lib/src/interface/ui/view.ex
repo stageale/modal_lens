@@ -83,6 +83,7 @@ defmodule Src.Interface.Ui.View do
       :graph_svg_file,
       :graph_tikz_file,
       :graph_pdf_file,
+      :graph_views,
       :blocking_axiom
     ])
   end

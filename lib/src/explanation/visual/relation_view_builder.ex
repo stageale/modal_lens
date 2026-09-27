@@ -124,10 +124,18 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
         cond do
           MapSet.member?(seen, edge) ->
             {seen, acc}
+
           source == target ->
             {
               MapSet.put(seen, edge),
-              [ %ViewEdge{source: source, target: target, direction: :forward} | acc ]
+              [
+                %ViewEdge{
+                  source: source,
+                  target: target,
+                  direction: :forward
+                }
+                | acc
+              ]
             }
 
           MapSet.member?(edges, reverse) ->
@@ -152,7 +160,27 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
 
             {
               seen,
-              [ %ViewEdge{source: left, target: right, direction: direction} | acc ]
+              [
+                %ViewEdge{
+                  source: left,
+                  target: right,
+                  direction: direction
+                }
+                | acc
+              ]
+            }
+
+          true ->
+            {
+              MapSet.put(seen, edge),
+              [
+                %ViewEdge{
+                  source: source,
+                  target: target,
+                  direction: :forward
+                }
+                | acc
+              ]
             }
         end
       end
@@ -353,7 +381,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
         else
           MapSet.put(
             acc,
-            {source_component == target_component}
+            {source_component, target_component}
           )
         end
       end

@@ -28,6 +28,7 @@ defmodule Src.Execution.Options do
           atoms: [String.t()],
           auto_atoms?: boolean(),
           cardinalities: [cardinality()],
+          agent_cardinality: pos_integer() | nil,
           max_models: pos_integer(),
           max_parallel_renderers: pos_integer(),
           render_graph?: boolean(),
@@ -53,6 +54,7 @@ defmodule Src.Execution.Options do
             atoms: [],
             auto_atoms?: true,
             cardinalities: [2],
+            agent_cardinality: nil,
             max_models: 10,
             max_parallel_renderers: 1,
             render_graph?: true,
@@ -107,6 +109,7 @@ defmodule Src.Execution.Options do
       atoms: options.atoms,
       auto_atoms?: options.auto_atoms?,
       cardinalities: options.cardinalities,
+      agent_cardinality: options.agent_cardinality,
       max_models: options.max_models,
       max_parallel_renderers: options.max_parallel_renderers,
       render_graph?: options.render_graph?,
@@ -143,6 +146,15 @@ defmodule Src.Execution.Options do
 
       not valid_cardinalities?(options.cardinalities) ->
         {:error, {:invalid_cardinality, options.cardinalities}}
+
+      not is_nil(options.agent_cardinality) and
+          (not is_integer(options.agent_cardinality) or
+             options.agent_cardinality <= 0) ->
+        {:error, {:invalid_agent_cardinality, options.agent_cardinality}}
+
+      not is_nil(options.agent_cardinality) and
+          options.model_logic != :ed_stit ->
+        {:error, {:agent_cardinality_requires_ed_stit, options.model_logic}}
 
       not is_integer(options.max_models) or
           options.max_models <= 0 ->

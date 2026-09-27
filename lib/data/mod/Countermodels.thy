@@ -9,7 +9,7 @@ lemma modal_lens_probe:
     nitpick [
         user_axioms,
         card i = 2,
-        timeout = 60,
+        timeout = 300,
         verbose,
         show_consts,
         dont_specialize,

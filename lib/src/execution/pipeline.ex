@@ -11,6 +11,7 @@ defmodule Src.Execution.Pipeline do
   """
 
   alias Src.Explanation.Verbal.Launcher, as: VerbalLauncher
+  alias Src.Explanation.Visual.GraphViewExport
   alias Src.Explanation.Visual.Highlight
   alias Src.Explanation.Visual.Palette
   alias Src.Explanation.Visual.Render
@@ -105,6 +106,7 @@ defmodule Src.Execution.Pipeline do
       max_models: Map.get(run.params, :max_models, 10),
       output_dir: run.output_dir,
       model_logic: Map.get(run.params, :model_logic, :sdl),
+      agent_cardinality: Map.get(run.params, :agent_cardinality),
       relation: Map.get(run.params, :relation, "R"),
       atoms: Map.get(run.params, :atoms, []),
       auto_atoms: Map.get(run.params, :auto_atoms?, true),
@@ -556,14 +558,39 @@ defmodule Src.Execution.Pipeline do
 
   defp apply_model_highlight(model_result, graph_highlight, render_options, render_graph?) do
     highlight = build_highlight(graph_highlight["highlight"])
+    render_options = Keyword.put(render_options, :highlight, highlight)
 
-    if render_graph? do
-      render_model(model_result, Keyword.put(render_options, :highlight, highlight))
-    end
+    model_result =
+      if render_graph? do
+        render_model(model_result, render_options)
+        refresh_graph_views(model_result, render_options)
+      else
+        model_result
+      end
 
     model_result
     |> Map.put(:cluster_id, graph_highlight["cluster_id"])
     |> Map.put(:highlight, highlight)
+  end
+
+  defp refresh_graph_views(%{graph_views: nil} = model_result, _render_options), do: model_result
+
+  defp refresh_graph_views(model_result, render_options) do
+    graph_views =
+      GraphViewExport.write_all(
+        model_result.model,
+        model_result.output_dir,
+        Keyword.merge(
+          render_options,
+          existing_full: %{
+            graph_dot_file: model_result.graph_dot_file,
+            graph_svg_file: model_result.graph_svg_file,
+            graph_tikz_file: model_result.graph_tikz_file
+          }
+        )
+      )
+
+    Map.put(model_result, :graph_views, graph_views)
   end
 
   defp build_highlight(nil), do: nil
@@ -751,7 +778,7 @@ defmodule Src.Execution.Pipeline do
           {"#{prefix}_graph_tikz", model_result[:graph_tikz_file]},
           {"#{prefix}_graph_pdf", model_result[:graph_pdf_file]},
           {"#{prefix}_blocking_axiom", model_result[:blocking_axiom_file]}
-        ]
+        ] ++ graph_view_artifacts(model_result[:graph_views], prefix)
       end)
 
     verbalization_artifacts =
@@ -794,6 +821,22 @@ defmodule Src.Execution.Pipeline do
           end
       end
     )
+  end
+
+  defp graph_view_artifacts(nil, _prefix), do: []
+
+  defp graph_view_artifacts(%{views: views}, prefix) do
+    views
+    |> Enum.sort_by(fn {id, _view} -> id end)
+    |> Enum.flat_map(fn {id, view} ->
+      name = "#{prefix}_graph_view_#{id}"
+
+      [
+        {"#{name}_dot", view.graph_dot_file},
+        {"#{name}_svg", view.graph_svg_file},
+        {"#{name}_tikz", view.graph_tikz_file}
+      ]
+    end)
   end
 
   defp model_artifact_prefix(model_result, false) do

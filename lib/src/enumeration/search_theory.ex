@@ -41,6 +41,7 @@ defmodule Src.Enumeration.SearchTheory do
     base_theory_path = Path.expand(base_theory_path)
     mode = Keyword.fetch!(opts, :mode)
     cardinality = Keyword.get(opts, :cardinality, 2)
+    agent_cardinality = Keyword.get(opts, :agent_cardinality)
     base_theory_name = Path.basename(base_theory_path, ".thy")
     block_count = length(blocking_axioms)
     theory_name = search_theory_name(base_theory_name, block_count)
@@ -55,6 +56,7 @@ defmodule Src.Enumeration.SearchTheory do
 
     with :ok <- validate_blocking_axioms(blocking_axioms),
          :ok <- validate_cardinality(cardinality),
+         :ok <- validate_agent_cardinality(agent_cardinality),
          {:ok, template} <- read_template(template_path),
          :ok <- ensure_blocking_marker(template, template_path),
          :ok <- ensure_cardinality_entry(template, template_path),
@@ -66,13 +68,15 @@ defmodule Src.Enumeration.SearchTheory do
              base_theory_path,
              theory_dir,
              blocking_axioms,
-             cardinality
+             cardinality,
+             agent_cardinality
            ),
          :ok <- write_theory(theory_path, source) do
       {:ok,
        %{
          mode: mode,
          cardinality: cardinality,
+         agent_cardinality: agent_cardinality,
          theory_name: theory_name,
          theory_path: theory_path,
          template_path: template_path,
@@ -90,7 +94,8 @@ defmodule Src.Enumeration.SearchTheory do
          base_theory_path,
          theory_dir,
          blocking_axioms,
-         cardinality
+         cardinality,
+         agent_cardinality
        ) do
     base_theory_import =
       base_theory_path
@@ -99,10 +104,13 @@ defmodule Src.Enumeration.SearchTheory do
       |> String.replace("\\", "/")
       |> then(&~s("#{&1}"))
 
+    cardinality_source =
+      nitpick_cardinality_source(cardinality, agent_cardinality)
+
     template
     |> String.replace(@search_theory_placeholder, theory_name, global: false)
     |> String.replace(@input_theory_placeholder, base_theory_import, global: false)
-    |> String.replace(@nitpick_cardinality_pattern, "card i = #{cardinality}", global: false)
+    |> String.replace(@nitpick_cardinality_pattern, cardinality_source, global: false)
     |> insert_blocking_axioms(blocking_axioms)
   end
 
@@ -231,6 +239,26 @@ defmodule Src.Enumeration.SearchTheory do
 
   defp validate_cardinality(cardinality) do
     {:error, {:invalid_cardinality, %{expected: :positive_integer, received: cardinality}}}
+  end
+
+  defp validate_agent_cardinality(nil), do: :ok
+
+  defp validate_agent_cardinality(value)
+       when is_integer(value) and value > 0,
+       do: :ok
+
+  defp validate_agent_cardinality(value) do
+    {:error, {:invalid_agent_cardinality, value}}
+  end
+
+  defp nitpick_cardinality_source(cardinality, nil) do
+    "card i = #{cardinality}"
+  end
+
+  defp nitpick_cardinality_source(cardinality, agent_cardinality) do
+    "card i = #{cardinality},\n" <>
+      "        card ag = #{agent_cardinality},\n" <>
+      "        card \"i * i\" = #{cardinality * cardinality}"
   end
 
   defp ensure_cardinality_entry(source, path) do
