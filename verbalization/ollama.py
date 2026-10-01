@@ -138,12 +138,13 @@ class OllamaVerbalizer(Verbalizer):
             "stream": False,
             "format": "json",
             "think": self._reasoning,
+            "keep_alive": 0,
             "options": {
                 "temperature": 0,
                 "top_k": 1,
                 "seed": request.seed,
                 "num_predict": request.max_new_tokens,
-                "num_ctx": 16_384
+                "num_ctx": 8_192
             }
         }
         
@@ -185,7 +186,8 @@ class OllamaVerbalizer(Verbalizer):
                 "temperature": 0,
                 "top_k": 1,
                 "seed": request.seed,
-                "max_new_tokens": request.max_new_tokens
+                "max_new_tokens": request.max_new_tokens,
+                "num_ctx": 8_192
             }
         }
 

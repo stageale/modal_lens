@@ -132,7 +132,7 @@ def test_chat_payload_uses_json_and_greedy_options():
     request = GenerationRequest(
         messages=MESSAGES,
         seed=17,
-        max_new_tokens=256,
+        max_new_tokens=256
     )
 
     payload = verbalizer._chat_payload(request)
@@ -147,7 +147,7 @@ def test_chat_payload_uses_json_and_greedy_options():
         "top_k": 1,
         "seed": 17,
         "num_predict": 256,
-        "num_ctx": 16_384
+        "num_ctx": 8_192
     }
 
 
