@@ -180,73 +180,55 @@ defmodule Src.Execution.Pipeline do
       model_id = Map.fetch!(run.params, :verbalization_model)
 
       backend =
-        Map.get(
-          run.params,
-          :verbalization_backend,
-          "transformers"
-        )
-
-      execution_backend =
-        case backend do
-          "ollama" ->
-            :local
-
-          _other ->
-            Map.get(run.params, :backend, :local)
-        end
+        Map.get(run.params, :verbalization_backend, "transformers")
 
       launcher_options = [
-        execution_backend: execution_backend,
-        project_root: Map.get(run.params, :project_root, File.cwd!()),
-        uv_executable: Map.get(run.params, :uv_executable, "uv"),
+        execution_backend:
+          Map.get(run.params, :backend, :local),
+        project_root:
+          Map.get(run.params, :project_root, File.cwd!()),
+        uv_executable:
+          Map.get(run.params, :uv_executable, "uv"),
         output_name: ".",
-        seed: Map.get(run.params, :verbalization_seed, 42),
-        max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 768),
-        backend_options: Map.get(run.params, :verbalization_backend_options, %{}),
-        verbalization_mode: Map.get(run.params, :verbalization_mode, :grounded),
-        reasoning: Map.get(run.params, :verbalization_reasoning?, false)
+        seed:
+          Map.get(run.params, :verbalization_seed, 42),
+        max_new_tokens:
+          Map.get(run.params, :verbalization_max_new_tokens, 768)
       ]
 
-      clusters
-      |> Enum.reduce_while(
-        {:ok, []},
-        fn cluster, {:ok, cluster_verbs} ->
-          case maybe_verbalize_cluster(
-                 cluster,
-                 report,
-                 run,
-                 backend,
-                 model_id,
-                 launcher_options
-               ) do
+      cluster_verbs =
+        Enum.map(clusters, fn cluster ->
+          case maybe_verbalize_cluster(cluster, report, run, backend, model_id, launcher_options) do
             {:ok, cluster_verb} ->
-              {:cont, {:ok, [cluster_verb | cluster_verbs]}}
+              cluster_verb
+              |> Map.put(:status, :completed)
+              |> Map.put_new(:error, nil)
 
             {:error, reason} ->
-              {:halt, {:error, {:cluster_verbalization_failed, cluster.cluster_id, reason}}}
+              %{
+                cluster_id: cluster.cluster_id,
+                status: :failed,
+                error: inspect(reason),
+                text: nil,
+                notable_patterns: [],
+                evidence: [],
+                limitations: [],
+                metadata: %{
+                  backend: backend,
+                  model_id: model_id
+                },
+                artifacts: %{}
+              }
           end
-        end
-      )
-      |> case do
-        {:ok, cluster_verbs} ->
-          {:ok, Enum.reverse(cluster_verbs)}
+        end)
 
-        {:error, _reason} = error ->
-          error
-      end
+      {:ok, cluster_verbs}
     else
       {:ok, []}
     end
   end
 
-  defp maybe_verbalize_cluster(
-         cluster,
-         report,
-         %Run{} = run,
-         backend,
-         model_id,
-         launcher_options
-       ) do
+  defp maybe_verbalize_cluster(cluster, report, %Run{} = run, backend, model_id, launcher_options) do
     cluster_id = cluster.cluster_id
 
     report_cluster =
