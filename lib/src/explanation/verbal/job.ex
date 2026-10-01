@@ -6,7 +6,7 @@ defmodule Src.Explanation.Verbal.Job do
   @request_schema "modal-lens/verbalization-request"
   @request_schema_version "1.0"
   @default_seed 42
-  @default_max_new_tokens 768
+  @default_max_new_tokens 4096
   @default_verbalization_mode :grounded
   @default_reasoning false
 
@@ -120,12 +120,12 @@ defmodule Src.Explanation.Verbal.Job do
     Path.join(output_directory, "verbalization_request.json")
   end
 
-  defp validate_backend(backend) when backend in ["transformers", "ollama"] do
+  defp validate_backend(backend) when backend in ["transformers", "ollama", "openai"] do
     :ok
   end
 
   defp validate_backend(_backend) do
-    {:error, {:invalid_backend, ["transformers", "ollama"]}}
+    {:error, {:invalid_backend, ["transformers", "ollama", "openai"]}}
   end
 
   defp validate_string(value, field) when is_binary(value) and byte_size(value) > 0 do

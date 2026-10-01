@@ -30,6 +30,8 @@ defmodule Src.Interface.CLI do
     graph_format: :string,
     palette: :string,
     verbalize: :boolean,
+    verbalization_backend: :string,
+    verbalization_model: :string,
     verbalization_model: :string,
     verbalization_mode: :string,
     verbalization_reasoning: :string,
@@ -153,7 +155,7 @@ defmodule Src.Interface.CLI do
                                               Default: off.
 
       --verbalization-max-new-tokens N        Maximum generated tokens, including model reasoning.
-                                              Default: 768.
+                                              Default: 4096.
     """)
 
     0
@@ -259,7 +261,7 @@ defmodule Src.Interface.CLI do
         project_root: Map.get(run.params, :project_root, File.cwd!()),
         uv_executable: Map.get(run.params, :uv_executable, "uv"),
         seed: Map.get(run.params, :verbalization_seed, 42),
-        max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 768),
+        max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 4096),
         backend_options: Map.get(run.params, :verbalization_backend_options, %{}),
         verbalization_mode: Map.get(run.params, :verbalization_mode, :grounded),
         reasoning: Map.get(run.params, :verbalization_reasoning?, false)
@@ -582,6 +584,7 @@ defmodule Src.Interface.CLI do
             graph_format: :graph_format,
             palette: :palette,
             verbalize: :verbalize?,
+            verbalization_backend: :verbalization_backend,
             verbalization_model: :verbalization_model,
             verbalization_mode: :verbalization_mode,
             verbalization_reasoning: :verbalization_reasoning?,

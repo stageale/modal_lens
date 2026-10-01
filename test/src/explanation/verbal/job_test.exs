@@ -40,7 +40,7 @@ defmodule Src.Explanation.Verbal.JobTest do
   test "uses reproducible defaults" do
     assert {:ok, job} = Job.new("ollama", "model", "report.json", "out")
     assert job.seed == 42
-    assert job.max_new_tokens == 768
+    assert job.max_new_tokens == 4096
     assert job.backend_options == %{}
     assert job.verbalization_mode == :grounded
     refute job.reasoning

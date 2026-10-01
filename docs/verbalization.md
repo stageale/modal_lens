@@ -108,7 +108,7 @@ The default request uses:
 
 ```text
 seed = 42
-max_new_tokens = 768
+max_new_tokens = 4096
 ```
 
 The provenance artifact records hashes of:

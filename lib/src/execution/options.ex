@@ -9,9 +9,9 @@ defmodule Src.Execution.Options do
   @graph_formats [:svg, :tikz]
   @backends [:local, :hpc_connect]
   @default_palette Palette.default()
-  @verbalization_backends ["transformers", "ollama"]
+  @verbalization_backends ["transformers", "ollama", "openai"]
   @verbalization_modes [:grounded, :interpretive]
-  @default_verbalization_max_new_tokens 768
+  @default_verbalization_max_new_tokens 4096
 
   @type model_logic :: :sdl | :ddl
   @type graph_format :: :svg | :tikz
@@ -389,7 +389,7 @@ defmodule Src.Execution.Options do
   defp normalize_attrs(_attrs), do: {:error, :invalid_options}
 
   @spec normalize_verbalization_backend(term()) :: {:ok, String.t()} | {:error, term()}
-  defp normalize_verbalization_backend(backend) when backend in [:transformers, :ollama] do
+  defp normalize_verbalization_backend(backend) when backend in [:transformers, :ollama, :openai] do
     {:ok, Atom.to_string(backend)}
   end
 

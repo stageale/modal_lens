@@ -190,7 +190,7 @@ defmodule Src.Execution.Pipeline do
         uv_executable: Map.get(run.params, :uv_executable, "uv"),
         output_name: ".",
         seed: Map.get(run.params, :verbalization_seed, 42),
-        max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 768),
+        max_new_tokens: Map.get(run.params, :verbalization_max_new_tokens, 4096),
         backend_options: Map.get(run.params, :verbalization_backend_options, %{}),
         verbalization_mode: Map.get(run.params, :verbalization_mode, :grounded),
         reasoning: Map.get(run.params, :verbalization_reasoning?, false)
