@@ -198,6 +198,73 @@ defmodule Src.EnumerationTest do
     assert cardinality_3.model_count == 3
   end
 
+  test "continues with the next cardinality after a timeout" do
+    dir = tmp_dir("timeout_continue")
+
+    isabelle =
+      write_executable(
+        dir,
+        "isabelle",
+        ~S"""
+        theory=""
+
+        for argument in "$@"; do
+          if [ -f "$argument" ] && grep -q 'card i = ' "$argument"; then
+            theory="$argument"
+          fi
+        done
+
+        if grep -q 'card i = 2' "$theory"; then
+          blocking_count=$(
+            grep -c 'Automatically generated blocking axiom' "$theory" ||
+              true
+          )
+
+          if [ "$blocking_count" -ge 1 ]; then
+            printf 'Nitpick ran out of time\n'
+          else
+            printf 'Nitpick found a counterexample for card i = 2:\n'
+          fi
+
+          exit 0
+        fi
+
+        if grep -q 'card i = 3' "$theory"; then
+          printf 'Nitpick found a counterexample for card i = 3:\n'
+          exit 0
+        fi
+        """
+      )
+
+    base_theory =
+      write_theory(dir, "Timeout_Continue")
+
+    assert {:ok, result} =
+             Enumeration.enumerate(base_theory,
+               mode: :countermodels,
+               model_logic: :sdl,
+               cardinalities: [2, 3],
+               max_models: 2,
+               render_graph: false,
+               output_dir: Path.join(dir, "out"),
+               isabelle_bin: isabelle
+             )
+
+    assert result.status == :partial_timeout
+
+    assert [cardinality_2, cardinality_3] =
+             result.cardinality_results
+
+    assert cardinality_2.status == :timed_out
+    assert cardinality_2.model_count == 1
+
+    assert cardinality_3.status == :max_models_reached
+    assert cardinality_3.model_count == 2
+
+    assert Enum.map(result.models, & &1.cardinality) ==
+             [2, 3, 3]
+  end
+
   defp write_theory(dir, name) do
     path = Path.join(dir, "#{name}.thy")
     File.write!(path, "theory #{name}\nimports Main\nbegin\nend\n")

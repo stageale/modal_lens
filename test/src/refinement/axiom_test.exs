@@ -11,10 +11,10 @@ defmodule Src.Refinement.AxiomTest do
     expected = ~S"""
     \<exists>u1 u2.
       distinct [u1, u2] \<and>
-      \<not> (R u1 u1) \<and>
-      R u1 u2 \<and>
-      \<not> (R u2 u1) \<and>
-      \<not> (R u2 u2) \<and>
+      \<not> ((R) u1 u1) \<and>
+      (R) u1 u2 \<and>
+      \<not> ((R) u2 u1) \<and>
+      \<not> ((R) u2 u2) \<and>
       p u1 \<and>
       \<not> (q u1) \<and>
       \<not> (p u2) \<and>
@@ -37,7 +37,7 @@ defmodule Src.Refinement.AxiomTest do
     formula = Axiom.occurrence_formula(candidate)
     assert formula =~ ~S(\<exists>u1 u2 u3.)
     assert formula =~ "distinct [u1, u2, u3]"
-    assert length(Regex.scan(~r/R u[123] u[123]/, formula)) == 9
+    assert length(Regex.scan(~r/\(R\) u[123] u[123]/, formula)) == 9
     refute formula =~ ~S(\<forall>)
   end
 

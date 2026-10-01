@@ -62,6 +62,17 @@ defmodule Src.Enumeration.Iteration do
          {:ok, parsed_result} <-
            parse_nitpick_result(isabelle_run.output_file, opts) do
       case parsed_result do
+        :timeout ->
+          {:ok,
+            timeout_result(
+              base_theory_file,
+              isabelle_run,
+              output_dir,
+              iteration,
+              opts
+            )
+          }
+
         :no_result ->
           {:ok,
            no_model_result(
@@ -102,20 +113,26 @@ defmodule Src.Enumeration.Iteration do
 
     case File.read(path) do
       {:ok, text} ->
-        if no_nitpick_model?(text, mode) do
-          {:ok, :no_result}
-        else
-          parse_model_text(text, path, opts)
+        cond do
+          nitpick_timeout?(text) -> {:ok, :timeout}
+
+          no_nitpick_model?(text, mode) -> {:ok, :no_result}
+
+          true -> parse_model_text(text, path, opts)
         end
 
       {:error, reason} ->
         {:error,
-         {:cannot_read_nitpic_output,
+         {:cannot_read_nitpick_output,
           %{
             file: path,
             reason: reason
           }}}
     end
+  end
+
+  defp nitpick_timeout?(text) do
+    String.contains?(text, "Nitpick ran out of time")
   end
 
   defp no_nitpick_model?(text, :countermodels) do
@@ -355,6 +372,22 @@ defmodule Src.Enumeration.Iteration do
       blocking_axiom: artifacts.blocking_axiom,
       blocking_axiom_file: artifacts.blocking_axiom_file,
       highlight: Keyword.get(opts, :highlight)
+    })
+  end
+
+  defp timeout_result(base_theory_file, isabelle_run, output_dir, iteration, opts) do
+    result_metadata(base_theory_file, isabelle_run, output_dir, iteration, opts)
+    |> Map.merge(%{
+      status: :timeout,
+      model: nil,
+      graph_dot_file: nil,
+      graph_svg_file: nil,
+      graph_tikz_file: nil,
+      graph_pdf_file: nil,
+      graph_views: nil,
+      model_json_file: nil,
+      blocking_axiom: nil,
+      blocking_axiom_file: nil
     })
   end
 

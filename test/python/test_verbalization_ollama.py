@@ -147,6 +147,7 @@ def test_chat_payload_uses_json_and_greedy_options():
         "top_k": 1,
         "seed": 17,
         "num_predict": 256,
+        "num_ctx": 16_384
     }
 
 

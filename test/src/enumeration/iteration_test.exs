@@ -67,6 +67,34 @@ defmodule Src.Enumeration.IterationTest do
     assert File.read!(result.nitpick_output_file) =~ "Nitpick found no counterexample"
   end
 
+  test "returns a terminal timeout result" do
+    dir = tmp_dir("timeout")
+    theory = write_theory(dir, "Timeout")
+
+    isabelle =
+      write_executable(
+        dir,
+        "fake_isabelle",
+        "cat <<'OUT'\nNitpick ran out of time\nOUT\n"
+      )
+
+    assert {:ok, result} =
+             Iteration.run(theory,
+               mode: :countermodels,
+               isabelle_bin: isabelle,
+               output_dir: Path.join(dir, "out")
+             )
+
+    assert result.status == :timeout
+    assert result.cardinality == 2
+    assert result.model == nil
+    assert result.blocking_axiom == nil
+    assert result.model_json_file == nil
+
+    assert File.read!(result.nitpick_output_file) =~
+             "Nitpick ran out of time"
+  end
+
   test "writes a versioned model artifact and can suppress graph rendering" do
     dir = tmp_dir("model")
     theory = write_theory(dir, "Model_Result")

@@ -96,7 +96,10 @@ defmodule Src.Enumeration do
           {:ok, result} ->
             next_carried_budget =
               if carry_model_budget? do
-                max(cardinality_budget - result.model_count, 0)
+                case result.status do
+                  :exhausted -> max(cardinality_budget - result.model_count, 0)
+                  _ -> 0
+                end
               else
                 0
               end
@@ -208,6 +211,19 @@ defmodule Src.Enumeration do
       )
 
     case Iteration.run(current_theory_path, iteration_opts) do
+      {:ok, %{status: :timeout} = terminal_iteration} ->
+        terminal_iteration = Map.put(terminal_iteration, :cardinality, cardinality)
+
+        {:ok,
+          enumeration_result(
+            :timed_out,
+            base_theory_path,
+            output_root,
+            completed_models,
+            terminal_iteration,
+            cardinality
+          )
+        }
       {:ok, %{status: status} = terminal_iteration}
       when status in [:no_countermodel, :no_model] ->
         terminal_iteration = Map.put(terminal_iteration, :cardinality, cardinality)
@@ -338,12 +354,18 @@ defmodule Src.Enumeration do
       |> Enum.map(& &1.terminal_iteration)
       |> Enum.reject(&is_nil/1)
 
+    timed_out_cardinalities =
+      cardinality_results
+      |> Enum.filter(&(&1.status == :timed_out))
+      |> Enum.map(& &1.cardinality)
+
     %{
-      status: overall_enumeration_status(length(models), total_model_target),
+      status: overall_enumeration_status(cardinality_results, length(models), total_model_target),
       target_model_count: total_model_target,
       base_theory_file: base_theory_path,
       output_dir: output_root,
       model_count: length(models),
+      timed_out_cardinalities: timed_out_cardinalities,
       models: models,
       svg_files: merge_artifact_files(cardinality_results, :svg_files),
       tikz_files: merge_artifact_files(cardinality_results, :tikz_files),
@@ -364,19 +386,14 @@ defmodule Src.Enumeration do
     Enum.flat_map(results, &Map.get(&1, key, []))
   end
 
-  defp overall_enumeration_status(
-         model_count,
-         total_model_target
-       )
-       when model_count >= total_model_target do
-    :max_models_reached
-  end
+  defp overall_enumeration_status(cardinality_results, model_count, total_model_target) do
+    cond do
+      Enum.any?(cardinality_results, &(&1.status == :timed_out)) -> :partial_timeout
 
-  defp overall_enumeration_status(
-         _model_count,
-         _total_model_target
-       ) do
-    :exhausted
+      model_count >= total_model_target -> :max_models_reached
+
+      true -> :exhausted
+    end
   end
 
   defp cardinality_output_dir(output_root, _cardinality, [_single_cardinality]) do
