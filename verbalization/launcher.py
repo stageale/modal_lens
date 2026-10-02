@@ -116,7 +116,7 @@ def _prepare_job(config_path: str | Path) -> dict[str, Any]:
         "report": report,
         "output_directory": output_directory,
         "seed": job.get("seed", 42),
-        "max_new_tokens": job.get("max_new_tokens", 768)
+        "max_new_tokens": job.get("max_new_tokens", 4096)
     }
     
 def _validate_report(report: Mapping[str, Any]) -> None:

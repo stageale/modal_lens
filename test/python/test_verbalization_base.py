@@ -40,7 +40,7 @@ def test_generation_request_uses_reproducible_defaults():
     request = GenerationRequest(messages=MESSAGES)
 
     assert request.seed == 42
-    assert request.max_new_tokens == 768
+    assert request.max_new_tokens == 4096
     assert request.decoding == "greedy"
 
 

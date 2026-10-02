@@ -150,7 +150,7 @@ The Isabelle integration resolves the import from the base theory; `E.thy` is no
 #### Enable verbalization
 
 Verbalization is enabled by default in the demo workflow. Omit `--no-verbalize` and optionally select a model:
-
+ç
 ```
 ./modal_lens demo examples/input/Chisholm.thy \
   -o out/demo/sdl_verbalized \
@@ -326,7 +326,7 @@ For evaluation runs; preserve the complete output directory together with the so
 
 ModalLens is an active research prototype. The following limitations are intentional and should be considered when interpreting its output:
 
-* model search is bounded by the configured Nitpic scope;
+* model search is bounded by the configured Nitpick scope;
 * current model parsers target the supported SDL and DDL representations;
 * graph clusters and mined patterns are diagnostic summaries, not logical proofs;
 + optional language-model summaries may require manual review;

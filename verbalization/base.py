@@ -9,7 +9,7 @@ from typing import Any, Literal
 class GenerationRequest:
     messages: tuple[Mapping[str, str], ...]
     seed: int = 42
-    max_new_tokens: int = 768
+    max_new_tokens: int = 4096
     decoding: Literal["greedy"] = "greedy"
     
     def __post_init__(self) -> None:

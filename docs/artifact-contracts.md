@@ -134,7 +134,7 @@ Elixir validates the envelope and then opens `report_path`. It does not accept a
   "report_path": "/absolute/path/report.json",
   "output_directory": "/absolute/path/verbalization/cluster-0",
   "seed": 42,
-  "max_new_tokens": 768,
+  "max_new_tokens": 4096,
   "backend_options": {}
 }
 ```
@@ -171,7 +171,7 @@ The model-generated content is parsed and validated before this artifact is writ
   "backend": "transformers",
   "model_id": "HuggingFaceTB/SmolLM3-3B",
   "seed": 42,
-  "max_new_tokens": 768,
+  "max_new_tokens": 4096,
   "verbalization_facts_sha256": "...",
   "messages_sha256": "...",
   "raw_output_sha256": "...",

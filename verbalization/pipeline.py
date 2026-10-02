@@ -93,7 +93,7 @@ def run_verbalization(
         verbalizer: Verbalizer,
         *,
         seed: int = 42,
-        max_new_tokens: int = 768,
+        max_new_tokens: int = 4096,
         verbalization_mode: str = "grounded",
         reasoning: bool = False,
     ) -> dict[str, Any]:
@@ -119,6 +119,11 @@ def run_verbalization(
     ]
 
     invalid_raw_output: str | None = None
+
+    print("=== RAW MODEL OUTPUT ===")
+    print(repr(generation.raw_text))
+    print("=== END RAW MODEL OUTPUT ===")
+
     try:
         summary = parse_and_validate_summary_json(generation.raw_text, verbalization_facts=verbalization_facts)
     except SummarySchemaError as error:

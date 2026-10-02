@@ -22,7 +22,7 @@ defmodule Src.Execution.OptionsTest do
     assert options.verbalization_model == "HuggingFaceTB/SmolLM3-3B"
     assert options.verbalization_mode == :grounded
     refute options.verbalization_reasoning?
-    assert options.verbalization_max_new_tokens == 768
+    assert options.verbalization_max_new_tokens == 4096
   end
 
   test "normalizes safe string enums without creating atoms" do
