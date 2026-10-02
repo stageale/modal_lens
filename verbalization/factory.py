@@ -19,14 +19,10 @@ def create_verbalizer(
         device: str = "auto", 
         torch_dtype: Any = "auto",
         ollama_base_url: str = "http://localhost:11434",
-<<<<<<< HEAD
-        ollama_timeout: float = 1800.0, 
-=======
         ollama_timeout: float = 300.0,
         openai_api_key: str | None = None,
         openai_base_url: str | None = None,
         openai_timeout: float = 300.0,
->>>>>>> feature/openAI-LLM
         reasoning: bool = False
     ) -> Verbalizer:
     if not isinstance(reasoning, bool):
