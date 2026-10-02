@@ -124,7 +124,7 @@ defmodule Src.Execution.PipelineTest do
           esac
         done
         cat > "$output" <<'JSON'
-        {"schema":"modal-lens/analysis-report","schema_version":"1.1","analysis":{"model_count":1,"cluster_count":1,"reported_pattern_count":0,"refinement_candidate_count":0,"signature":{"atoms":[],"relation":"R"}},"refinement_candidates":[],"clusters":[{"cluster_id":0,"model_count":1,"model_fraction":1.0,"model_indices":[0],"characteristic_patterns":[],"representative_model":{"graph_index":0}}],"highlights":[{"graph_index":0,"model_id":"model-001","cluster_id":0,"highlight":null}]}
+        {"schema":"modal-lens/analysis-report","schema_version":"1.1","analysis":{"model_count":1,"cluster_count":1,"reported_pattern_count":0,"refinement_candidate_count":0,"signature":{"atoms":[],"relation":"R"}},"refinement_candidates":[],"clusters":[{"cluster_id":0,"model_count":1,"model_fraction":1.0,"model_indices":[0],"characteristic_patterns":[],"representative_model":{"graph_index":0}}],"highlights":[{"graph_index":0,"model_id":"model-001","cluster_id":0,"highlight":null,"highlight_status":"no_characteristic_pattern"}]}
         JSON
         printf '{"schema":"modal-lens/graph-analysis-result","schema_version":"1.0","status":"completed","report_path":"%s","model_count":1,"cluster_count":1,"include_cardinality_feature":true}\n' "$output"
         """
@@ -155,6 +155,7 @@ defmodule Src.Execution.PipelineTest do
     assert {:ok, _completed_run, result} = Pipeline.run_theory(run, theory)
     assert File.read!(Path.join(root, "uv.calls")) =~ "--cardinality-feature"
     assert result.graph_analysis["include_cardinality_feature"] == true
+    assert hd(result.models).highlight_status == "no_characteristic_pattern"
   end
 
   defp write_executable(root, name, body) do

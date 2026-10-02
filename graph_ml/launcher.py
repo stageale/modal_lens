@@ -185,6 +185,11 @@ def _pattern_highlights(graphs, cluster_labels, pattern_results):
         cluster_label = int(cluster_labels[graph_index])
         patterns = pattern_results.get(cluster_label, ())
         highlight = None
+        highlight_status = (
+            "no_characteristic_pattern"
+            if not patterns
+            else "no_occurrence_in_model"
+        )
 
         for pattern in patterns:
             occurrences = pattern.get(
@@ -231,6 +236,7 @@ def _pattern_highlights(graphs, cluster_labels, pattern_results):
                     ),
                 },
             }
+            highlight_status = "applied"
 
             break
 
@@ -240,6 +246,7 @@ def _pattern_highlights(graphs, cluster_labels, pattern_results):
                 "model_id": graph.graph["model_id"],
                 "cluster_id": cluster_label,
                 "highlight": highlight,
+                "highlight_status": highlight_status,
             }
         )
 

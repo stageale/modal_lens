@@ -8,6 +8,7 @@ import networkx as nx
 from graph_ml.launcher import (
     _analysis_feature_vector,
     _analysis_model_id,
+    _pattern_highlights,
     launch_analysis,
 )
 
@@ -132,3 +133,25 @@ def test_analysis_model_id_disambiguates_cardinalities() -> None:
         )
         == "model-001"
     )
+
+
+def test_pattern_highlights_explain_absent_evidence_and_select_existing_occurrences():
+    graphs = [nx.DiGraph([(0, 1)]) for _ in range(3)]
+    for index, graph in enumerate(graphs):
+        graph.graph["model_id"] = f"model-{index}"
+    patterns = {1: [{
+        "occurrences": {2: [(0, 1)]},
+        "contrast": 0.75,
+        "cluster_support": 0.5,
+    }]}
+
+    highlights = _pattern_highlights(graphs, [0, 1, 1], patterns)
+
+    assert [item["highlight_status"] for item in highlights] == [
+        "no_characteristic_pattern", "no_occurrence_in_model", "applied"
+    ]
+    assert highlights[0]["highlight"] is None
+    assert highlights[1]["highlight"] is None
+    assert highlights[2]["highlight"]["world_scores"] == [
+        {"world": 0, "score": 1.0}, {"world": 1, "score": 1.0}
+    ]

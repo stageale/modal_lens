@@ -29,6 +29,7 @@ defmodule Src.Interface.Ui.ViewTest do
               model_summary: %{cardinality: 1},
               worlds: [0],
               warnings: [],
+              highlight_status: "no_characteristic_pattern",
               graph_svg_file: "/tmp/model.svg",
               blocking_axiom: "not model",
               model: :internal
@@ -50,6 +51,7 @@ defmodule Src.Interface.Ui.ViewTest do
     [model] = view.result.clusters |> hd() |> Map.fetch!(:models)
     refute Map.has_key?(model, :model)
     assert model.model_summary == %{cardinality: 1}
+    assert model.highlight_status == "no_characteristic_pattern"
   end
 
   test "returns variants in execution order" do

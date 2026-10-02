@@ -710,6 +710,17 @@ defmodule Src.Interface.Ui.Page do
               heading.textContent = "Model " + model.iteration;
               article.appendChild(heading);
 
+              const highlightStatus = model.highlight_status;
+              if (highlightStatus === "no_characteristic_pattern" ||
+                  highlightStatus === "no_occurrence_in_model") {
+                const note = document.createElement("p");
+                note.className = "muted";
+                note.textContent = highlightStatus === "no_characteristic_pattern"
+                  ? "No highlight: no pattern meets the support and contrast thresholds in this cluster."
+                  : "No highlight: this model contains none of its cluster's characteristic patterns.";
+                article.appendChild(note);
+              }
+
               const tikzSelected =
                 variant.options.graph_format === "tikz";
 
@@ -1030,18 +1041,8 @@ defmodule Src.Interface.Ui.Page do
         model
 
       source ->
-        target =
-          Path.join(
-            assets_dir,
-            "#{run_id}-model-#{model.iteration}-#{Path.basename(source)}"
-          )
-
-        File.cp!(source, target)
-
         relative_path =
-          target
-          |> Path.relative_to(html_dir)
-          |> String.replace("\\", "/")
+          copy_graph_view_file(source, run_id, model.iteration, assets_dir, html_dir)
 
         Map.put(model, key, relative_path)
     end

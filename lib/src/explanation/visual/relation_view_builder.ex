@@ -3,7 +3,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
   Builds visualization relations from interpreted modal relations.
 
   The logical model remains unchanged. A relation view copies the original
-  accessibility relation and dervies presentation from it.
+  accessibility relation and derives presentation from it.
 
   Structural properties are always computed on the original relation, never
   on an already simplified visualization.
@@ -22,8 +22,9 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
   By default, the modality kind is used as its filter key. This can be
   overridden when a future multimodal logic wants to expose a different grouping to the visualization frontend.
 
-  No visualization reduction is performed here yet: every original edge is
-  initially represented by one directed `ViewEdge`.
+  Reflexive and transitive edges may be reduced for presentation. Every
+  reciprocal pair is drawn without arrowheads, including pairs inside a
+  relation that is not globally symmetric.
   """
   @spec build(Modality.t(), Enumerable.t(), keyword()) :: RelationView.t()
   def build(%Modality{} = modality, worlds, opts \\ []) do
@@ -113,7 +114,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
     edges
   end
 
-  defp collapse_reciprocal_edges(edges, %{symmetric: globally_symmetric?}) do
+  defp collapse_reciprocal_edges(edges, _properties) do
     edges
     |> Enum.sort()
     |> Enum.reduce(
@@ -146,13 +147,6 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
                 {target, source}
               end
 
-            direction =
-              if globally_symmetric? do
-                :undirected
-              else
-                :both
-              end
-
             seen =
               seen
               |> MapSet.put(edge)
@@ -164,7 +158,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
                 %ViewEdge{
                   source: left,
                   target: right,
-                  direction: direction
+                  direction: :undirected
                 }
                 | acc
               ]
@@ -332,14 +326,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
     end
   end
 
-  defp internal_component_generator(component, properties) do
-    direction =
-      if properties.symmetric do
-        :undirected
-      else
-        :both
-      end
-
+  defp internal_component_generator(component, _properties) do
     component
     |> Enum.sort()
     |> Enum.chunk_every(2, 1, :discard)
@@ -347,7 +334,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilder do
       %ViewEdge{
         source: source,
         target: target,
-        direction: direction
+        direction: :undirected
       }
     end)
   end

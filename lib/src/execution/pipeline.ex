@@ -553,6 +553,7 @@ defmodule Src.Execution.Pipeline do
     model_result
     |> Map.put(:cluster_id, graph_highlight["cluster_id"])
     |> Map.put(:highlight, highlight)
+    |> Map.put(:highlight_status, graph_highlight["highlight_status"])
   end
 
   defp refresh_graph_views(%{graph_views: nil} = model_result, _render_options), do: model_result

@@ -112,8 +112,8 @@ defmodule Src.Explanation.Visual.GraphView do
       * `:forward` represents one directed edge,
       * `:both` represents a reciprocal pair collapsed into one edge with
         arrowheads at both ends,
-      * `:undirected` is available when a relation is globally symmetric and
-        direction no longer needs to be rendered explicitly.
+      * `:undirected` represents a reciprocal pair without arrowheads,
+        including local pairs in relations that are not globally symmetric.
     """
 
     @type direction :: :forward | :both | :undirected

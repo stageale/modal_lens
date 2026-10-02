@@ -164,7 +164,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilderTest do
   end
 
   describe "reciprocal edge reduction" do
-    test "collapses a local reciprocal pair to a bidirectional view edge" do
+    test "collapses a local reciprocal pair to an undirected view edge" do
       modality =
         belief_modality(
           "R",
@@ -184,7 +184,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilderTest do
       refute view.properties.symmetric
 
       assert edge_tuples(view) == [
-               {0, 1, :both},
+               {0, 1, :undirected},
                {1, 2, :forward}
              ]
     end
@@ -311,7 +311,7 @@ defmodule Src.Explanation.Visual.RelationViewBuilderTest do
              }
 
       assert edge_tuples(view) == [
-               {0, 1, :both},
+               {0, 1, :undirected},
                {0, 2, :forward},
                {2, 3, :forward}
              ]

@@ -80,6 +80,7 @@ defmodule Src.Interface.Ui.View do
       :model_summary,
       :worlds,
       :warnings,
+      :highlight_status,
       :graph_svg_file,
       :graph_tikz_file,
       :graph_pdf_file,

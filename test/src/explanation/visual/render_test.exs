@@ -161,6 +161,28 @@ defmodule Src.Explanation.Visual.RenderTest do
     refute content =~ "ought (provider)"
   end
 
+  test "renders local reciprocal ED-STIT pairs without arrowheads in DOT and TikZ" do
+    model = %EDSTITModel{
+      cardinality: 3,
+      actual_world: 0,
+      agents: ["provider"],
+      modalities: [
+        Modality.new!("RBel", :belief, [{0, 1}, {1, 0}, {1, 2}], agent: "provider")
+      ],
+      valuations: %{"p" => [true, false, false]}
+    }
+
+    dot = model |> Render.write_dot(tmp_path("local_reciprocal.dot")) |> File.read!()
+    tikz = model |> Render.write_tikz(tmp_path("local_reciprocal.tex")) |> File.read!()
+
+    assert dot =~ ~s(w0 -> w1 [color="#1F77B4", style="dotted", dir="none")
+    assert dot =~ ~s(w1 -> w2 [color="#1F77B4", style="dotted", dir="forward")
+    refute dot =~ ~s(dir="both")
+    assert tikz =~ ~S|\path[-,dotted,draw=agent0] (w0) edge (w1)|
+    assert tikz =~ ~S|\path[->,dotted,draw=agent0] (w1) edge (w2)|
+    refute tikz =~ "<->"
+  end
+
   test "highlights ED-STIT worlds and simplified relation edges" do
     model = %EDSTITModel{
       kind: :countermodel,
