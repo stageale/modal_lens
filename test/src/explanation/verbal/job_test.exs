@@ -47,7 +47,7 @@ defmodule Src.Explanation.Verbal.JobTest do
   end
 
   test "rejects invalid request values" do
-    assert {:error, {:invalid_backend, ["transformers", "ollama"]}} =
+    assert {:error, {:invalid_backend, ["transformers", "ollama", "openai"]}} =
              Job.new("other", "model", "report.json", "out")
 
     assert {:error, {:invalid_string, :model_id}} =
